@@ -175,6 +175,47 @@ class MidRunOom(unittest.TestCase):
         self.assertIn("Segundo trecho.", calls[1][1]["initial_prompt"])  # com o texto anterior como contexto
 
 
+class RetryReleasesModel(unittest.TestCase):
+    """Revisão do Codex: o modelo que falhou tem de sair da memória antes de o substituto ser criado (na RTX 3060,
+    sem isto, a recarga começava com ~2 GB a menos de VRAM)."""
+
+    def test_failed_model_is_released_before_replacement_loads(self):
+        import weakref
+        from types import SimpleNamespace as N
+
+        class Model:  # o Whisper real segura VRAM enquanto existir uma referência
+            pass
+
+        made, alive_at_load = [], []
+
+        def fake_model(name, device):
+            alive_at_load.append([r() is not None for r in made])  # algum modelo anterior ainda vivo?
+            if len(made) == 1:
+                made.append(weakref.ref(Model()))
+                raise RuntimeError("CUDA failed with error out of memory")  # a própria recarga falha
+            m = Model()
+            made.append(weakref.ref(m))
+            return m
+
+        def fake_segments(model, samples, check, opts):  # como o real: o gerador guarda o modelo no frame
+            if len(made) == 1:
+                yield N(start=0.0, end=4.0, text="Antes da falha.", avg_logprob=-0.2), N(language="pt")
+                raise RuntimeError("CUDA failed with error out of memory")
+            yield N(start=0.0, end=3.0, text="Depois da falha.", avg_logprob=-0.2), N(language="pt")
+
+        samples = [0.0] * (16000 * 10)
+        with mock.patch.object(transcribe, "has_gpu", return_value=True), \
+                mock.patch.object(transcribe, "_vram", return_value=(9.0, 3.2)), \
+                mock.patch.object(transcribe, "_model", new=fake_model), \
+                mock.patch.object(transcribe, "_segments", new=fake_segments), \
+                mock.patch.object(transcribe, "_loaded_compute", return_value="int8"):  # new=: um Mock guardaria o modelo
+            r = transcribe._run(samples, "large-v3", lambda *a: None, lambda: None, 10.0, 1.0, 1.0, False,
+                                release=lambda: True)
+        self.assertEqual(alive_at_load, [[], [False], [False, False]])  # GPU → GPU (falha ao carregar) → CPU
+        self.assertEqual(r["device"], "cpu")
+        self.assertEqual([s["text"] for s in r["segments"]], ["Antes da falha.", "Depois da falha."])
+
+
 class Speeds(unittest.TestCase):
     def test_4x_always_turbo_and_experimental(self):
         with mock.patch.object(transcribe, "downloaded", return_value=True):

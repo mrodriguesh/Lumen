@@ -402,7 +402,13 @@ def _run(samples, name, progress, check, duration, factor, scale, second, opts=N
         devices.insert(1, "cuda")  # GPU encheu no meio: libera o Ollama e continua na GPU antes de ir para a CPU
     segs, info, at = [], None, 0.0  # `at`: até onde (s, áudio processado) já foi transcrito; nunca se perde
     total = len(samples) / audio.SR
+    model = None
     for i, device in enumerate(devices):
+        if i:  # nova tentativa: o modelo que falhou sai da VRAM ANTES de carregar o substituto (medido na RTX 3060:
+            model = None  # sem isto, ~2 GB do large-v3 continuavam presos e os dois precisavam caber juntos)
+            _loaded.clear()
+            import gc
+            gc.collect()  # o traceback da falha e o gerador do Whisper podem formar ciclos que seguram o modelo
         try:
             model = _model(name, device)
             t0, base = time.monotonic(), at
@@ -437,7 +443,6 @@ def _run(samples, name, progress, check, duration, factor, scale, second, opts=N
         except RuntimeError as e:
             # Falha de CUDA (DLL ausente, VRAM cheia): libera memória e continua de onde parou (GPU, depois CPU).
             if device == "cuda" and i + 1 < len(devices):
-                _loaded.clear()
                 if devices[i + 1] == "cuda" and not release():
                     devices[i + 1] = "cpu"  # nada a liberar: tentar a GPU de novo daria o mesmo erro
                 continue
