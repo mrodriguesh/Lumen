@@ -1009,6 +1009,7 @@ if (!host) window.addEventListener("pagehide", () => navigator.sendBeacon("/api/
       lastSpec = S.job.spec; $("#compose").hidden = true; showReview(S.job.result);
     }
     if (S.job.status === "running") {
+      if (S.job.spec) lastSpec = S.job.spec;
       if (S.job.kind === "process") { $("#compose").hidden = true; $("#run").hidden = false; }
       poll();
     }

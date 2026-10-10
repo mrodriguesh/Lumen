@@ -157,12 +157,18 @@ def process(spec):
             (work / f).unlink(missing_ok=True)
 
     tr = _load(work / "transcript.json")
+    if src.get("captions"):
+        cap = hashlib.sha256(json.dumps(src["captions"], ensure_ascii=False).encode()).hexdigest()
+        if tr and tr.get("captions_hash") != cap:  # legenda nova colada/importada: começa do zero
+            for f in ("transcript.json", "transcript_original.json", "lesson.json"):
+                (work / f).unlink(missing_ok=True)
+            tr = None
     if tr or src.get("captions"):
         _set(skipped=["transcribe"])
     if not tr:
         if src.get("captions"):
             tr = {"segments": src["captions"], "language": None, "duration": src["duration"], "speed": None,
-                  "origin": "Transcrição importada pelo usuário (legenda ou texto do YouTube)."}
+                  "origin": "Transcrição importada pelo usuário (legenda ou texto do YouTube).", "captions_hash": cap}
         elif src.get("path"):
             if not Path(src["path"]).exists():
                 raise AppError("A gravação ou o arquivo não está mais disponível.", "Escolha o arquivo ou grave de novo.")
@@ -198,6 +204,7 @@ def process(spec):
         _save(work / "transcript.json", tr)
         _save(work / "transcript_original.json", tr)
     check()
+    (work / "transcript_review.json").unlink(missing_ok=True)
     engine = (f"{tr['model']} na {'GPU (CUDA, ' if tr.get('device') == 'cuda' else 'CPU ('}{tr.get('compute')})"
               if tr.get("model") else None)
     return {"review": True, "key": src["key"], "title": src["title"], "segments": tr["segments"], "engine": engine,
@@ -214,7 +221,14 @@ def finish(spec):
     if not tr:
         raise AppError("A transcrição desta aula não foi encontrada.", "Gere a transcrição de novo.")
     edits = {int(k): str(v).strip() for k, v in (spec.get("edits") or {}).items()}
+    # Os índices das edições se referem à transcrição exibida na revisão. Ela fica guardada para que
+    # “Tentar novamente” reaplique as mesmas edições sobre a mesma base (apagar trechos muda os índices).
+    base = _load(work / "transcript_review.json")
+    if base is None:
+        base = tr
+        _save(work / "transcript_review.json", base)
     if edits:
+        tr = json.loads(json.dumps(base))
         for i, text in edits.items():
             if 0 <= i < len(tr["segments"]):
                 tr["segments"][i]["text"] = text[:5000]

@@ -161,11 +161,20 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def _settings(h):
-    body, cfg = h._json(), store.load_config()
+    body = h._json()
     if body.get("notion_token"):
         tok = body["notion_token"].strip()
-        notion.search_pages(tok)  # valida antes de guardar
+        notion.search_pages(tok)  # valida antes de guardar (fora da trava: depende da rede)
         store.set_token(tok)
+    with store.LOCK:
+        cfg = _apply_settings(body)
+    if h._query().get("view") == "settings":
+        return {"config": cfg, "has_token": bool(store.get_token())}
+    return state()
+
+
+def _apply_settings(body):
+    cfg = store.load_config()
     if "root_page" in body:
         if body["root_page"]:
             cfg["root_page_id"] = notion.page_id(body["root_page"])
@@ -188,9 +197,7 @@ def _settings(h):
         set_autostart(body["autostart"])
         cfg["autostart"] = body["autostart"]
     store.save_config(cfg)
-    if h._query().get("view") == "settings":
-        return {"config": cfg, "has_token": bool(store.get_token())}
-    return state()
+    return cfg
 
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -342,9 +349,10 @@ def _clear(h):
     store.clear_local_data()
     if h._json().get("forget_token"):
         store.delete_token()
-        cfg = store.load_config()
-        cfg["root_page_id"] = cfg["root_page_title"] = ""
-        store.save_config(cfg)
+        with store.LOCK:
+            cfg = store.load_config()
+            cfg["root_page_id"] = cfg["root_page_title"] = ""
+            store.save_config(cfg)
     return state()
 
 

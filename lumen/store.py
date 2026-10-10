@@ -2,6 +2,7 @@
 import json
 import os
 import shutil
+import threading
 import time
 from pathlib import Path
 
@@ -10,6 +11,7 @@ import keyring
 APP = "Lumen"
 DATA = Path(os.environ.get("LUMEN_DATA") or os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share") / APP
 WORK = DATA / "work"
+LOCK = threading.RLock()  # config.json e history.json: leia-altere-grave sem pisar em outro pedido
 
 DEFAULTS = {
     "root_page_id": "",
@@ -31,10 +33,11 @@ def _read(name, default):
 
 
 def _write(name, data):
-    DATA.mkdir(parents=True, exist_ok=True)
-    tmp = DATA / (name + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), "utf-8")
-    os.replace(tmp, DATA / name)
+    with LOCK:
+        DATA.mkdir(parents=True, exist_ok=True)
+        tmp = DATA / (name + ".tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), "utf-8")
+        os.replace(tmp, DATA / name)
 
 
 def load_config():
@@ -51,9 +54,10 @@ def history():
 
 
 def remember(key, entry):
-    h = history()
-    h[key] = entry
-    _write("history.json", h)
+    with LOCK:
+        h = history()
+        h[key] = entry
+        _write("history.json", h)
 
 
 def get_token():

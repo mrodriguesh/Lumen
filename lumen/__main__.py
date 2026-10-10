@@ -37,12 +37,14 @@ def main():
         webbrowser.open(url)
     print(f"Lumen rodando em {url} — feche a janela do aplicativo para sair.")
 
-    # Encerra quando a janela fecha (beacon) ou após 15 min sem contato e sem tarefa rodando.
+    # Encerra quando a janela fecha (beacon) ou após 15 min sem contato e sem tarefa rodando. Dentro do Lumen.exe
+    # não: a janela pode ficar parada na bandeja por horas, e o Lumen.exe já encerra o Python ao fechar.
+    native = bool(os.environ.get("LUMEN_NO_WINDOW"))
     while True:
         time.sleep(1)
         now = time.monotonic()
         closed = server.bye_at and now - server.bye_at > 4 and server.last_seen <= server.bye_at
-        idle = now - server.last_seen > 900 and not jobs.busy() and not record.status()["active"]
+        idle = not native and now - server.last_seen > 900 and not jobs.busy() and not record.status()["active"]
         if closed or idle:
             jobs.cancel()
             record._stop.set()
