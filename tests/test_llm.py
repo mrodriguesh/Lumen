@@ -74,7 +74,7 @@ class Generate(unittest.TestCase):
         segs = [{"start": i * 40, "end": i * 40 + 40, "text": "palavra " * 120} for i in range(100)]
         calls = []
 
-        def fake(model, system, user, check, tokens, schema=None, num_ctx=0):
+        def fake(model, system, user, check, tokens, schema=None, num_ctx=0, **kw):
             calls.append(schema is not None)
             return json.dumps(GOOD) if schema else "[00:40] notas curtas"
         with mock.patch.object(llm, "_chat", side_effect=fake):

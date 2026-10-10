@@ -139,7 +139,7 @@
           </div>
         </section>
 
-        <section class="group" aria-labelledby="course-h">
+        <section class="group" id="dest-card" aria-labelledby="course-h">
           <h2 class="group-h" id="course-h">Onde salvar</h2>
           <div class="card">
             <div class="combo">
@@ -237,7 +237,19 @@
         <div class="bar" id="bar" role="progressbar" aria-label="Progresso da etapa atual" aria-valuemin="0" aria-valuemax="100"><span></span></div>
         <p id="detail" aria-live="polite"></p>
         <p class="muted small" id="eta"></p>
+        <div class="dest-slot" id="run-dest" hidden></div>
         <div class="result" id="result" aria-live="assertive"></div>
+        <div class="redo" id="redo" hidden>
+          <label><span>O que mudar? <span class="muted">opcional</span></span>
+            <textarea id="redo-note" rows="2" maxlength="300" placeholder="Ex.: mais detalhado, mais exemplos, foque na parte de…"></textarea></label>
+          <div class="dest-slot" id="redo-dest"></div>
+          <div class="actions">
+            <p class="muted small">A IA escreve uma versão nova a partir da mesma transcrição e a anterior é removida do Notion.
+              Escolher outra página move a aula para lá.</p>
+            <button class="btn" type="button" id="redo-cancel">Cancelar</button>
+            <button class="btn primary" type="button" id="redo-go">Refazer página</button>
+          </div>
+        </div>
         <div class="actions" id="run-actions"></div>
       </section>
 
@@ -263,6 +275,7 @@
           <input id="review-link" type="url" inputmode="url" maxlength="2000" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" aria-describedby="review-link-hint">
           <small class="muted" id="review-link-hint">No YouTube, o vídeo aparece como player antes do resumo no Notion.</small></label>
         <label class="switch-row"><span>Incluir a transcrição completa na página<small>Vai recolhida no fim da página. Desligado por padrão: a transcrição pode ser privada.</small></span><input type="checkbox" class="switch" role="switch" id="include-transcript"></label>
+        <div class="dest-slot" id="review-dest"></div>
         <div class="actions">
           <p class="muted small" id="review-hint">O resumo e as perguntas serão feitos a partir desta versão.</p>
           <button class="btn" type="button" id="review-cancel">Cancelar</button>

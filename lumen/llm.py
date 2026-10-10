@@ -211,8 +211,10 @@ def validate(data, duration=None, has_times=True):
     return lesson
 
 
-def generate(segments, duration, model, language, check, status):
-    """Transcrição → material de estudo validado. status(detail, progress)."""
+def generate(segments, duration, model, language, check, status, redo=False, note=""):
+    """Transcrição → material de estudo validado. status(detail, progress).
+
+    redo: o aluno pediu para refazer a página; note: o que ele quer diferente (opcional)."""
     lang = ("Escreva tudo em português do Brasil." if language == "pt"
             else "Escreva no mesmo idioma em que a aula foi falada.")
     text = transcript_text(segments)
@@ -230,11 +232,19 @@ def generate(segments, duration, model, language, check, status):
         if rnd >= 3:
             text = text[:SINGLE_PASS_CHARS]
     system = SYSTEM.format(lang=lang, schema=json.dumps(SCHEMA, ensure_ascii=False))
+    ask = ""
+    if redo:
+        ask = ("O aluno não gostou da versão anterior desta página e pediu uma nova, com outra organização e outras "
+               "palavras, sempre fiel à aula.")
+        note = " ".join(str(note or "").split())[:300]
+        if note:
+            ask += f" Pedido do aluno: {note}"
+        ask += "\n\n"
     for attempt in (1, 2):
         status("Escrevendo o material de estudo…" + (" (2ª tentativa)" if attempt == 2 else ""), None)
-        raw = _chat(model, system, "Transcrição da aula:\n\n" + text, check,
+        raw = _chat(model, system, ask + "Transcrição da aula:\n\n" + text, check,
                     lambda n: status(f"Escrevendo o material de estudo… ({n} trechos gerados)", None),
-                    schema=SCHEMA)
+                    schema=SCHEMA, temperature=0.6 if redo else 0.2)
         try:
             return validate(json.loads(raw), duration, has_times)
         except (ValueError, AppError):

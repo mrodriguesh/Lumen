@@ -69,6 +69,61 @@ class Review(unittest.TestCase):
         self.assertIn("planta no escuro", CAPTIONS)
 
 
+class Redo(Review):
+    """“Refazer página” (material novo, versão anterior removida) e mover a aula para outra página."""
+
+    def publish(self, spec):
+        self.process(spec)
+        jobs.start("process", jobs.finish, spec)
+        j = wait()
+        self.assertEqual(j["status"], "done", j.get("error"))
+        return j["result"]
+
+    def lesson_titles(self, page):
+        return [b["heading_1"]["rich_text"][0]["text"]["content"] for b in self.fake.pages[page]["blocks"]
+                if b["type"] == "heading_1"]
+
+    def test_redo_regenerates_and_replaces_previous_version(self):
+        self.publish({**SPEC, "course_id": self.root})
+        self.assertEqual(self.lesson_titles(self.root), ["Fotossíntese"])
+        llm._chat.reset_mock()
+        llm._chat.return_value = json.dumps({**GOOD, "title": "Fotossíntese (nova versão)"})
+        jobs.start("process", jobs.finish, {**SPEC, "course_id": self.root, "mode": "redo", "redo_note": "mais exemplos"})
+        j = wait()
+        self.assertEqual(j["status"], "done", j.get("error"))
+        sent = llm._chat.call_args
+        self.assertIn("Pedido do aluno: mais exemplos", sent[0][2])   # o pedido chega à IA
+        self.assertEqual(sent[1]["temperature"], 0.6)                   # e não reaproveita o material guardado
+        self.assertEqual(self.lesson_titles(self.root), ["Fotossíntese (nova versão)"])  # anterior removida
+        self.assertIn("refeita", j["result"]["note"])
+
+    def test_redo_to_another_page_moves_the_lesson(self):
+        other = self.fake.add_page("Biologia", self.root)
+        self.publish({**SPEC, "course_id": self.root})
+        jobs.start("process", jobs.finish, {**SPEC, "course_id": other, "course_title": "Biologia", "mode": "redo"})
+        j = wait()
+        self.assertEqual(j["status"], "done", j.get("error"))
+        self.assertEqual(self.lesson_titles(self.root), [])
+        self.assertEqual(self.lesson_titles(other), ["Fotossíntese"])
+        self.assertIn("movida para Biologia", j["result"]["note"])
+        self.assertEqual(store.history()["yt:dQw4w9WgXcQ"]["page_id"], other)
+
+    def test_destination_changed_during_transcription_is_used(self):
+        other = self.fake.add_page("Biologia", self.root)
+        self.process({**SPEC, "course_id": self.root})  # escolhido antes de transcrever
+        jobs.start("process", jobs.finish, {**SPEC, "course_id": other})  # trocado durante/depois da transcrição
+        self.assertEqual(wait()["status"], "done")
+        self.assertEqual(self.lesson_titles(other), ["Fotossíntese"])
+
+    def test_only_last_published_transcript_is_kept(self):
+        self.publish({**SPEC, "course_id": self.root})
+        first = jobs.work_dir("yt:dQw4w9WgXcQ")
+        self.assertTrue((first / "transcript.json").exists())
+        self.publish({**SPEC, "url": "https://youtu.be/aaaaaaaaaaa", "course_id": self.root})
+        self.assertFalse(first.exists())
+        self.assertTrue((jobs.work_dir("yt:aaaaaaaaaaa") / "transcript.json").exists())
+
+
 class Settings(unittest.TestCase):
     def test_slow_token_save_does_not_undo_other_settings(self):
         store.save_config(dict(store.DEFAULTS))

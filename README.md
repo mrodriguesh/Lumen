@@ -116,6 +116,11 @@ para o tempo exato) e **Sobre esta página** (origem, modelo usado, trechos de b
 SSD). Ao criar uma página com “Enfeitar com IA”, a capa vira uma ilustração do tema gerada no seu PC (≈ 30–45 s
 numa RTX 3060). Sem ele, a capa é desenhada com emojis.
 
+**Trocar o destino e refazer:** o cartão *Onde salvar* acompanha a tela: dá para mudar a página durante a
+transcrição e na revisão. Depois de publicar, **Refazer página** pede à IA uma versão nova (com um pedido opcional,
+como "mais exemplos") e remove a anterior; escolhendo outra página, a aula é movida para lá. Para isso o Lumen guarda
+no PC a transcrição da última aula publicada (só ela; a anterior é apagada ao publicar a próxima).
+
 Ao repetir uma aula, o Lumen oferece **abrir** a página existente, **atualizar material** (salva a versão nova e
 remove somente os blocos gerados anteriormente pelo Lumen nessa mesma página) ou **adicionar outra cópia**.
 Versões antigas em outras páginas, inclusive as subpáginas criadas antes desta correção, são preservadas.

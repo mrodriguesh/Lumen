@@ -85,7 +85,7 @@ class Flow(unittest.TestCase):
         first = dict(store.history()["yt:dQw4w9WgXcQ"])
         self.assertEqual(first["page_id"], sem_curso["id"])
         self.assertEqual(len(self.fake.pages), 2)
-        self.assertFalse(jobs.work_dir("yt:dQw4w9WgXcQ").exists())  # temporários removidos
+        self.assertTrue((jobs.work_dir("yt:dQw4w9WgXcQ") / "published").exists())  # só a última fica (Refazer)
 
         info = server.inspect(SPEC)
         self.assertEqual(info["duplicate"]["page_id"], sem_curso["id"])

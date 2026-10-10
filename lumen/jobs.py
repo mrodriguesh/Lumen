@@ -242,13 +242,15 @@ def finish(spec):
 
     model, lang = cfg["ollama_model"], spec.get("language") or cfg["page_language"]
     digest = hashlib.sha256(json.dumps([s["text"] for s in tr["segments"]], ensure_ascii=False).encode()).hexdigest()
+    redo = spec.get("mode") == "redo"  # “Refazer página”: material novo, versão anterior removida
     saved = _load(work / "lesson.json")
-    if saved and saved.get("model") == model and saved.get("language") == lang and saved.get("transcript") == digest:
+    if saved and not redo and saved.get("model") == model and saved.get("language") == lang and saved.get("transcript") == digest:
         lesson = saved["lesson"]
     else:
         _set(stage="generate", detail="Escrevendo o material de estudo…", progress=None, eta=None)
         lesson = llm.generate(tr["segments"], tr.get("duration"), model, lang, check,
-                              lambda d, p: _set(stage="generate", detail=d, progress=p))
+                              lambda d, p: _set(stage="generate", detail=d, progress=p),
+                              redo=redo, note=spec.get("redo_note") or "")
         _save(work / "lesson.json", {"model": model, "language": lang, "transcript": digest, "lesson": lesson})
     check()
 
@@ -276,8 +278,11 @@ def finish(spec):
 
     old = store.history().get(src["key"]) or {}
     note = None
-    if spec.get("mode") == "replace" and old:
-        if old.get("page_id") == pid and old.get("block_ids"):
+    if spec.get("mode") in ("replace", "redo") and old:
+        if old.get("block_ids") and (old.get("page_id") == pid or redo):  # refazer em outra página = mover
+            if redo:
+                note = ("Página refeita; a versão anterior foi removida." if old.get("page_id") == pid
+                        else f"Aula movida para {course}; a versão anterior foi removida.")
             for bid in old["block_ids"]:
                 try:
                     notion.request("DELETE", f"/blocks/{bid}", token)
@@ -289,7 +294,11 @@ def finish(spec):
     store.remember(src["key"], {"page_id": pid, "block_ids": block_ids, "url": url, "title": title, "course": course,
                                 "created": datetime.now().isoformat(timespec="minutes")})
     if not cfg["keep_temp"]:
-        shutil.rmtree(work, ignore_errors=True)
+        # Guarda só a transcrição da última aula publicada (para “Refazer página”); a anterior é apagada.
+        for mark in store.WORK.glob("*/published"):
+            if mark.parent != work:
+                shutil.rmtree(mark.parent, ignore_errors=True)
+        (work / "published").touch()
     return {"url": url, "title": title, "course": course, "note": note}
 
 

@@ -517,3 +517,11 @@ details ol { padding-left: 20px; margin: 6px 0; }
 .b-count { flex: none; font-size: .8rem; color: var(--muted); }
 .brow.on .b-count { color: rgba(255, 255, 255, .85); }
 .b-empty { padding: 10px 8px; font-size: .88rem; color: var(--muted); }
+
+/* “Onde salvar” acompanha a tela: dá para trocar o destino durante a transcrição, na revisão e ao refazer */
+.dest-slot:not(:empty) { margin: 14px 0 4px; }
+.redo { display: grid; gap: 12px; margin-top: 12px; padding-top: 14px; border-top: .5px solid var(--sep); }
+.redo label { display: grid; gap: 6px; }
+.redo textarea { min-height: 56px; }
+.dest-slot .card { background: none; border: 0; box-shadow: none; padding: 0; }
+.dest-slot .group-h { padding: 0; }

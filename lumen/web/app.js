@@ -680,12 +680,25 @@ $("#go").addEventListener("click", () => {
   start(lastSpec);
 });
 
+// ---------- destino que acompanha a tela ----------
+const destCard = $("#dest-card"), destHome = destCard.parentElement, destNext = destCard.nextElementSibling;
+function dockDest(slot) {  // move o cartão “Onde salvar” (com tudo ligado a ele) para outra tela, ou de volta
+  if (!slot) { if (destCard.parentElement !== destHome) destHome.insertBefore(destCard, destNext); return; }
+  if (destCard.parentElement !== slot) slot.append(destCard);
+}
+function chosenDest() {
+  const sel = $("#course");
+  if (!sel.value || sel.value === "__new__") return null;
+  remember(sel.value);
+  return { course_id: sel.value, course_title: sel.value === "__none__" ? "" : sel.selectedOptions[0].dataset.title };
+}
+
 // ---------- execução ----------
 let lastUrl = "/api/start";
 async function start(spec, url = "/api/start") {
   lastUrl = url;
   try { await api(url, spec); } catch (e) { return fail(e); }
-  $("#compose").hidden = true; $("#review").hidden = true; $("#run").hidden = false;
+  $("#compose").hidden = true; $("#review").hidden = true; $("#run").hidden = false; $("#redo").hidden = true;
   $("#result").replaceChildren(); $("#result").className = "result";
   $("#run-h").focus();
   poll();
@@ -709,6 +722,10 @@ function renderJob(j) {
   $("#detail").textContent = j.status === "running" ? j.detail || "" : "";
   $("#eta").textContent = j.status === "running" && j.eta ? `Faltam cerca de ${fmtDur(j.eta)} nesta etapa.` : "";
 
+  // enquanto transcreve, o destino ainda pode mudar (ele só é usado ao gerar a página)
+  const transcribing = j.status === "running" && lastUrl === "/api/start" && ["prepare", "transcribe"].includes(j.stage);
+  if (transcribing) dockDest($("#run-dest"));
+  $("#run-dest").hidden = !transcribing;
   const res = $("#result"), act = $("#run-actions");
   const back = el("button", { class: "btn", type: "button", onclick: backToCompose }, "Nova aula");
   if (j.status === "running") {
@@ -719,7 +736,8 @@ function renderJob(j) {
     res.className = "result ok";
     res.replaceChildren(el("strong", {}, "Material salvo na página escolhida"), el("span", {}, `“${j.result.title}” em ${j.result.course}.`));
     if (j.result.note) res.append(el("span", {}, j.result.note));
-    act.replaceChildren(el("a", { class: "btn primary", href: j.result.url, target: "_blank", rel: "noopener" }, "Abrir no Notion"), back);
+    act.replaceChildren(el("a", { class: "btn primary", href: j.result.url, target: "_blank", rel: "noopener" }, "Abrir no Notion"),
+      lastSpec ? el("button", { class: "btn", type: "button", onclick: openRedo }, "Refazer página") : null, back);
     act.querySelector("a").focus();
   } else if (j.status === "error") {
     res.className = "result err";
@@ -734,6 +752,17 @@ function renderJob(j) {
   }
 }
 
+function openRedo() {
+  $("#redo").hidden = false; dockDest($("#redo-dest")); $("#run-actions").replaceChildren(); $("#redo-note").focus();
+}
+$("#redo-cancel").addEventListener("click", () => { $("#redo").hidden = true; poll(); });  // volta aos botões do resultado
+$("#redo-go").addEventListener("click", () => {
+  const dest = chosenDest();
+  if (!dest) return $("#redo-note").focus();
+  lastSpec = { ...lastSpec, ...dest, mode: "redo", redo_note: $("#redo-note").value.trim() };
+  start(lastSpec, "/api/finish");
+});
+
 async function cancelJob() {
   $("#detail").textContent = "Cancelando… (termina o trecho atual)";
   try { await api("/api/cancel", {}); } catch (e) { fail(e); }
@@ -745,7 +774,7 @@ function showReview(r) {
   review = r; edits = {};
   $("#review-link-row").hidden = lastSpec?.kind === "youtube";
   $("#review-link").value = lastSpec?.link || "";
-  $("#run").hidden = true; $("#review").hidden = false;
+  $("#run").hidden = true; $("#review").hidden = false; dockDest($("#review-dest"));
   const flagged = r.segments.filter((s) => s.flags && s.flags.length).length;
   const sp = r.speed;
   const how = !sp ? "transcrição importada"
@@ -787,7 +816,9 @@ $("#retranscribe").addEventListener("click", () => {
 });
 $("#review-go").addEventListener("click", () => {
   const changed = Object.fromEntries(Object.entries(edits).filter(([i, t]) => t.trim() !== review.segments[i].text));
-  lastSpec = { ...lastSpec, retranscribe: false, edits: changed, include_transcript: $("#include-transcript").checked };
+  const dest = chosenDest();
+  if (!dest) { $("#review-hint").textContent = "Escolha onde salvar (ou termine de criar a página nova)."; return; }
+  lastSpec = { ...lastSpec, ...dest, retranscribe: false, edits: changed, include_transcript: $("#include-transcript").checked };
   if (lastSpec.kind !== "youtube") {
     lastSpec.link = $("#review-link").value.trim();
     $("#lesson-link").value = lastSpec.link;
@@ -797,7 +828,8 @@ $("#review-go").addEventListener("click", () => {
 $("#review-cancel").addEventListener("click", () => { $("#review").hidden = true; backToCompose(); });
 
 function backToCompose() {
-  $("#run").hidden = true; $("#review").hidden = true; $("#compose").hidden = false;
+  $("#run").hidden = true; $("#review").hidden = true; $("#compose").hidden = false; $("#redo").hidden = true;
+  dockDest(null);
   found = null; renderSource();
   if (currentSpec()) inspect();
   loadCourses();
@@ -1007,9 +1039,11 @@ if (!host) window.addEventListener("pagehide", () => navigator.sendBeacon("/api/
     if (S.recording.active) { renderRec(S.recording); watchRec(); }
     if (S.job.status === "done" && S.job.result && S.job.result.review) {  // janela reaberta no meio da revisão
       lastSpec = S.job.spec; $("#compose").hidden = true; showReview(S.job.result);
+      if (lastSpec?.course_id) renderCourses(lastSpec.course_id);
     }
     if (S.job.status === "running") {
       if (S.job.spec) lastSpec = S.job.spec;
+      if (lastSpec?.course_id) renderCourses(lastSpec.course_id);
       if (S.job.kind === "process") { $("#compose").hidden = true; $("#run").hidden = false; }
       poll();
     }
