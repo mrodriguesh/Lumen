@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="lumen-token" content="{{TOKEN}}">
+  <title>Lumen · barra flutuante</title>
+  <link rel="stylesheet" href="/widget.css">
+  <script defer src="/widget.js"></script>
+</head>
+<body data-side="left" data-state="idle">
+  <button id="peek" aria-label="Mostrar controles do Lumen"><span></span></button>
+  <main class="notch" aria-label="Controles rápidos do Lumen">
+    <div class="rail">
+      <button id="drag" class="grip" aria-label="Arrastar barra flutuante"><span></span></button>
+      <button id="open" class="orb brand" aria-label="Abrir Lumen"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 5v22M5 16h22M8.2 8.2l15.6 15.6M8.2 23.8L23.8 8.2M11.8 5.8l8.4 20.4M5.8 11.8l20.4 8.4M5.8 20.2l20.4-8.4M11.8 26.2l8.4-20.4"/></svg></button>
+      <button id="action" class="action" aria-label="Iniciar gravação"><span class="record-symbol" aria-hidden="true"></span><span id="action-label">Gravar</span></button>
+      <button id="settings" class="orb settings" aria-label="Abrir ajustes" aria-controls="preferences" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="m9.5 3-.5 2-2 .9-1.9-.5-2.5 4.3L4 11v2l-1.4 1.3 2.5 4.3 1.9-.5 2 .9.5 2h5l.5-2 2-.9 1.9.5 2.5-4.3L20 13v-2l1.4-1.3-2.5-4.3-1.9.5-2-.9-.5-2Z"/></svg></button>
+    </div>
+    <section id="recording-panel" class="panel" aria-label="Estado do Lumen">
+      <header><h1>Lumen</h1><span class="live-dot" aria-hidden="true"></span></header>
+      <p id="status" class="status" role="status" aria-live="polite">Pronto para gravar</p>
+      <div class="timer">
+        <span id="time" class="time" aria-label="Tempo de gravação">00:00</span>
+        <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+      <p id="detail" class="detail"></p>
+      <footer>
+        <span id="job" role="status" hidden></span>
+        <button id="exit" aria-label="Sair do Lumen"><span aria-hidden="true"></span></button>
+      </footer>
+    </section>
+    <section id="preferences" class="panel preferences" aria-label="Ajustes da barra flutuante" hidden>
+      <header><button id="prefs-back" class="prefs-back" aria-label="Voltar à gravação">‹</button><h1 id="prefs-title">Ajustes</h1></header>
+      <div id="prefs-content" class="prefs-content">
+      <nav data-page="menu" class="prefs-menu" aria-label="Categorias de ajustes">
+        <button data-category="desktop">Barra flutuante<span aria-hidden="true">›</span></button>
+        <button data-category="notion">Notion<span aria-hidden="true">›</span></button>
+        <button data-category="transcription">Transcrição<span aria-hidden="true">›</span></button>
+        <button data-category="ai">IA local<span aria-hidden="true">›</span></button>
+        <button data-category="covers">Capas com IA<span aria-hidden="true">›</span></button>
+        <button data-category="privacy">Privacidade e dados<span aria-hidden="true">›</span></button>
+      </nav>
+      <section data-page="desktop" hidden>
+      <p class="prefs-label">Posição na tela</p>
+      <div class="placements" role="group" aria-label="Posição da barra">
+        <button type="button" data-position="left" aria-label="Esquerda" aria-pressed="false">←</button>
+        <button type="button" data-position="right" aria-label="Direita" aria-pressed="false">→</button>
+        <button type="button" data-position="top" aria-label="Em cima" aria-pressed="false">↑</button>
+        <button type="button" data-position="bottom" aria-label="Embaixo" aria-pressed="false">↓</button>
+        <button type="button" data-position="free" aria-label="Livre" aria-pressed="false">↔</button>
+      </div>
+      <p id="position-caption" class="position-caption"></p>
+      <button id="prefs-off" class="prefs-button">Desativar barra</button>
+      <div class="prefs-row"><span id="startup-label">Iniciar com o Windows</span><button id="prefs-autostart" class="switch" role="switch" aria-labelledby="startup-label" aria-checked="false"><span></span></button></div>
+      <div class="prefs-actions"><button id="prefs-reset" aria-label="Restaurar posição">↺</button><button id="prefs-exit">Sair do Lumen</button></div>
+      <p class="prefs-note">Com a barra desativada, abra o Lumen pela bandeja do Windows.</p>
+      </section>
+      <section data-page="notion" hidden>
+        <p id="prefs-token-status" class="prefs-note"></p>
+        <label class="prefs-field">Token da integração<span class="prefs-input-row"><input id="prefs-token" type="password" autocomplete="off" spellcheck="false" placeholder="ntn_…"><button id="prefs-token-save" class="prefs-button">Salvar</button></span></label>
+        <details class="prefs-note"><summary>Como conectar</summary><p>Crie uma integração interna no Notion com acesso de leitura, atualização e inserção. Copie o token e conecte a integração à página dos cursos em ••• → Conexões.</p><a href="https://www.notion.so/profile/integrations" target="_blank" rel="noreferrer">Abrir integrações ↗</a></details>
+        <label class="prefs-field">Página raiz dos cursos<select id="prefs-root"></select></label>
+        <button id="prefs-root-load" class="prefs-button">Recarregar páginas</button>
+      </section>
+      <section data-page="transcription" hidden>
+        <p id="prefs-hardware" class="prefs-note"></p>
+        <fieldset id="prefs-quality" class="quality-picker"><legend>Qualidade</legend><div id="prefs-quality-options"></div></fieldset>
+        <p id="prefs-whisper-status" class="prefs-note"></p>
+        <button id="prefs-whisper-dl" class="prefs-button" data-download="whisper" hidden>Baixar modelo</button>
+      </section>
+      <section data-page="ai" hidden>
+        <label class="prefs-field">Modelo Ollama<span class="prefs-input-row"><input id="prefs-model" spellcheck="false" list="prefs-model-list" maxlength="100"><button id="prefs-model-save" class="prefs-button">Usar</button></span><datalist id="prefs-model-list"></datalist></label>
+        <p id="prefs-ollama-status" class="prefs-note"></p>
+        <a class="prefs-link" href="https://ollama.com/download" target="_blank" rel="noreferrer">Instalar Ollama ↗</a>
+        <button id="prefs-ollama-dl" class="prefs-button" data-download="ollama" hidden>Baixar modelo</button>
+      </section>
+      <section data-page="covers" hidden>
+        <p id="prefs-covers-status" class="prefs-note"></p>
+        <button id="prefs-covers-dl" class="prefs-button" data-download="covers" hidden>Baixar gerador de capas</button>
+      </section>
+      <section data-page="privacy" hidden>
+        <div class="prefs-row"><span id="keep-label">Guardar gravações<br>e transcrições</span><button id="prefs-keep" class="switch" role="switch" aria-labelledby="keep-label" aria-checked="false"><span></span></button></div>
+        <p class="prefs-note">Normalmente são apagadas após o uso.</p>
+        <label class="prefs-field">Idioma das páginas<select id="prefs-language"><option value="pt">Português</option><option value="original">Idioma original</option></select></label>
+        <button id="prefs-clear" class="prefs-button">Limpar histórico e dados locais</button>
+        <button id="prefs-forget" class="prefs-button danger">Desconectar Notion</button>
+        <p class="prefs-note">Processamento no PC. Sem telemetria. Só o conteúdo publicado é enviado ao Notion.</p>
+      </section>
+      <section data-page="confirm" hidden>
+        <p id="prefs-confirm-text" class="prefs-note"></p>
+        <div class="prefs-input-row"><button id="prefs-cancel" class="prefs-button">Cancelar</button><button id="prefs-confirm" class="prefs-button danger">Confirmar</button></div>
+      </section>
+      </div>
+      <p id="prefs-feedback" class="prefs-feedback" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+</body>
+</html>

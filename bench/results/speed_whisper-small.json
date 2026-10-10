@@ -1,0 +1,1330 @@
+{
+ "direto": {
+  "secs": 9.050461999999243,
+  "segments": [
+   {
+    "start": 0.0,
+    "end": 2.0,
+    "text": "No caminho eu explico, pra fazer essa viagem comigo.",
+    "logprob": -0.449300699717515,
+    "no_speech": 0.63037109375,
+    "compression": 1.5674846625766872
+   },
+   {
+    "start": 3.38,
+    "end": 4.38,
+    "text": "Qual é o propósito maior?",
+    "logprob": -0.449300699717515,
+    "no_speech": 0.63037109375,
+    "compression": 1.5674846625766872
+   },
+   {
+    "start": 5.54,
+    "end": 7.04,
+    "text": "Quer fazer você levantar todos os...",
+    "logprob": -0.449300699717515,
+    "no_speech": 0.63037109375,
+    "compression": 1.5674846625766872
+   },
+   {
+    "start": 7.54,
+    "end": 11.04,
+    "text": "Pois é do mundo que nenhum país é o suficiente sem essa tecnologia, mas nós sabemos fazer a nossa parte.",
+    "logprob": -0.449300699717515,
+    "no_speech": 0.63037109375,
+    "compression": 1.5674846625766872
+   },
+   {
+    "start": 11.34,
+    "end": 12.34,
+    "text": "Show me isso.",
+    "logprob": -0.449300699717515,
+    "no_speech": 0.63037109375,
+    "compression": 1.5674846625766872
+   },
+   {
+    "start": 13.34,
+    "end": 15.34,
+    "text": "Depois que eu passei por todo esse processo,",
+    "logprob": -0.449300699717515,
+    "no_speech": 0.63037109375,
+    "compression": 1.5674846625766872
+   },
+   {
+    "start": 15.74,
+    "end": 16.74,
+    "text": "eu tomei algumas decisões.",
+    "logprob": -0.449300699717515,
+    "no_speech": 0.63037109375,
+    "compression": 1.5674846625766872
+   },
+   {
+    "start": 17.04,
+    "end": 20.54,
+    "text": "Dentro da comunidade das pessoas hoje que fazem parte da ITIP, que contribuem, né, e a gente está sendo...",
+    "logprob": -0.449300699717515,
+    "no_speech": 0.63037109375,
+    "compression": 1.5674846625766872
+   },
+   {
+    "start": 21.04,
+    "end": 24.54,
+    "text": "No Brasil, aprenderam como é que faz pra ir lá no mar, furar, primeiro, passar mil...",
+    "logprob": -0.449300699717515,
+    "no_speech": 0.63037109375,
+    "compression": 1.5674846625766872
+   },
+   {
+    "start": 24.54,
+    "end": 28.66,
+    "text": "Fui de dinâmica, usam computadores para fazer as contas, etc, publicam artigos científicos",
+    "logprob": -0.4658505186899421,
+    "no_speech": 0.79931640625,
+    "compression": 1.6987012987012986
+   },
+   {
+    "start": 28.66,
+    "end": 30.26,
+    "text": "com títulos misteriosos, que nem...",
+    "logprob": -0.4658505186899421,
+    "no_speech": 0.79931640625,
+    "compression": 1.6987012987012986
+   },
+   {
+    "start": 30.26,
+    "end": 32.9,
+    "text": "Dá alguma coitinha, eu já comecei a querer outras coisas.",
+    "logprob": -0.4658505186899421,
+    "no_speech": 0.79931640625,
+    "compression": 1.6987012987012986
+   },
+   {
+    "start": 32.9,
+    "end": 33.9,
+    "text": "Logo depois de ter visto a Belvedo...",
+    "logprob": -0.4658505186899421,
+    "no_speech": 0.79931640625,
+    "compression": 1.6987012987012986
+   },
+   {
+    "start": 33.9,
+    "end": 37.26,
+    "text": "Eu comecei tão novo como vocês podem ver aqui na foto, tem mais outra foto, a minha",
+    "logprob": -0.4658505186899421,
+    "no_speech": 0.79931640625,
+    "compression": 1.6987012987012986
+   },
+   {
+    "start": 37.26,
+    "end": 38.26,
+    "text": "equipe mais nova.",
+    "logprob": -0.4658505186899421,
+    "no_speech": 0.79931640625,
+    "compression": 1.6987012987012986
+   },
+   {
+    "start": 38.26,
+    "end": 42.22,
+    "text": "Centenas, mas é um outro desses papers de nome complicadíssimo que vocês aqui vão",
+    "logprob": -0.4658505186899421,
+    "no_speech": 0.79931640625,
+    "compression": 1.6987012987012986
+   },
+   {
+    "start": 42.22,
+    "end": 43.22,
+    "text": "saber.",
+    "logprob": -0.4658505186899421,
+    "no_speech": 0.79931640625,
+    "compression": 1.6987012987012986
+   },
+   {
+    "start": 43.22,
+    "end": 46.9,
+    "text": "Não conhecem, sem saber, se não soubessem essa história minha, com certeza pensariam",
+    "logprob": -0.4658505186899421,
+    "no_speech": 0.79931640625,
+    "compression": 1.6987012987012986
+   },
+   {
+    "start": 46.9,
+    "end": 47.9,
+    "text": "em mim.",
+    "logprob": -0.4658505186899421,
+    "no_speech": 0.79931640625,
+    "compression": 1.6987012987012986
+   },
+   {
+    "start": 47.9,
+    "end": 50.94,
+    "text": "E levar todo mundo a comunidade para acabar a cabana, né?",
+    "logprob": -0.4658505186899421,
+    "no_speech": 0.79931640625,
+    "compression": 1.6987012987012986
+   },
+   {
+    "start": 50.94,
+    "end": 54.02,
+    "text": "E aí, as pessoas de todo mundo perguntando que é que é que é que é...",
+    "logprob": -0.4658505186899421,
+    "no_speech": 0.79931640625,
+    "compression": 1.6987012987012986
+   },
+   {
+    "start": 54.02,
+    "end": 58.02,
+    "text": "O que deseja fazer? O cientista se tem no estado de São Paulo e no Brasil?",
+    "logprob": -0.30655673420502366,
+    "no_speech": 0.65771484375,
+    "compression": 1.6414565826330532
+   },
+   {
+    "start": 58.02,
+    "end": 61.02,
+    "text": "É, é uma história. É a minha história de uma solidariedade.",
+    "logprob": -0.30655673420502366,
+    "no_speech": 0.65771484375,
+    "compression": 1.6414565826330532
+   },
+   {
+    "start": 61.02,
+    "end": 64.02,
+    "text": "É a história dos meus avós, dos meus pais.",
+    "logprob": -0.30655673420502366,
+    "no_speech": 0.65771484375,
+    "compression": 1.6414565826330532
+   },
+   {
+    "start": 64.02,
+    "end": 70.02,
+    "text": "Mas quando cada um de nós, ao fim, colocado publicamente, perante uma solução de conflito?",
+    "logprob": -0.30655673420502366,
+    "no_speech": 0.65771484375,
+    "compression": 1.6414565826330532
+   },
+   {
+    "start": 70.02,
+    "end": 78.18,
+    "text": "Ao longo da minha jornada com as diversas pessoas que foram desde 2002 pra mim, não conseguem passar.",
+    "logprob": -0.30655673420502366,
+    "no_speech": 0.65771484375,
+    "compression": 1.6414565826330532
+   },
+   {
+    "start": 78.18,
+    "end": 82.18,
+    "text": "O que o Brasil conseguiu ser a única economia industrializada do mundo que não depende do petróleo,",
+    "logprob": -0.30655673420502366,
+    "no_speech": 0.65771484375,
+    "compression": 1.6414565826330532
+   },
+   {
+    "start": 82.18,
+    "end": 84.18,
+    "text": "se da agricultura, sobre o biologia molecular, sobre como fazer alimento?",
+    "logprob": -0.30655673420502366,
+    "no_speech": 0.65771484375,
+    "compression": 1.6414565826330532
+   },
+   {
+    "start": 84.18,
+    "end": 86.18,
+    "text": "Veja aqui de 2006 a 2010.",
+    "logprob": -0.30655673420502366,
+    "no_speech": 0.65771484375,
+    "compression": 1.6414565826330532
+   },
+   {
+    "start": 86.18,
+    "end": 92.18,
+    "text": "Principalmente, e que a aplicação dela tem humanidade na perspectiva humanista, e que a resolução dos construídos.",
+    "logprob": -0.3537233912564339,
+    "no_speech": 0.74365234375,
+    "compression": 1.6933701657458564
+   },
+   {
+    "start": 92.18,
+    "end": 95.18,
+    "text": "E me pergunta, onde está o demotor de justiça?",
+    "logprob": -0.3537233912564339,
+    "no_speech": 0.74365234375,
+    "compression": 1.6933701657458564
+   },
+   {
+    "start": 95.18,
+    "end": 97.18,
+    "text": "E é muito lerno, parceira, feliz.",
+    "logprob": -0.3537233912564339,
+    "no_speech": 0.74365234375,
+    "compression": 1.6933701657458564
+   },
+   {
+    "start": 97.18,
+    "end": 99.18,
+    "text": "Vocês não conseguem achar maneira de fazer a alternativa para o petróleo?",
+    "logprob": -0.3537233912564339,
+    "no_speech": 0.74365234375,
+    "compression": 1.6933701657458564
+   },
+   {
+    "start": 99.18,
+    "end": 100.18,
+    "text": "O que o Brasil achou?",
+    "logprob": -0.3537233912564339,
+    "no_speech": 0.74365234375,
+    "compression": 1.6933701657458564
+   },
+   {
+    "start": 100.18,
+    "end": 103.59,
+    "text": "De onde fica a saída?",
+    "logprob": -0.3537233912564339,
+    "no_speech": 0.74365234375,
+    "compression": 1.6933701657458564
+   },
+   {
+    "start": 103.59,
+    "end": 106.59,
+    "text": "Aos vinte e poucos anos, eu larguei tudo e comecei a...",
+    "logprob": -0.3537233912564339,
+    "no_speech": 0.74365234375,
+    "compression": 1.6933701657458564
+   },
+   {
+    "start": 106.59,
+    "end": 109.59,
+    "text": "Da terra aumentaram a produtividade da agricultura, e quem aumentou essa aumentaram?",
+    "logprob": -0.3537233912564339,
+    "no_speech": 0.74365234375,
+    "compression": 1.6933701657458564
+   },
+   {
+    "start": 109.59,
+    "end": 111.59,
+    "text": "Não foram os americanos.",
+    "logprob": -0.3537233912564339,
+    "no_speech": 0.74365234375,
+    "compression": 1.6933701657458564
+   },
+   {
+    "start": 111.59,
+    "end": 113.59,
+    "text": "Com verdade, eu vou comprar para fazer aquele jornal acontecer.",
+    "logprob": -0.3537233912564339,
+    "no_speech": 0.74365234375,
+    "compression": 1.6933701657458564
+   },
+   {
+    "start": 113.59,
+    "end": 114.59,
+    "text": "E o jornal vai acontecendo?",
+    "logprob": -0.3537233912564339,
+    "no_speech": 0.74365234375,
+    "compression": 1.6933701657458564
+   },
+   {
+    "start": 114.59,
+    "end": 115.59,
+    "text": "O jornal vai crescendo, né?",
+    "logprob": -0.3537233912564339,
+    "no_speech": 0.74365234375,
+    "compression": 1.6933701657458564
+   },
+   {
+    "start": 115.59,
+    "end": 119.59,
+    "text": "O que ele pensava da imagem da justiça? Como será que ele via a imagem de um...",
+    "logprob": -0.38972513837964123,
+    "no_speech": 0.751953125,
+    "compression": 1.6776649746192893
+   },
+   {
+    "start": 119.59,
+    "end": 124.59,
+    "text": "O país do mundo, aqui é Brasil, São Paulo, Estados Unidos, Índia, Austrália, etc. Quer dizer, é gente...",
+    "logprob": -0.38972513837964123,
+    "no_speech": 0.751953125,
+    "compression": 1.6776649746192893
+   },
+   {
+    "start": 124.59,
+    "end": 129.59,
+    "text": "Eu que estava no salão cinco olhos, eu usava um canhame que tinha um cheiro horroroso.",
+    "logprob": -0.38972513837964123,
+    "no_speech": 0.751953125,
+    "compression": 1.6776649746192893
+   },
+   {
+    "start": 129.59,
+    "end": 133.59,
+    "text": "Essa foi a imagem marcante na história da comunidade, foi a invasão da polícia em 2010.",
+    "logprob": -0.38972513837964123,
+    "no_speech": 0.751953125,
+    "compression": 1.6776649746192893
+   },
+   {
+    "start": 133.59,
+    "end": 139.67,
+    "text": "A Secretaria do Meio Ambiente. Aqui dizemos, secretário do Estado do Meio Ambiente, aqui eu digo isso aqui...",
+    "logprob": -0.38972513837964123,
+    "no_speech": 0.751953125,
+    "compression": 1.6776649746192893
+   },
+   {
+    "start": 139.67,
+    "end": 142.67,
+    "text": "Como o outro diz o comunicado que diz um de causa indígena, né? As vivências e histórias de pessoas, né?",
+    "logprob": -0.38972513837964123,
+    "no_speech": 0.751953125,
+    "compression": 1.6776649746192893
+   },
+   {
+    "start": 142.67,
+    "end": 144.67,
+    "text": "Fazer uma palestra, contando um pouco essa experiência do trabalho.",
+    "logprob": -0.38972513837964123,
+    "no_speech": 0.751953125,
+    "compression": 1.6776649746192893
+   },
+   {
+    "start": 144.67,
+    "end": 147.67,
+    "text": "Em um clube fui gravar o macon de jornalismo comitário,",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 147.67,
+    "end": 149.67,
+    "text": "é um programa de jornalismo comitário, e aí nós fomos um piloto.",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 149.67,
+    "end": 152.67,
+    "text": "João, é a energia do tipo renovável, dessa aqui, né?",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 152.67,
+    "end": 153.67,
+    "text": "Tem limitação aqui no...",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 153.67,
+    "end": 155.67,
+    "text": "200 novinhações, eu fui tentar ali alguma.",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 155.67,
+    "end": 157.67,
+    "text": "Quando eu fui começar ali as mensagens,",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 157.67,
+    "end": 159.67,
+    "text": "eu segurava dentro da minha casa e a gente foi dando um carro.",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 159.67,
+    "end": 161.67,
+    "text": "E aí dessas pessoas que... personalidades?",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 161.67,
+    "end": 165.04,
+    "text": "Hoje eu trabalho com pensamento sistêmico.",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 165.04,
+    "end": 166.04,
+    "text": "E no sistema.",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 166.04,
+    "end": 168.04,
+    "text": "A gente não joga nada fora, a gente agrega todas as...",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 168.04,
+    "end": 170.04,
+    "text": "O petróleo tem lá dentro e virar aquilo em as unidades,",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 170.04,
+    "end": 172.04,
+    "text": "uma operação de engenharia complexa de fazer.",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 172.04,
+    "end": 173.04,
+    "text": "Hoje nós seguimos os meus projetos mesmos.",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 173.04,
+    "end": 175.04,
+    "text": "Hoje, por exemplo, estou começando um novo projeto...",
+    "logprob": -0.411815067132314,
+    "no_speech": 0.76806640625,
+    "compression": 1.7248803827751196
+   },
+   {
+    "start": 175.04,
+    "end": 179.04,
+    "text": "Do mais, emite menos carbono, ajuda o negócio da mudança climática, como o Brasil fez.",
+    "logprob": -0.4263117283950617,
+    "no_speech": 0.328857421875,
+    "compression": 1.4401913875598087
+   },
+   {
+    "start": 179.04,
+    "end": 184.04,
+    "text": "E aí, tivemos obviamente muda de dificuldades, visões com as crianças, não só do poder.",
+    "logprob": -0.4263117283950617,
+    "no_speech": 0.328857421875,
+    "compression": 1.4401913875598087
+   },
+   {
+    "start": 184.04,
+    "end": 188.04,
+    "text": "Eu espero que a gente crida um caminho junto para cá pouco, porque eu acho que a minha mãe vai ficar crista como eu.",
+    "logprob": -0.4263117283950617,
+    "no_speech": 0.328857421875,
+    "compression": 1.4401913875598087
+   }
+  ],
+  "S": 123,
+  "D": 32,
+  "I": 36,
+  "N": 705,
+  "Nc": 3935,
+  "Ec": 560,
+  "ts": {
+   "n": 19,
+   "median_s": 0.4883839579365912,
+   "p90_s": 1.6875274109986256
+  }
+ },
+ "atempo_0.5": {
+  "secs": 8.625499199999467,
+  "segments": [
+   {
+    "start": 0.0,
+    "end": 1.53,
+    "text": "E no caminho eu explico para fazer essa viagem comigo.",
+    "logprob": -0.403947357127541,
+    "no_speech": 0.35400390625,
+    "compression": 1.4748858447488584
+   },
+   {
+    "start": 3.42,
+    "end": 4.27,
+    "text": "Qual é o teu propósito maior?",
+    "logprob": -0.403947357127541,
+    "no_speech": 0.35400390625,
+    "compression": 1.4748858447488584
+   },
+   {
+    "start": 5.58,
+    "end": 6.73,
+    "text": "Quer fazer você levantar todos os jantos?",
+    "logprob": -0.403947357127541,
+    "no_speech": 0.35400390625,
+    "compression": 1.4748858447488584
+   },
+   {
+    "start": 7.53,
+    "end": 9.33,
+    "text": "Pois é do mundo que nenhum país é o suficiente sem tecnologia,",
+    "logprob": -0.403947357127541,
+    "no_speech": 0.35400390625,
+    "compression": 1.4748858447488584
+   },
+   {
+    "start": 9.38,
+    "end": 10.73,
+    "text": "mas nós sabemos fazer a nossa parte.",
+    "logprob": -0.403947357127541,
+    "no_speech": 0.35400390625,
+    "compression": 1.4748858447488584
+   },
+   {
+    "start": 11.33,
+    "end": 12.18,
+    "text": "Show me isso.",
+    "logprob": -0.403947357127541,
+    "no_speech": 0.35400390625,
+    "compression": 1.4748858447488584
+   },
+   {
+    "start": 13.33,
+    "end": 14.98,
+    "text": "Depois que eu passei por todos esses processos,",
+    "logprob": -0.403947357127541,
+    "no_speech": 0.35400390625,
+    "compression": 1.4748858447488584
+   },
+   {
+    "start": 15.78,
+    "end": 16.68,
+    "text": "eu tomei algumas decisões.",
+    "logprob": -0.403947357127541,
+    "no_speech": 0.35400390625,
+    "compression": 1.4748858447488584
+   },
+   {
+    "start": 16.68,
+    "end": 19.68,
+    "text": "dentro da comunidade, das pessoas hoje, que fazem parte da equipe, que contribuem, né,",
+    "logprob": -0.3137499859929085,
+    "no_speech": 0.5595703125,
+    "compression": 1.5045454545454546
+   },
+   {
+    "start": 19.68,
+    "end": 20.68,
+    "text": "e que está sendo...",
+    "logprob": -0.3137499859929085,
+    "no_speech": 0.5595703125,
+    "compression": 1.5045454545454546
+   },
+   {
+    "start": 20.68,
+    "end": 25.7,
+    "text": "No Brasil, aprenderam como é que faz para ir lá no mar, furar, primeiro, passar mil...",
+    "logprob": -0.3137499859929085,
+    "no_speech": 0.5595703125,
+    "compression": 1.5045454545454546
+   },
+   {
+    "start": 25.7,
+    "end": 27.7,
+    "text": "Fui de dinâmica, usam computadores para fazer as contas, etc.",
+    "logprob": -0.3137499859929085,
+    "no_speech": 0.5595703125,
+    "compression": 1.5045454545454546
+   },
+   {
+    "start": 27.7,
+    "end": 30.2,
+    "text": "Publicam artigos científicos com títulos misteriosos, que nem moram.",
+    "logprob": -0.3137499859929085,
+    "no_speech": 0.5595703125,
+    "compression": 1.5045454545454546
+   },
+   {
+    "start": 30.2,
+    "end": 32.7,
+    "text": "Da alguma coisa em mim, já comecei a querer outras coisas.",
+    "logprob": -0.3792134751094861,
+    "no_speech": 0.444091796875,
+    "compression": 1.4874371859296482
+   },
+   {
+    "start": 32.7,
+    "end": 34.2,
+    "text": "Logo depois de ter visto a Ana Luir.",
+    "logprob": -0.3792134751094861,
+    "no_speech": 0.444091796875,
+    "compression": 1.4874371859296482
+   },
+   {
+    "start": 34.7,
+    "end": 36.2,
+    "text": "Eu comecei tão novo, como vocês falem, ver aqui na foto.",
+    "logprob": -0.3792134751094861,
+    "no_speech": 0.444091796875,
+    "compression": 1.4874371859296482
+   },
+   {
+    "start": 36.2,
+    "end": 37.7,
+    "text": "Tem mais outra foto, a minha equipe mais salva.",
+    "logprob": -0.3792134751094861,
+    "no_speech": 0.444091796875,
+    "compression": 1.4874371859296482
+   },
+   {
+    "start": 38.2,
+    "end": 42.68,
+    "text": "Centenas, mas é um outro desses papers de nome complicadíssimo que vocês aqui vão saber.",
+    "logprob": -0.3792134751094861,
+    "no_speech": 0.444091796875,
+    "compression": 1.4874371859296482
+   },
+   {
+    "start": 42.68,
+    "end": 47.25,
+    "text": "Me conhecem sem saber, se não soubessem essa história é minha, com certeza pensariam em mim.",
+    "logprob": -0.45247397230317193,
+    "no_speech": 0.447021484375,
+    "compression": 1.454954954954955
+   },
+   {
+    "start": 47.25,
+    "end": 50.93,
+    "text": "E levar todo mundo a comunidade para a Copacabana, né?",
+    "logprob": -0.45247397230317193,
+    "no_speech": 0.447021484375,
+    "compression": 1.454954954954955
+   },
+   {
+    "start": 50.93,
+    "end": 53.43,
+    "text": "E aí as pessoas de todo mundo perguntando...",
+    "logprob": -0.45247397230317193,
+    "no_speech": 0.447021484375,
+    "compression": 1.454954954954955
+   },
+   {
+    "start": 53.43,
+    "end": 54.93,
+    "text": "O que deseja fazer?",
+    "logprob": -0.45247397230317193,
+    "no_speech": 0.447021484375,
+    "compression": 1.454954954954955
+   },
+   {
+    "start": 54.93,
+    "end": 56.93,
+    "text": "Os cientistas que têm no estado de São Paulo e no Brasil?",
+    "logprob": -0.45247397230317193,
+    "no_speech": 0.447021484375,
+    "compression": 1.454954954954955
+   },
+   {
+    "start": 56.93,
+    "end": 61.155,
+    "text": "É, é a minha história de uma filtraridade.",
+    "logprob": -0.45247397230317193,
+    "no_speech": 0.447021484375,
+    "compression": 1.454954954954955
+   },
+   {
+    "start": 61.155,
+    "end": 63.655,
+    "text": "É a história dos meus avóis, dos meus pais.",
+    "logprob": -0.4628314439094428,
+    "no_speech": 0.54345703125,
+    "compression": 1.345029239766082
+   },
+   {
+    "start": 64.155,
+    "end": 69.655,
+    "text": "Mas quando, cada um de nós, ao ser voltado publicamente perante uma solução de conflitos?",
+    "logprob": -0.4628314439094428,
+    "no_speech": 0.54345703125,
+    "compression": 1.345029239766082
+   },
+   {
+    "start": 74.745,
+    "end": 76.745,
+    "text": "Ao longo da minha jornada, com essas diversas pessoas que foram agradezendo dois para mim.",
+    "logprob": -0.4628314439094428,
+    "no_speech": 0.54345703125,
+    "compression": 1.345029239766082
+   },
+   {
+    "start": 76.745,
+    "end": 81.38,
+    "text": "que não pode refraçar, que o Brasil conseguiu ser a única economia industrializada do mundo",
+    "logprob": -0.4064640410958904,
+    "no_speech": 0.409423828125,
+    "compression": 1.4137931034482758
+   },
+   {
+    "start": 81.38,
+    "end": 84.84,
+    "text": "que não depende do petróleo, se a agricultura sobre o gel molecular sobre como fazer alimento.",
+    "logprob": -0.4064640410958904,
+    "no_speech": 0.409423828125,
+    "compression": 1.4137931034482758
+   },
+   {
+    "start": 84.84,
+    "end": 90.16,
+    "text": "Veja que de 2006 a 2010, principalmente, e que a aplicação dela tem humanidade na perspectiva",
+    "logprob": -0.4064640410958904,
+    "no_speech": 0.409423828125,
+    "compression": 1.4137931034482758
+   },
+   {
+    "start": 90.16,
+    "end": 94.215,
+    "text": "e que a resolução dos concluídos me perguntar",
+    "logprob": -0.4535891041897311,
+    "no_speech": 0.744140625,
+    "compression": 1.3990384615384615
+   },
+   {
+    "start": 94.215,
+    "end": 96.715,
+    "text": "onde saiu da moral justiça, que era muito lar, parceira, feliz?",
+    "logprob": -0.4535891041897311,
+    "no_speech": 0.744140625,
+    "compression": 1.3990384615384615
+   },
+   {
+    "start": 96.715,
+    "end": 99.215,
+    "text": "Que você não consegue achar maneira de fazer a alternativa para o petróleo.",
+    "logprob": -0.4535891041897311,
+    "no_speech": 0.744140625,
+    "compression": 1.3990384615384615
+   },
+   {
+    "start": 99.215,
+    "end": 100.215,
+    "text": "O que o Brasil achou?",
+    "logprob": -0.4535891041897311,
+    "no_speech": 0.744140625,
+    "compression": 1.3990384615384615
+   },
+   {
+    "start": 100.715,
+    "end": 101.715,
+    "text": "Jandre fica a saída.",
+    "logprob": -0.4535891041897311,
+    "no_speech": 0.744140625,
+    "compression": 1.3990384615384615
+   },
+   {
+    "start": 101.715,
+    "end": 104.6,
+    "text": "Aos vinte e poucos anos,",
+    "logprob": -0.4535891041897311,
+    "no_speech": 0.744140625,
+    "compression": 1.3990384615384615
+   },
+   {
+    "start": 105.1,
+    "end": 106.6,
+    "text": "eu larguei fruto e comecei...",
+    "logprob": -0.4535891041897311,
+    "no_speech": 0.744140625,
+    "compression": 1.3990384615384615
+   },
+   {
+    "start": 106.6,
+    "end": 111.96,
+    "text": "Na terra aumentaram a produtividade da agricultura, e quem aumentou essa aumentaram, não foram os americanos.",
+    "logprob": -0.345020320357346,
+    "no_speech": 0.392333984375,
+    "compression": 1.5724907063197027
+   },
+   {
+    "start": 111.96,
+    "end": 113.96,
+    "text": "Com vontade de alguma forma para fazer aquele jornal acontecer.",
+    "logprob": -0.345020320357346,
+    "no_speech": 0.392333984375,
+    "compression": 1.5724907063197027
+   },
+   {
+    "start": 113.96,
+    "end": 115.96,
+    "text": "E o jornal foi acontecendo, o jornal foi crescendo, né? Outras...",
+    "logprob": -0.345020320357346,
+    "no_speech": 0.392333984375,
+    "compression": 1.5724907063197027
+   },
+   {
+    "start": 115.96,
+    "end": 119.79,
+    "text": "Tem safra da imagem da justiça. Como será que ele via a imagem de...",
+    "logprob": -0.345020320357346,
+    "no_speech": 0.392333984375,
+    "compression": 1.5724907063197027
+   },
+   {
+    "start": 119.79,
+    "end": 123.29,
+    "text": "O país do mundo, aqui é Brasil, São Paulo, Estados Unidos, Índia, Austrália, etc.",
+    "logprob": -0.345020320357346,
+    "no_speech": 0.392333984375,
+    "compression": 1.5724907063197027
+   },
+   {
+    "start": 123.29,
+    "end": 123.79,
+    "text": "Quer dizer, é gente...",
+    "logprob": -0.345020320357346,
+    "no_speech": 0.392333984375,
+    "compression": 1.5724907063197027
+   },
+   {
+    "start": 123.79,
+    "end": 129.885,
+    "text": "Eu picava no salão cinco horas. Eu usava um creme que tinha um cheiro ouro-roso.",
+    "logprob": -0.45680895278124306,
+    "no_speech": 0.59228515625,
+    "compression": 1.549618320610687
+   },
+   {
+    "start": 129.885,
+    "end": 132.385,
+    "text": "Essa foi a imagem marcante na história do Trabalho da Comunidade. Foi a invasão da polícia em 2010.",
+    "logprob": -0.45680895278124306,
+    "no_speech": 0.59228515625,
+    "compression": 1.549618320610687
+   },
+   {
+    "start": 132.385,
+    "end": 139.47,
+    "text": "Eu cerretaria do meio ambiente. Aqui das anos, o secretário do Estado do meio ambiente. Eu fico isso aqui.",
+    "logprob": -0.45680895278124306,
+    "no_speech": 0.59228515625,
+    "compression": 1.549618320610687
+   },
+   {
+    "start": 139.47,
+    "end": 142.47,
+    "text": "Como o outro lijo comunitado, que é o mesmo de causa indígena, né? As vivências e histórias de pessoas, né?",
+    "logprob": -0.45680895278124306,
+    "no_speech": 0.59228515625,
+    "compression": 1.549618320610687
+   },
+   {
+    "start": 142.47,
+    "end": 144.64,
+    "text": "fazer uma palestra, contando um pouco essa experiência do trabalho.",
+    "logprob": -0.49345237414042153,
+    "no_speech": 0.6923828125,
+    "compression": 1.5132743362831858
+   },
+   {
+    "start": 144.64,
+    "end": 147.58,
+    "text": "Em outubro fui gravar uma campos de jornalismo comunitário,",
+    "logprob": -0.49345237414042153,
+    "no_speech": 0.6923828125,
+    "compression": 1.5132743362831858
+   },
+   {
+    "start": 147.58,
+    "end": 148.98,
+    "text": "um programa de intercambos de jornalismo comunitário,",
+    "logprob": -0.49345237414042153,
+    "no_speech": 0.6923828125,
+    "compression": 1.5132743362831858
+   },
+   {
+    "start": 148.98,
+    "end": 149.98,
+    "text": "e aí nós fomos o piloto.",
+    "logprob": -0.49345237414042153,
+    "no_speech": 0.6923828125,
+    "compression": 1.5132743362831858
+   },
+   {
+    "start": 149.98,
+    "end": 153.73,
+    "text": "Zô, é a energia do tipo renovável, dessa aqui, né, que tem limitação que não...",
+    "logprob": -0.49345237414042153,
+    "no_speech": 0.6923828125,
+    "compression": 1.5132743362831858
+   },
+   {
+    "start": 153.73,
+    "end": 155.73,
+    "text": "29 dimensões, eu queria tentar ali alguma.",
+    "logprob": -0.49345237414042153,
+    "no_speech": 0.6923828125,
+    "compression": 1.5132743362831858
+   },
+   {
+    "start": 155.73,
+    "end": 160.08,
+    "text": "Quando eu comecei a ler as mensagens, eu fico seguro dentro da minha casa e existindo com calma.",
+    "logprob": -0.36664605140686035,
+    "no_speech": 0.36328125,
+    "compression": 1.5
+   },
+   {
+    "start": 160.08,
+    "end": 163.95,
+    "text": "Quem dessas pessoas que é personalidade?",
+    "logprob": -0.36664605140686035,
+    "no_speech": 0.36328125,
+    "compression": 1.5
+   },
+   {
+    "start": 163.95,
+    "end": 168.45,
+    "text": "Hoje eu trabalho com pensamento sistêmico e no sistema a gente não joga nada fora, a gente agrega todas as...",
+    "logprob": -0.36664605140686035,
+    "no_speech": 0.36328125,
+    "compression": 1.5
+   },
+   {
+    "start": 168.45,
+    "end": 171.95,
+    "text": "Petróleo que tem lá dentro e virar aquilo em Azulina, uma operação de engenharia complexa de fazer.",
+    "logprob": -0.36664605140686035,
+    "no_speech": 0.36328125,
+    "compression": 1.5
+   },
+   {
+    "start": 171.95,
+    "end": 174.95,
+    "text": "Eu espero que a gente brilhe um carminho junto a K-pop, porque eu acho que minha mãe vai estar feliz com a coroela.",
+    "logprob": -0.7113715261220932,
+    "no_speech": 0.0472412109375,
+    "compression": 1.16
+   }
+  ],
+  "S": 114,
+  "D": 79,
+  "I": 25,
+  "N": 705,
+  "Nc": 3935,
+  "Ec": 802,
+  "ts": {
+   "n": 15,
+   "median_s": 0.39164159977331536,
+   "p90_s": 1.9662045853072696
+  }
+ },
+ "reamostragem_0.5": {
+  "secs": 23.709407399997872,
+  "segments": [
+   {
+    "start": 0.0,
+    "end": 1.53,
+    "text": "O caminho explica o que faz essa viagem comigo.",
+    "logprob": -0.7980262906927812,
+    "no_speech": 0.36669921875,
+    "compression": 1.4183673469387754
+   },
+   {
+    "start": 3.425,
+    "end": 4.285,
+    "text": "Como é um trituratoso maior?",
+    "logprob": -0.7980262906927812,
+    "no_speech": 0.36669921875,
+    "compression": 1.4183673469387754
+   },
+   {
+    "start": 5.555,
+    "end": 6.715,
+    "text": "O que faz você levantar os rios?",
+    "logprob": -0.7980262906927812,
+    "no_speech": 0.36669921875,
+    "compression": 1.4183673469387754
+   },
+   {
+    "start": 6.805,
+    "end": 10.735,
+    "text": "Gente, se você morrer, mas não só temos que fazer o nosso aporte.",
+    "logprob": -0.7980262906927812,
+    "no_speech": 0.36669921875,
+    "compression": 1.4183673469387754
+   },
+   {
+    "start": 11.315,
+    "end": 12.185,
+    "text": "Sou mim, isso.",
+    "logprob": -0.7980262906927812,
+    "no_speech": 0.36669921875,
+    "compression": 1.4183673469387754
+   },
+   {
+    "start": 12.605,
+    "end": 13.055,
+    "text": "Eeeh...",
+    "logprob": -0.7980262906927812,
+    "no_speech": 0.36669921875,
+    "compression": 1.4183673469387754
+   },
+   {
+    "start": 13.335,
+    "end": 14.975,
+    "text": "Depois que eu passei por todo esse processo...",
+    "logprob": -0.7980262906927812,
+    "no_speech": 0.36669921875,
+    "compression": 1.4183673469387754
+   },
+   {
+    "start": 15.775,
+    "end": 16.655,
+    "text": "Eu tomei algumas decisões.",
+    "logprob": -0.7980262906927812,
+    "no_speech": 0.36669921875,
+    "compression": 1.4183673469387754
+   },
+   {
+    "start": 83.43,
+    "end": 87.615,
+    "text": "Eu não sei como é que você vai fazer ninguém, veja que tem dois mil e sete anos na universidade",
+    "logprob": -0.9104729611594398,
+    "no_speech": 0.75732421875,
+    "compression": 1.5938864628820961
+   },
+   {
+    "start": 87.615,
+    "end": 90.615,
+    "text": "E que a aclutação dela tem humanidade na perda que precisa de mim",
+    "logprob": -0.9104729611594398,
+    "no_speech": 0.75732421875,
+    "compression": 1.5938864628820961
+   },
+   {
+    "start": 90.615,
+    "end": 94.265,
+    "text": "E que a resma de todos os seus clientes tem de ver com isso",
+    "logprob": -0.9104729611594398,
+    "no_speech": 0.75732421875,
+    "compression": 1.5938864628820961
+   },
+   {
+    "start": 94.265,
+    "end": 95.265,
+    "text": "O que está ao longo da sua existência?",
+    "logprob": -0.9104729611594398,
+    "no_speech": 0.75732421875,
+    "compression": 1.5938864628820961
+   },
+   {
+    "start": 95.265,
+    "end": 96.765,
+    "text": "Não muito bem, mas perda, perda",
+    "logprob": -0.9104729611594398,
+    "no_speech": 0.75732421875,
+    "compression": 1.5938864628820961
+   },
+   {
+    "start": 96.765,
+    "end": 98.265,
+    "text": "Tem que fazer a sua maneira, porra",
+    "logprob": -0.9104729611594398,
+    "no_speech": 0.75732421875,
+    "compression": 1.5938864628820961
+   },
+   {
+    "start": 98.265,
+    "end": 99.265,
+    "text": "A alternativa, porra, petrol",
+    "logprob": -0.9104729611594398,
+    "no_speech": 0.75732421875,
+    "compression": 1.5938864628820961
+   },
+   {
+    "start": 99.265,
+    "end": 106.34,
+    "text": "que durante o ano de onde fica a saída, aos 20 pontos anos, eu larguei tudo e comecei",
+    "logprob": -0.6922619183858235,
+    "no_speech": 0.73828125,
+    "compression": 1.572139303482587
+   },
+   {
+    "start": 106.34,
+    "end": 110.67,
+    "text": "no comando do americano.",
+    "logprob": -0.6922619183858235,
+    "no_speech": 0.73828125,
+    "compression": 1.572139303482587
+   },
+   {
+    "start": 110.67,
+    "end": 113.85,
+    "text": "Então, para fazer, a gente já sabe o que é o seu.",
+    "logprob": -0.6922619183858235,
+    "no_speech": 0.73828125,
+    "compression": 1.572139303482587
+   },
+   {
+    "start": 113.85,
+    "end": 114.85,
+    "text": "E eu já sabe o que é o seu.",
+    "logprob": -0.6922619183858235,
+    "no_speech": 0.73828125,
+    "compression": 1.572139303482587
+   },
+   {
+    "start": 114.85,
+    "end": 115.85,
+    "text": "Porque eu já sei o que é o seu, né?",
+    "logprob": -0.6922619183858235,
+    "no_speech": 0.73828125,
+    "compression": 1.572139303482587
+   },
+   {
+    "start": 115.85,
+    "end": 118.44,
+    "text": "A gente deixava da imagem do assistente.",
+    "logprob": -0.6922619183858235,
+    "no_speech": 0.73828125,
+    "compression": 1.572139303482587
+   },
+   {
+    "start": 118.44,
+    "end": 119.94,
+    "text": "Como será que você dizia a imagem do...",
+    "logprob": -0.6922619183858235,
+    "no_speech": 0.73828125,
+    "compression": 1.572139303482587
+   },
+   {
+    "start": 119.94,
+    "end": 128.52,
+    "text": "Foi o momento em que acabamos sabendo cem horas de um salvo, um creme, que se enxerga pelo uso.",
+    "logprob": -0.9606164653007299,
+    "no_speech": 0.57763671875,
+    "compression": 1.8333333333333333
+   },
+   {
+    "start": 128.52,
+    "end": 132.625,
+    "text": "As meias verdades das terras de interditação têm de fazer com isso em 2010.",
+    "logprob": -0.9606164653007299,
+    "no_speech": 0.57763671875,
+    "compression": 1.8333333333333333
+   },
+   {
+    "start": 132.625,
+    "end": 139.465,
+    "text": "Tenho um erro aqui.",
+    "logprob": -0.9606164653007299,
+    "no_speech": 0.57763671875,
+    "compression": 1.8333333333333333
+   },
+   {
+    "start": 139.465,
+    "end": 143.395,
+    "text": "Eu sou de apresenta.",
+    "logprob": -0.9606164653007299,
+    "no_speech": 0.57763671875,
+    "compression": 1.8333333333333333
+   },
+   {
+    "start": 143.395,
+    "end": 144.795,
+    "text": "Perdoe o que vocês pedissem de verdade.",
+    "logprob": -0.9606164653007299,
+    "no_speech": 0.57763671875,
+    "compression": 1.8333333333333333
+   },
+   {
+    "start": 144.795,
+    "end": 147.635,
+    "text": "É, e aí tem que fazer de eu falar de uma lista de interditação.",
+    "logprob": -0.9606164653007299,
+    "no_speech": 0.57763671875,
+    "compression": 1.8333333333333333
+   },
+   {
+    "start": 147.635,
+    "end": 149.035,
+    "text": "E aí tem que ter de ter de interditação de interditação.",
+    "logprob": -0.9606164653007299,
+    "no_speech": 0.57763671875,
+    "compression": 1.8333333333333333
+   },
+   {
+    "start": 149.035,
+    "end": 150.035,
+    "text": "E aí nós temos de interditação de interditação.",
+    "logprob": -0.9606164653007299,
+    "no_speech": 0.57763671875,
+    "compression": 1.8333333333333333
+   },
+   {
+    "start": 150.035,
+    "end": 152.535,
+    "text": "...",
+    "logprob": -0.7504802030675551,
+    "no_speech": 0.61962890625,
+    "compression": 1.3571428571428572
+   },
+   {
+    "start": 152.535,
+    "end": 155.035,
+    "text": "...",
+    "logprob": -0.7504802030675551,
+    "no_speech": 0.61962890625,
+    "compression": 1.3571428571428572
+   },
+   {
+    "start": 155.035,
+    "end": 157.535,
+    "text": "...",
+    "logprob": -0.7504802030675551,
+    "no_speech": 0.61962890625,
+    "compression": 1.3571428571428572
+   },
+   {
+    "start": 157.535,
+    "end": 160.93,
+    "text": "...",
+    "logprob": -0.7504802030675551,
+    "no_speech": 0.61962890625,
+    "compression": 1.3571428571428572
+   },
+   {
+    "start": 160.93,
+    "end": 165.51,
+    "text": "...",
+    "logprob": -0.7504802030675551,
+    "no_speech": 0.61962890625,
+    "compression": 1.3571428571428572
+   },
+   {
+    "start": 182.525,
+    "end": 187.375,
+    "text": "Eu espero que a gente imprime um cabelo de jupro e está pronto porque eu acho que não vou entrar aqueles pouco ruim.",
+    "logprob": -0.8720703180879354,
+    "no_speech": 0.443603515625,
+    "compression": 1.2040816326530612
+   }
+  ],
+  "S": 191,
+  "D": 411,
+  "I": 3,
+  "N": 705,
+  "Nc": 3935,
+  "Ec": 2894,
+  "ts": {
+   "n": 3,
+   "median_s": 1.9127860134638581,
+   "p90_s": 16.199469391385218
+  }
+ }
+}

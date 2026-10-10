@@ -1,0 +1,150 @@
+import types
+import unittest
+from unittest import mock
+
+import numpy as np
+
+from lumen import transcribe
+
+
+def word(start, end, w):
+    return types.SimpleNamespace(start=start, end=end, word=w)
+
+
+class FakeSmall:
+    """Segundo modelo: concorda no 1º trecho e ouve outra coisa no 2º."""
+
+    def __init__(self, *a, **k):
+        pass
+
+    def transcribe(self, samples, **kw):
+        assert kw["word_timestamps"]
+        segs = [types.SimpleNamespace(words=[word(0.1, 0.5, " A"), word(0.5, 0.9, " aula"), word(0.9, 1.5, " começa")]),
+                types.SimpleNamespace(words=[word(2.1, 2.6, " o"), word(2.6, 3.4, " Kubernetes"), word(3.4, 3.9, " escala")])]
+        return iter(segs), None
+
+
+class SecondOpinion(unittest.TestCase):
+    def segs(self):
+        return [{"start": 0.0, "end": 2.0, "text": "A aula começa."}, {"start": 2.0, "end": 4.0, "text": "O cubo de neto escala."}]
+
+    def test_flags_divergence_without_replacing_text(self):
+        segs = self.segs()
+        with mock.patch.object(transcribe, "has_gpu", return_value=True), \
+                mock.patch.object(transcribe, "downloaded", return_value=True), \
+                mock.patch.object(transcribe, "WhisperModel", FakeSmall):
+            self.assertTrue(transcribe.second_opinion(np.zeros(16000 * 4, dtype=np.float32), 1.0, segs, "large-v3-turbo", lambda: None))
+        self.assertNotIn("diverges", segs[0])
+        self.assertTrue(segs[1]["diverges"])
+        self.assertEqual(segs[1]["alt"], "o Kubernetes escala")
+        self.assertEqual(segs[1]["text"], "O cubo de neto escala.")  # nunca troca sozinho
+
+    def test_timestamps_scaled_for_2x(self):
+        segs = [{"start": 0.0, "end": 1.0, "text": "A aula começa."}]  # no arquivo 2x, o trecho 0–2 s vira 0–1 s
+        with mock.patch.object(transcribe, "has_gpu", return_value=True), \
+                mock.patch.object(transcribe, "downloaded", return_value=True), \
+                mock.patch.object(transcribe, "WhisperModel", FakeSmall):
+            transcribe.second_opinion(np.zeros(16000 * 4, dtype=np.float32), 2.0, segs, "large-v3-turbo", lambda: None)
+        self.assertNotIn("diverges", segs[0])
+
+    def test_skipped_without_gpu_or_model(self):
+        for gpu, have in ((False, True), (True, False)):
+            with mock.patch.object(transcribe, "has_gpu", return_value=gpu), \
+                    mock.patch.object(transcribe, "downloaded", return_value=have):
+                self.assertFalse(transcribe.second_opinion(np.zeros(10, dtype=np.float32), 1.0, self.segs(), "large-v3-turbo", lambda: None))
+
+    def test_disagreement(self):
+        self.assertEqual(transcribe.disagreement("Olá, turma!", "olá turma"), 0)
+        self.assertGreater(transcribe.disagreement("o cubo de neto", "o kubernetes"), transcribe.DIVERGENCE)
+
+
+
+class Modes(unittest.TestCase):
+    def test_hardware_mapping_and_legacy_values(self):
+        with mock.patch.object(transcribe, "has_gpu", return_value=True):
+            self.assertEqual({k: v["name"] for k, v in transcribe.models().items()},
+                             {"rapido": "small", "equilibrado": "large-v3-turbo", "maximo": "large-v3"})
+            for old in ("auto", "preciso", None):
+                self.assertEqual(transcribe.pick(old)[0], "equilibrado")
+        with mock.patch.object(transcribe, "has_gpu", return_value=False):
+            self.assertEqual(transcribe.pick("equilibrado")[1]["name"], transcribe.PARAKEET)
+            self.assertEqual(transcribe.pick("maximo")[1]["name"], "large-v3-turbo")
+
+    def test_parakeet_adapter(self):
+        class FakeOnnx:  # onnx-asr com VAD: segmentos sem confiança
+            def recognize(self, samples, sample_rate):
+                return iter([types.SimpleNamespace(start=0.5, end=2.0, text="Olá turma.")])
+        out = list(transcribe._segments(FakeOnnx(), np.zeros(10, dtype=np.float32), lambda: None))
+        seg, info = out[0]
+        self.assertEqual((seg.start, seg.end, seg.text), (0.5, 2.0, "Olá turma."))
+        self.assertGreater(seg.avg_logprob, transcribe.UNCERTAIN_LOGPROB)  # nunca marcado “incerto” sem sinal real
+        self.assertIsNone(info.language)
+
+
+
+class Vram(unittest.TestCase):
+    def test_falls_back_when_vram_is_short(self):
+        with mock.patch.object(transcribe, "has_gpu", return_value=True),                 mock.patch.object(transcribe, "downloaded", return_value=True):
+            with mock.patch.object(transcribe, "gpu_free_gb", return_value=10.0):
+                self.assertEqual(transcribe.fit_gpu("large-v3"), ("large-v3", None))
+            with mock.patch.object(transcribe, "gpu_free_gb", return_value=3.0):
+                name, warn = transcribe.fit_gpu("large-v3")
+                self.assertEqual(name, "large-v3-turbo")
+                self.assertIn("3.0 GB", warn)
+            with mock.patch.object(transcribe, "gpu_free_gb", return_value=0.5):
+                self.assertEqual(transcribe.fit_gpu("large-v3-turbo")[0], transcribe.PARAKEET)
+            with mock.patch.object(transcribe, "gpu_free_gb", return_value=None):  # sem medição: tenta, com recuo p/ CPU
+                self.assertEqual(transcribe.fit_gpu("large-v3"), ("large-v3", None))
+
+    def test_max_precision_uses_fp32_only_if_it_fits(self):
+        with mock.patch.object(transcribe, "gpu_free_gb", return_value=10.5):
+            self.assertEqual(transcribe._compute("large-v3", "cuda"), "float32")
+            self.assertEqual(transcribe._compute("large-v3-turbo", "cuda"), "float16")
+        with mock.patch.object(transcribe, "gpu_free_gb", return_value=6.0):
+            self.assertEqual(transcribe._compute("large-v3", "cuda"), "float16")
+        self.assertEqual(transcribe._compute("large-v3", "cpu"), "int8")
+
+    def test_no_change_without_gpu(self):
+        with mock.patch.object(transcribe, "has_gpu", return_value=False):
+            self.assertEqual(transcribe.fit_gpu("large-v3-turbo"), ("large-v3-turbo", None))
+
+
+
+class Speeds(unittest.TestCase):
+    def test_4x_always_turbo_and_experimental(self):
+        with mock.patch.object(transcribe, "downloaded", return_value=True):
+            for m in ("small", "large-v3", transcribe.PARAKEET, "large-v3-turbo"):
+                name, warn = transcribe.for_speed(m, 4)
+                self.assertEqual(name, "large-v3-turbo")
+                self.assertIn("experimental", warn)
+        with mock.patch.object(transcribe, "downloaded", return_value=False):
+            name, warn = transcribe.for_speed(transcribe.PARAKEET, 4)
+            self.assertEqual(name, transcribe.PARAKEET)
+            self.assertIn("Baixe", warn)
+
+    def test_suggest_speed_never_claims_4x(self):
+        self.assertEqual(transcribe.suggest_speed(2.1)[:2], (1.0, False))
+        self.assertEqual(transcribe.suggest_speed(2.6)[:2], (1.0, True))      # perto do limite
+        speed, unsure, note = transcribe.suggest_speed(5.0)
+        self.assertEqual((speed, unsure), (2.0, True))
+        self.assertIn("4×", note)
+        for collapsed in (0.06, None):                                         # padrão observado em fala 4x
+            speed, unsure, note = transcribe.suggest_speed(collapsed)
+            self.assertTrue(unsure)
+            self.assertIn("4×", note)
+
+    def test_4x_uses_its_options(self):
+        seen = {}
+
+        class M:
+            def transcribe(self, samples, **kw):
+                seen.update(kw)
+                return iter([]), types.SimpleNamespace(language="pt", duration=1)
+        list(transcribe._segments(M(), np.zeros(10, dtype=np.float32), lambda: None, transcribe.SPEED_OPTIONS[4]))
+        self.assertFalse(seen["condition_on_previous_text"])
+        list(transcribe._segments(M(), np.zeros(10, dtype=np.float32), lambda: None))
+        self.assertTrue(seen["condition_on_previous_text"])
+
+
+if __name__ == "__main__":
+    unittest.main()

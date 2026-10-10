@@ -1,0 +1,225 @@
+# Decisões e limitações
+
+Pesquisado em outubro de 2026, nas documentações oficiais citadas.
+
+## Arquitetura
+
+Um único processo Python:
+
+```
+lumen/
+  __main__.py    inicia o servidor e abre a janela; encerra quando a janela fecha
+  server.py      HTTP só em 127.0.0.1 (stdlib): interface + API JSON
+  jobs.py        uma tarefa por vez: preparar → transcrever → gerar → publicar; guarda etapas para retomar
+  sources.py     arquivo local, link do YouTube, legendas/transcrições importadas
+  transcribe.py  faster-whisper (CPU ou GPU NVIDIA)
+  llm.py         Ollama: prompt, JSON Schema, validação, leitura por partes
+  notion.py      API REST do Notion (stdlib urllib) e montagem dos blocos
+  store.py       config.json, history.json, token no cofre do sistema
+  web/           HTML/CSS/JS sem framework
+```
+
+- **Interface**: HTML servido localmente. No Windows, o `Lumen.exe` (C#, `launcher/Lumen.cs`) mostra essa
+  interface numa janela nativa com o WebView2 (já instalado no Windows 11), escolhe uma porta livre, inicia
+  `pythonw -m lumen` e coloca tudo num Job Object, para que fechar o app encerre também o Python. Sem o exe,
+  `python -m lumen` abre o Edge com `--app` ou o navegador padrão.
+- **Janela estilo Mac**: o `Lumen.exe` remove a barra de título nativa (WM_NCCALCSIZE, mantendo bordas, sombra e
+  Snap) e a página desenha a barra com os três botões de janela. A área arrastável usa `app-region: drag`
+  (`IsNonClientRegionSupportEnabled`, WebView2 123+); os botões enviam `window:close|minimize|maximize` por
+  `postMessage`. Com WebView2 mais antigo, volta a barra nativa. Limitação: não dá para redimensionar pela borda de cima.
+- **Barra flutuante**: `launcher/WidgetForm.cs` cria uma segunda janela WinForms sem moldura, sempre sobre as demais,
+  com a interface `web/widget.*`. Compartilha o servidor e o perfil do WebView2. O loopback é único e os comandos
+  de iniciar/parar/descartar são serializados entre as duas interfaces. A gravação parada é entregue à janela
+  principal por mensagens do host; fechar a janela recolhe o app, e sair finaliza o WAV antes de encerrar o Python.
+  A posição fica em `%LOCALAPPDATA%\Lumen\widget-position.txt`; o ajuste de posição respeita a área útil de cada tela.
+  A inicialização automática usa a chave Run do usuário com `Lumen.exe --background`, sem gravar automaticamente.
+  A apresentação segue o tamanho real do WebView2, evitando que mensagens de recolhimento atrasadas deixem
+  uma alça ampliada no lugar dos controles. A posição v3 registra o canto superior e a orientação da alça;
+  posições anteriores são convertidas. A alça e os controles assumem disposição horizontal nas bordas superior
+  e inferior. O encaixe considera os dois eixos e o painel se mantém dentro da área útil ao crescer.
+  A interface usa renderização por software no WebView2, configurada apenas no processo do Lumen. A verificação
+  nativa apresentou encerramentos com aceleração gráfica durante o redimensionamento e passou com esse modo.
+  Os motores de transcrição usam suas próprias configurações de hardware.
+- **Visual**: inspirado na linguagem dos apps da Apple (cartões agrupados, barra translúcida, controle segmentado,
+  chave liga/desliga), com desenho próprio: sem fontes, ícones ou imagens da Apple. A fonte é a Inter (OFL,
+  `lumen/web/fonts/OFL.txt`). As DLLs do SDK do WebView2 (licença BSD da Microsoft, `launcher/bin/LICENSE-WebView2.txt`)
+  vêm do pacote NuGet oficial `Microsoft.Web.WebView2`. Electron, pywebview e Qt foram descartados:
+  são dependências grandes, e o pythonnet do pywebview ainda não acompanha o Python 3.14.
+- **Escolha de arquivo**: diálogo nativo do `tkinter` (stdlib) num subprocesso, que devolve o caminho real sem copiar
+  o vídeo. Arrastar para a janela copia o arquivo para `work\uploads` (o navegador não expõe caminhos); a cópia é
+  apagada depois da publicação.
+- **Dependências**: `faster-whisper` (MIT), `av` (BSD), `keyring` (MIT). GPU opcional: bibliotecas CUDA da NVIDIA via pip.
+  O resto é stdlib (HTTP, JSON, cliente do Notion e do Ollama).
+- **`av` fixado em 16.1.0**: as versões 17+ removeram o argumento `metadata_errors`, que o faster-whisper 1.2.1 usa.
+
+## Transcrição (auditada em 07/10/2026; ver bench/)
+
+- **Motores**: faster-whisper/CTranslate2 (GPU float16 ou CPU int8) e, na CPU, Parakeet TDT 0.6B v3 via
+  `onnx-asr` (MIT; ONNX int8 + VAD Silero; sem PyTorch). Os modelos são baixados só com o clique em **Baixar**,
+  e a transcrição usa sempre arquivos locais. Se a GPU falhar antes do primeiro trecho, o app tenta na CPU.
+- **Escolha dos modelos**: benchmark com FLEURS pt-BR e CORAA (transcrição humana) mais condições derivadas,
+  e critérios fixados antes ([bench/CRITERIOS.md](../bench/CRITERIOS.md)). Turbo, large-v3 e Parakeet empataram
+  (menos de 1 ponto de diferença em palestra + aula longa), e venceu o mais rápido na GPU. O medium reprovou: inventou
+  texto em silêncio/música. Na CPU, o turbo reprovou em velocidade (1,6×) e o Parakeet passou (19×). O Canary
+  1B v2 passou nos critérios, mas perdeu em qualidade e velocidade.
+- **Opções auditadas**: `condition_on_previous_text=True` (aula longa: 11,5% contra 12,8% com `False`) e VAD ligado
+  (sem ele apareceu texto em trecho sem fala). Idioma automático deu o mesmo resultado que forçar `pt`.
+  **Hotwords** (vocabulário do curso) melhoraram o texto, mas deslocaram os timestamps em ~15 s, então não são
+  usados. Correção de termos fica na revisão manual.
+- **Sinais para revisão** (critério 10: trechos marcados erram ≥ 2× mais):
+  - `avg_logprob < -1` (7,2×, mas marca poucos trechos);
+  - divergência com o whisper-small na GPU (limite 0,2 pela regra registrada antes: marca 27,5%, que erram 3,6×
+    mais). O segundo modelo custa cerca de 4% do tempo na GPU e nunca troca o texto: só marca e mostra a
+    alternativa.
+
+  A divergência com o Parakeet foi um sinal melhor (5,4×), mas custaria quase o dobro do tempo; ficou registrada
+  como alternativa.
+- **Fala 2×** (sintética: palestras reais aceleradas com atempo). O controle por reamostragem, que muda o tom, ficou
+  com 45–90% de erro. Com as opções finais do app, desacelerar 0,5× mantendo o tom melhorou o turbo (GPU 17,7% →
+  16,2%; CPU 20,9% → 16,0%), piorou ou empatou o large-v3 e o small, e Parakeet e small erram demais em 2× (36% e
+  26%). Os tempos voltam à linha do tempo do arquivo (erro mediano 0,07 s).
+- **4× Ultra** (adendo 3; `bench.ultra`): 6 configurações × preparações direto/0,5/0,33/0,25 (atempo), mais
+  Rubber Band (FFmpeg do sistema) e `condition_on_previous_text=False`. Nenhuma passou no critério 12 (≤ 30%).
+  Melhor: turbo + 0,5× + sem contexto entre trechos (53,2%). Voltar à velocidade natural (0,25×) foi pior
+  (64–83%), e o Rubber Band também (64–81%). Por isso o 4× é **experimental**, com o erro medido na tela.
+  Acelerar 4× com algoritmos que preservam o tom descarta cerca de 3/4 da forma de onda, e nenhum modelo recupera isso.
+- **Automático**: limite de 2,9 palavras/s entre 1× e 2× (faixas encostadas, 2,90 × 3,00), por isso é só sugestão.
+  Com fala 4×, o modelo reconhece quase nada (0,06–8,6 palavras/s), e depois de desacelerar 0,5× as faixas de 2× e 4×
+  se sobrepõem. O app nunca afirma 4×: sugere 2× ("pode ser 2× ou 4×") e, abaixo de 1,2 palavra/s, pede a escolha.
+- **Hardware** (medido; GPU% é da placa inteira via nvidia-smi):
+  - Whisper: CUDA via CTranslate2, de 34% a 84% de uso médio da GPU e 1,5 a 5 núcleos de CPU. A GPU não satura
+    porque a busca em feixe é sequencial.
+  - Lotes (`BatchedInferencePipeline`): 2× mais rápido, mas mais erro e timestamps grosseiros, então não foi
+    adotado (critério 14).
+  - Float16 × float32: turbo igual (−0,14 ponto); large-v3 +0,57 ponto em 1×. Por isso o modo Maior precisão usa
+    float32 quando a VRAM permite. É um caso de fronteira, dentro da variação entre execuções.
+  - Parakeet: onnxruntime só para CPU; o pacote com CUDA conflitaria com o onnxruntime que o faster-whisper usa.
+    Com 4 threads (1/3 dos núcleos lógicos) foi 2× mais rápido que com 12 e deixou outro programa só 1,4× mais lento.
+  - A prioridade baixa do processo não trouxe ganho medido e ficou desligada. A API local respondeu com p95 ≤ 287 ms
+    em todos os casos.
+  - Antes de carregar um modelo na GPU, o app confere a VRAM livre (`nvidia-smi`). Se ela não for suficiente, usa
+    um modelo menor ou a CPU. Uma falha de CUDA antes do primeiro trecho leva à CPU.
+- **Variação**: com o fallback de temperatura do Whisper, a mesma configuração pode mudar entre execuções (o
+  large-v3 2× desacelerado deu 26,7% numa rodada e 17,3% na outra).
+
+## IA (texto)
+
+- Ollama (MIT) em `127.0.0.1:11434`, com `format` = JSON Schema (saídas estruturadas) e `think: false`.
+  Modelo padrão `qwen3:8b` (Apache 2.0, contexto de 40k). Usa `num_ctx` de 20480 tokens.
+- A resposta passa por `llm.validate`: campos obrigatórios, listas limpas, marcadores de tempo inexistentes ou além
+  da duração descartados. Se vier malformada, tenta mais uma vez. Na segunda falha, gera um erro recuperável e nada
+  é publicado.
+- O prompt exige usar só a transcrição. A explicação simples e as analogias são rotuladas como didáticas na página.
+- Não há opção em nuvem. Nenhum serviço gratuito encontrado tinha custo e limites estáveis o bastante para cumprir
+  o requisito de transparência.
+
+## Notion
+
+- API REST oficial, `Notion-Version: 2026-03-11` (a mais recente). Nessa versão: `archived` → `in_trash`, e o
+  `after` do append virou `position`. O Lumen usa `in_trash` e não usa `position`.
+- Limites respeitados (developers.notion.com/reference/request-limits): até 100 blocos por requisição (o resto vai
+  em lotes por `PATCH /blocks/{id}/children`), 2000 caracteres por rich text (textos longos são divididos), até dois
+  níveis de aninhamento por requisição (o toggle tem um), e 429 tratado com `Retry-After`.
+- **Integração interna** com token, não OAuth público: o OAuth exige um `client_secret` num servidor, o que um app
+  local e gratuito não tem.
+- Destino em páginas, não em banco de dados: a aula entra como blocos no corpo da página escolhida,
+  sem criar uma subpágina. A criação explícita de cursos e módulos continua disponível.
+- Respostas das perguntas ficam como filhas de blocos `toggle`. O Notion abre toggles recolhidos, e o estado aberto é
+  por leitor e não é exposto pela API.
+- Publicação: uma aula comum (≈ 30–60 blocos) é acrescentada numa requisição. Se um lote falhar ou o usuário
+  cancelar, somente os blocos novos confirmados são removidos; a página e o conteúdo anterior são preservados.
+  O append não é repetido automaticamente após erro de rede ou HTTP 5xx: a API pode já ter recebido o lote.
+  Falhas na confirmação ou limpeza pedem conferência no Notion antes de tentar novamente.
+- Duplicatas: `history.json` associa a fonte (ID do YouTube, ou hash do tamanho + primeiro MB do arquivo) à página.
+  Antes de oferecer a escolha, o app confere pela API se a página ainda existe fora da lixeira.
+  Guarda também os IDs dos blocos publicados: atualizar remove apenas esses blocos após salvar a nova versão.
+  Se o destino mudou ou o histórico é antigo, preserva a página anterior e informa isso na interface.
+- **Imagens não foram incluídas.** Um quadro do vídeo exigiria a File Upload API (limite de 5 MB por arquivo no
+  plano gratuito) e só valeria para arquivos locais. Os metadados, callouts e o sumário já dão a hierarquia visual.
+
+## Capas com IA (08/10/2026)
+
+- **Gerador:** stable-diffusion.cpp (build Vulkan, MIT) + **Z-Image-Turbo** Q4_K (Apache 2.0, Alibaba Tongyi), com
+  Qwen3-4B como codificador de texto. Tudo local, sem chave e sem nuvem; ≈ 6,7 GB, baixados só com o clique em Ajustes.
+- **Comparação:** mesmos 4 temas e mesma semente contra o FLUX.2 [klein] 4B. O Z-Image fez ilustrações mais bonitas e
+  não desenhou texto deformado; o klein desenhou letras ilegíveis nas capas.
+- **Ollama descartado:** a geração de imagem do Ollama exige MLX (só macOS).
+- **Tempo (RTX 3060, 1536×640, 8 passos):** ≈ 33 s com os pesos num SSD (CUDA: 29 s, mas +1,1 GB e só NVIDIA, por
+  isso Vulkan). Num HD a leitura de 6 GB somava ~100 s. Com `--offload-to-cpu --vae-tiling` passou de 4 min.
+- **Pedido da imagem:** o qwen3 escreve a cena em inglês (`image_prompt`), sai da VRAM (`keep_alive=0`) e o Lumen
+  remove palavras que viram texto falso ou moldura (interface, tela, código, documento, banner…).
+- **Sem o gerador**, a capa é desenhada com emojis e paleta do tema (Edge sem janela) e, se até isso falhar, um
+  gradiente do Notion. A capa sobe pela File Upload API oficial.
+
+## Gravar ao assistir
+
+- Captura o som que sai do PC pelo loopback WASAPI do Windows (biblioteca `soundcard`, BSD). Não baixa o vídeo,
+  não lê o player e funciona com qualquer site ou app: YouTube, plataformas de curso, Telegram.
+- Grava WAV 16 kHz mono (≈ 115 MB por hora) na pasta `work/uploads` dos dados do app. O arquivo é apagado assim
+  que a transcrição termina (a retomada usa a transcrição salva), e gravações esquecidas somem ao abrir o app
+  depois de 7 dias. Uma gravação sem som ou com menos de 3 s é descartada com aviso. A gravação para se o
+  disco ficar quase cheio.
+- Limites: leva o tempo real da aula; sons do sistema (notificações) também entram; com o PC no mudo alguns drivers
+  entregam silêncio; os marcadores de tempo seguem a gravação, não o vídeo.
+- Use para estudo pessoal, respeitando os termos da plataforma de onde a aula vem.
+
+## YouTube: limitação real
+
+- `captions.download` (YouTube Data API v3) exige OAuth **e permissão para editar o vídeo**. Para vídeos de
+  terceiros, a resposta é 403. Não há API oficial que entregue a transcrição de vídeos alheios.
+- Por isso o Lumen **não** baixa vídeo nem raspa o player. Ele usa o oEmbed público oficial (título e canal) e
+  pede a transcrição ao usuário: colar o texto do painel “Mostrar transcrição” (com marcadores de tempo), importar
+  `.srt`/`.vtt`/`.txt`, ou escolher uma cópia local autorizada.
+- Para vídeos **próprios** seria possível usar `captions.download` com OAuth. Isso não foi implementado porque
+  exigiria que cada usuário criasse um projeto no Google Cloud. A importação de `.srt` exportado do YouTube Studio
+  cobre esse caso.
+- Não há extensão de navegador. Ela só serviria de atalho, e qualquer leitura da transcrição dentro da página seria
+  justamente a automação frágil do player que o projeto evita.
+
+## Player do YouTube na página
+
+- O link opcional de uma gravação ou arquivo também pode ser editado durante a revisão. Na retomada, vale
+  o link atual, mesmo que o áudio temporário já tenha sido apagado.
+- Links do YouTube são validados e normalizados para `https://www.youtube.com/watch?v=ID`. A API oficial do
+  Notion aceita esse endereço em um bloco `video` externo, com legenda, sem download nem HTML personalizado.
+- O player fica após os metadados, em “Assistir à aula”, separado do sumário e do resumo por um divisor.
+  A atualização e o cancelamento usam os mesmos IDs dos blocos para incluir/remover o player com o material.
+- Uma gravação pode começar no meio de um vídeo: o link opcional não converte seus tempos em timestamps
+  do YouTube. Os links de tempo continuam restritos à fonte YouTube.
+- Privacidade, disponibilidade e permissão de incorporação são controladas pelo YouTube e pelo Notion.
+
+## Telegram: limitação real
+
+- Bot API: o bot só acessa mídias enviadas a ele, e o `getFile` baixa no máximo 20 MB, pequeno demais para aulas.
+- API de cliente (MTProto, ex. Telethon): exige `api_id`/`api_hash` próprios (my.telegram.org) e login com o
+  telefone, o que dá acesso a **todas** as conversas da conta. Não existe escopo mínimo.
+- Por isso a fonte Telegram é **importação manual** do arquivo salvo pelo Telegram Desktop. O app explica isso
+  e não promete acesso a chats, canais ou grupos.
+
+## Gerar amostras de teste (autorizadas)
+
+Voz sintética do Windows (PowerShell, `System.Speech`, voz “Maria” pt-BR) gravando `aula.wav`. Depois:
+
+```
+ffmpeg -f lavfi -i color=c=0x1d3557:s=640x360:r=25 -i aula.wav -shortest -c:v libx264 -pix_fmt yuv420p -c:a aac aula.mp4
+ffmpeg -f lavfi -i color=c=0x1d3557:s=640x360:r=25 -i aula.wav -shortest -c:v libvpx-vp9 -b:v 200k -c:a libopus aula.webm
+ffmpeg -i aula.mp4 -c copy aula.mkv && ffmpeg -i aula.mp4 -c copy aula.mov
+ffmpeg -i aula.wav -c:a libmp3lame aula.mp3 && ffmpeg -i aula.wav -c:a aac aula.m4a
+ffmpeg -f lavfi -i color=c=red:s=320x240:r=10 -t 3 -c:v libx264 -pix_fmt yuv420p sem_audio.mp4
+echo "isto nao e um video" > falso.mp4
+```
+
+## Limitações conhecidas
+
+- O áudio inteiro é decodificado em memória: ≈ 230 MB por hora de aula (o dobro em 2× desacelerado).
+- Precisão real em **aulas suas** ainda não foi medida: o benchmark usa FLEURS/CORAA e misturas sintéticas.
+  Para medir, veja "Usar suas próprias aulas" em bench/README.md.
+- Não há amostra **real** de aula gravada em 2× ou 4×; ambos foram testados com fala real acelerada artificialmente
+  (atempo). Players e editores podem acelerar com outros algoritmos.
+- As medições de hardware valem para este PC (i5-11400F, RTX 3060 12 GB). Em outra máquina, a reserva de núcleos e
+  os limites de VRAM são estimativas.
+- O Parakeet foi treinado com português europeu; nos testes com pt-BR foi bem, mas pode grafar palavras à europeia.
+- Cancelar durante a decodificação inicial do áudio só tem efeito quando ela termina (segundos a ~1 min).
+- Uma tarefa por vez. Fechar a janela cancela a tarefa em andamento; o que já foi feito fica guardado para retomar.
+- Não foi testado em macOS/Linux nem em GPUs AMD/Intel (nesses casos o app usa a CPU).
+- Publicar num workspace real do Notion depende do seu token: os testes automáticos usam um Notion simulado.

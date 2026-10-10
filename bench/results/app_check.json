@@ -1,0 +1,220 @@
+[
+ {
+  "caso": "A: GPU 1x (equilibrado + segundo modelo)",
+  "modelo": "large-v3-turbo",
+  "dispositivo": "cuda",
+  "velocidade": 1.0,
+  "WER": 0.1149,
+  "omissoes": 20,
+  "insercoes": 18,
+  "segundos": 23.9,
+  "trechos": 88,
+  "marcados": 14,
+  "segundo_modelo": true,
+  "timestamp": {
+   "n": 25,
+   "median_s": 0.5043318645155068,
+   "p90_s": 2.1446193751836016
+  }
+ },
+ {
+  "caso": "B: automático no arquivo 2x",
+  "modelo": "large-v3-turbo",
+  "dispositivo": "cuda",
+  "velocidade": 2.0,
+  "WER": 0.1617,
+  "omissoes": 25,
+  "insercoes": 18,
+  "segundos": 20.7,
+  "trechos": 115,
+  "marcados": 45,
+  "segundo_modelo": true,
+  "timestamp": {
+   "n": 14,
+   "median_s": 0.07202695516679825,
+   "p90_s": 0.43536552083760977
+  },
+  "detectado_wps": 4.08
+ },
+ {
+  "caso": "C: automático no arquivo 1x",
+  "modelo": "large-v3-turbo",
+  "dispositivo": "cuda",
+  "velocidade": 1.0,
+  "WER": 0.1149,
+  "omissoes": 20,
+  "insercoes": 18,
+  "segundos": 20.3,
+  "trechos": 88,
+  "marcados": 14,
+  "segundo_modelo": true,
+  "timestamp": {
+   "n": 25,
+   "median_s": 0.5043318645155068,
+   "p90_s": 2.1446193751836016
+  },
+  "detectado_wps": 2.28
+ },
+ {
+  "caso": "2x direto",
+  "modelo": "large-v3-turbo",
+  "dispositivo": "cuda",
+  "velocidade": 2.0,
+  "WER": 0.1773,
+  "omissoes": 46,
+  "insercoes": 15,
+  "segundos": 16.9,
+  "trechos": 96,
+  "marcados": 35,
+  "segundo_modelo": true,
+  "timestamp": {
+   "n": 22,
+   "median_s": 0.12830265184797973,
+   "p90_s": 0.7433640859145485
+  }
+ },
+ {
+  "caso": "2x desacelerado",
+  "modelo": "large-v3-turbo",
+  "dispositivo": "cuda",
+  "velocidade": 2.0,
+  "WER": 0.1617,
+  "omissoes": 25,
+  "insercoes": 18,
+  "segundos": 20.8,
+  "trechos": 115,
+  "marcados": 45,
+  "segundo_modelo": true,
+  "timestamp": {
+   "n": 14,
+   "median_s": 0.07202695516679825,
+   "p90_s": 0.43536552083760977
+  }
+ },
+ {
+  "caso": "2x direto",
+  "modelo": "large-v3",
+  "dispositivo": "cuda",
+  "velocidade": 2.0,
+  "WER": 0.1702,
+  "omissoes": 39,
+  "insercoes": 19,
+  "segundos": 36.7,
+  "trechos": 94,
+  "marcados": 32,
+  "segundo_modelo": true,
+  "timestamp": {
+   "n": 20,
+   "median_s": 0.1579964429038796,
+   "p90_s": 0.7685613335758505
+  }
+ },
+ {
+  "caso": "2x desacelerado",
+  "modelo": "large-v3",
+  "dispositivo": "cuda",
+  "velocidade": 2.0,
+  "WER": 0.173,
+  "omissoes": 26,
+  "insercoes": 25,
+  "segundos": 52.4,
+  "trechos": 114,
+  "marcados": 59,
+  "segundo_modelo": true,
+  "timestamp": {
+   "n": 16,
+   "median_s": 0.4512040663676462,
+   "p90_s": 2.0402295383761953
+  }
+ },
+ {
+  "caso": "2x direto",
+  "modelo": "small",
+  "dispositivo": "cuda",
+  "velocidade": 2.0,
+  "WER": 0.2638,
+  "omissoes": 52,
+  "insercoes": 31,
+  "segundos": 18.9,
+  "trechos": 64,
+  "marcados": 42,
+  "segundo_modelo": true,
+  "timestamp": {
+   "n": 22,
+   "median_s": 0.22089671542374134,
+   "p90_s": 0.6567854422123504
+  }
+ },
+ {
+  "caso": "2x desacelerado",
+  "modelo": "small",
+  "dispositivo": "cuda",
+  "velocidade": 2.0,
+  "WER": 0.2695,
+  "omissoes": 42,
+  "insercoes": 29,
+  "segundos": 22.2,
+  "trechos": 101,
+  "marcados": 37,
+  "segundo_modelo": true,
+  "timestamp": {
+   "n": 12,
+   "median_s": 0.10232592740316271,
+   "p90_s": 0.7199648205976773
+  }
+ },
+ {
+  "caso": "D: só CPU (equilibrado = Parakeet)",
+  "modelo": "parakeet-tdt-0.6b-v3",
+  "dispositivo": "cpu",
+  "velocidade": 1.0,
+  "WER": 0.1433,
+  "omissoes": 31,
+  "insercoes": 19,
+  "segundos": 26.1,
+  "trechos": 120,
+  "marcados": 0,
+  "segundo_modelo": false,
+  "timestamp": {
+   "n": 24,
+   "median_s": 0.02518406067454748,
+   "p90_s": 0.40723391490600397
+  }
+ },
+ {
+  "caso": "E: só CPU, arquivo 2x (large-v3-turbo, direto)",
+  "modelo": "large-v3-turbo",
+  "dispositivo": "cpu",
+  "velocidade": 2.0,
+  "WER": 0.2085,
+  "omissoes": 62,
+  "insercoes": 14,
+  "segundos": 78.8,
+  "trechos": 80,
+  "marcados": 0,
+  "segundo_modelo": false,
+  "timestamp": {
+   "n": 23,
+   "median_s": 0.1416281147388787,
+   "p90_s": 0.905159555402139
+  }
+ },
+ {
+  "caso": "E: só CPU, arquivo 2x (large-v3-turbo, desacelerado)",
+  "modelo": "large-v3-turbo",
+  "dispositivo": "cpu",
+  "velocidade": 2.0,
+  "WER": 0.1603,
+  "omissoes": 28,
+  "insercoes": 15,
+  "segundos": 120.8,
+  "trechos": 92,
+  "marcados": 0,
+  "segundo_modelo": false,
+  "timestamp": {
+   "n": 18,
+   "median_s": 0.09668475341491245,
+   "p90_s": 2.331154583986087
+  }
+ }
+]

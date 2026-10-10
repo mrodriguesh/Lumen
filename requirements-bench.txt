@@ -1,0 +1,2 @@
+# Só para o benchmark (bench/): modelos NVIDIA via ONNX, sem PyTorch. Licença MIT.
+onnx-asr[hub]==0.12.0

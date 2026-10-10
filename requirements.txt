@@ -1,0 +1,5 @@
+faster-whisper==1.2.1   # MIT — transcrição local (CTranslate2)
+av==16.1.0              # BSD — decodifica áudio; 17+ removeu um parâmetro usado pelo faster-whisper 1.2.1
+soundcard==0.4.6       # BSD — grava o som que sai do PC (opção “Gravar ao assistir”)
+onnx-asr==0.12.0        # MIT — roda o Parakeet (NVIDIA, CC-BY-4.0) na CPU, sem PyTorch
+keyring==25.7.0         # MIT — guarda o token do Notion no Gerenciador de Credenciais do Windows

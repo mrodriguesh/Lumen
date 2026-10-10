@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="lumen-token" content="{{TOKEN}}">
+<title>Lumen</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='1' y='1' width='30' height='30' rx='8' fill='%233b6ff0'/%3E%3Ccircle cx='16' cy='16' r='8.4' fill='none' stroke='white' stroke-width='2.6'/%3E%3Ccircle cx='16' cy='16' r='3.8' fill='%23ffd60a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<div class="window">
+
+<!-- Barra da janela sobre o conteúdo: seletor central e ajustes (arrastável) -->
+<header class="titlebar">
+  <nav class="segmented nav" aria-label="Seções">
+    <button type="button" id="nav-new" aria-pressed="true">Nova aula</button>
+    <button type="button" id="nav-library" aria-pressed="false">Biblioteca</button>
+  </nav>
+  <button class="tool-btn" id="open-settings" type="button" aria-haspopup="dialog" aria-label="Ajustes" title="Ajustes">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+  </button>
+</header>
+
+<div class="body">
+  <!-- Barra lateral -->
+  <aside class="sidebar" id="sidebar">
+    <div class="side-top">
+    <div class="lights" id="lights" hidden>
+      <button class="light close" type="button" data-window="close" aria-label="Fechar" title="Fechar"></button>
+      <button class="light min" type="button" data-window="minimize" aria-label="Minimizar" title="Minimizar"></button>
+      <button class="light max" type="button" data-window="maximize" aria-label="Maximizar" title="Maximizar"></button>
+    </div>
+    <div class="app-name">
+      <svg class="appicon" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5e5ce6"/><stop offset="1" stop-color="#0a84ff"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="8" fill="url(#g)"/><circle cx="16" cy="16" r="8.4" fill="none" stroke="#fff" stroke-width="2.6"/><circle cx="16" cy="16" r="3.8" fill="#ffd60a"/></svg>
+      <span>Lumen</span>
+    </div>
+    </div>
+    <p class="side-h" id="side-h">Fontes</p>
+    <div role="tablist" aria-labelledby="side-h" aria-orientation="vertical" class="side-list">
+      <button role="tab" id="tab-recording" aria-controls="panel-recording" aria-selected="true" data-kind="recording" data-sub="Dê play na aula em qualquer site ou app e o Lumen grava o som do PC.">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4" class="fill"/></svg>
+        <span class="side-text"><span class="side-title">Gravar ao assistir</span><span class="badge" data-status="recording"></span></span>
+      </button>
+      <button role="tab" id="tab-file" aria-controls="panel-file" aria-selected="false" tabindex="-1" data-kind="file" data-sub="Um vídeo ou áudio que já está no seu computador.">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4.5 4.5v11.5a1 1 0 0 1-1 1h-11.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z"/><path d="M13.5 3.5V8.5h5"/><path d="m10 11.5 4.5 2.75L10 17z" class="fill"/></svg>
+        <span class="side-text"><span class="side-title">Arquivo local</span><span class="badge" data-status="file"></span></span>
+      </button>
+      <button role="tab" id="tab-youtube" aria-controls="panel-youtube" aria-selected="false" tabindex="-1" data-kind="youtube" data-sub="Link do vídeo e a transcrição que o YouTube mostra.">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="4"/><path d="m10 9.2 5 2.8-5 2.8z" class="fill"/></svg>
+        <span class="side-text"><span class="side-title">YouTube</span><span class="badge" data-status="youtube"></span></span>
+      </button>
+      <button role="tab" id="tab-telegram" aria-controls="panel-telegram" aria-selected="false" tabindex="-1" data-kind="telegram" data-sub="Um vídeo salvo pelo Telegram Desktop.">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 4.5 3.5 11.2l5.6 2.1 2.1 6.2 3.2-4 4.4 3.3z"/><path d="m9.1 13.3 8-6"/></svg>
+        <span class="side-text"><span class="side-title">Telegram</span><span class="badge" data-status="telegram"></span></span>
+      </button>
+    </div>
+    <div class="side-foot" id="side-status" aria-label="Estado do sistema"></div>
+  </aside>
+
+  <main class="content" id="content">
+    <!-- Nova aula -->
+    <div id="view-new">
+      <div class="hero">
+        <h1 id="hero-title">Gravar ao assistir</h1>
+        <p id="hero-sub">Dê play na aula em qualquer site ou app e o Lumen grava o som do PC.</p>
+      </div>
+
+      <section class="card setup" id="setup" hidden aria-labelledby="setup-h">
+        <h2 id="setup-h">Antes de começar</h2>
+        <ul class="checks" id="checks"></ul>
+      </section>
+
+      <div id="compose">
+        <section class="group" aria-labelledby="src-h">
+          <h2 class="group-h" id="src-h">Fonte</h2>
+          <div class="card">
+            <div role="tabpanel" id="panel-recording" aria-labelledby="tab-recording">
+              <label>Nome da aula <span class="muted">opcional</span>
+                <input id="rec-title" maxlength="80" placeholder="Ex.: Aula 3 — Funções" autocomplete="off"></label>
+              <div class="recorder" id="recorder" data-state="idle">
+                <div class="wave" id="rec-wave" aria-hidden="true"></div>
+                <div class="rec-clock"><span class="rec-dot" aria-hidden="true"></span><span class="rec-time" id="rec-time" role="timer" aria-label="Tempo gravado">00:00</span></div>
+                <div class="rec-controls">
+                  <button class="round-btn" type="button" id="rec-discard" aria-label="Descartar gravação" title="Descartar">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg>
+                  </button>
+                  <button class="rec-main" type="button" id="rec-start" aria-label="Iniciar gravação">
+                    <span class="halo" aria-hidden="true"></span><span class="halo two" aria-hidden="true"></span>
+                    <span class="core" aria-hidden="true"></span>
+                  </button>
+                  <span class="round-btn ghost" aria-hidden="true"></span>
+                </div>
+                <span class="rec-label" id="rec-start-label" aria-hidden="true">Iniciar gravação</span>
+                <p class="rec-hint" id="rec-hint" aria-live="polite"></p>
+              </div>
+              <p class="footnote rec-note">Deixe o volume ligado (pode ser baixo, mas não no mudo). Sons do sistema também entram.</p>
+            </div>
+
+            <div role="tabpanel" id="panel-file" aria-labelledby="tab-file" hidden>
+              <div class="drop" id="drop">
+                <svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 15v3a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-3"/></svg>
+                <p><strong>Arraste um vídeo ou áudio para cá</strong></p>
+                <button class="btn" type="button" data-pick="media">Escolher arquivo…</button>
+                <p class="muted small" id="formats"></p>
+              </div>
+            </div>
+
+            <div role="tabpanel" id="panel-youtube" aria-labelledby="tab-youtube" hidden>
+              <label>Link do vídeo
+                <span class="row"><input id="yt-url" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
+                <button class="btn" type="button" id="yt-check">Verificar</button></span></label>
+              <p class="footnote">Este vídeo também será incluído como player na página do Notion.</p>
+              <p class="note">O YouTube só libera legendas pela API oficial para quem pode editar o vídeo. Forneça a transcrição de uma destas formas:</p>
+              <label>Transcrição <span class="muted">no YouTube: “…mais” → “Mostrar transcrição”, copie e cole</span>
+                <textarea id="yt-text" rows="5" placeholder="0:00 Olá, hoje vamos falar sobre…"></textarea></label>
+              <div class="row wrap">
+                <button class="btn" type="button" data-pick="captions">Importar .srt / .vtt / .txt…</button>
+                <button class="btn" type="button" data-pick="ytcopy">Usar cópia local autorizada…</button>
+              </div>
+            </div>
+
+            <div role="tabpanel" id="panel-telegram" aria-labelledby="tab-telegram" hidden>
+              <p>O Lumen não se conecta à sua conta do Telegram. Salve o vídeo pelo Telegram Desktop (botão direito → <em>Salvar como…</em>, normalmente em <em>Downloads\Telegram Desktop</em>) e escolha o arquivo.</p>
+              <button class="btn" type="button" data-pick="telegram">Escolher arquivo do Telegram…</button>
+            </div>
+
+            <div class="source" id="source" hidden aria-live="polite"></div>
+          </div>
+        </section>
+
+        <section class="group" id="lesson-reference" aria-labelledby="lesson-link-h">
+          <h2 class="group-h" id="lesson-link-h">Vídeo da aula</h2>
+          <div class="card">
+            <label>Link da aula <span class="muted">opcional</span>
+              <input id="lesson-link" type="url" inputmode="url" maxlength="2000" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" aria-describedby="lesson-link-hint"></label>
+            <p class="footnote" id="lesson-link-hint">Cole o link do YouTube para incluir o player em “Assistir à aula”, antes do resumo no Notion. Outros links ficam como referência.</p>
+          </div>
+        </section>
+
+        <section class="group" aria-labelledby="course-h">
+          <h2 class="group-h" id="course-h">Onde salvar</h2>
+          <div class="card">
+            <div class="combo">
+              <input id="course-filter" type="search" placeholder="Buscar página do Notion" aria-label="Buscar página do Notion"
+                     autocomplete="off" spellcheck="false" class="search" role="combobox" aria-autocomplete="list"
+                     aria-expanded="false" aria-controls="course-results">
+              <ul class="results" id="course-results" role="listbox" aria-label="Páginas encontradas" hidden></ul>
+            </div>
+            <div class="dest">
+              <span class="dest-icon" id="dest-icon" aria-hidden="true">📄</span>
+              <div class="dest-text"><small>A aula será salva em</small><span class="dest-path" id="dest-path"></span></div>
+              <button class="tool-btn" type="button" id="new-sub" aria-label="Criar subpágina dentro da página escolhida" title="Nova subpágina aqui">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <button class="btn small-btn" type="button" id="dest-change" aria-expanded="false" aria-controls="picker">Alterar</button>
+            </div>
+            <div class="picker" id="picker" hidden>
+              <div class="chips" id="recents" aria-label="Usadas recentemente"></div>
+              <nav class="crumbs" id="crumbs" aria-label="Caminho"></nav>
+              <ul class="browse" id="browse" aria-label="Páginas"></ul>
+            </div>
+            <select id="course" hidden aria-label="Página do Notion onde a aula será salva"></select>
+            <p class="footnote" id="course-note">O material será salvo diretamente na página escolhida, preservando o conteúdo existente.
+              <button class="link-btn" type="button" data-grant>Faltou alguma página? Dar acesso no Notion</button></p>
+            <div class="roots-hint" id="roots-hint" role="note" hidden>
+              <p><strong>Suas páginas principais ainda não aparecem.</strong> O Notion só mostra ao Lumen o que foi liberado
+                para ele, e hoje ele vê só <span id="roots-seen"></span> e o que está dentro.</p>
+              <p class="muted small">Para cada página principal (as do topo da barra lateral, como Estudos ou Pessoal): abra no
+                Notion → <b>•••</b> no canto de cima → <b>Conexões</b> → <b>Lumen</b> → Confirmar. Tudo que estiver dentro dela
+                vem junto. Ou libere várias de uma vez:</p>
+              <button class="btn small-btn" type="button" data-grant>Liberar páginas principais no Notion</button>
+            </div>
+            <div class="new-page" id="new-course" hidden>
+              <p class="small" id="new-course-where"></p>
+              <label class="switch-row ai-row"><span>Enfeitar com IA<small>Ícone, capa e destaque criados a partir do título, no seu PC.</small></span><input type="checkbox" class="switch" role="switch" id="decorate"></label>
+              <figure class="cover-preview" id="cover-preview" hidden aria-live="polite">
+                <div class="cover-img" id="cover-img"><span class="cover-wait" id="cover-wait">Criando a capa…</span></div>
+                <span class="cover-emoji" id="cover-emoji" aria-hidden="true"></span>
+                <figcaption><span id="cover-sub"></span>
+                  <button class="btn plain small-btn" type="button" id="cover-again">✨ Gerar capa</button></figcaption>
+              </figure>
+              <div class="row">
+                <input id="new-course-name" placeholder="Nome da nova página (ex.: Módulo 3)" aria-label="Nome da nova página" maxlength="200">
+                <button class="btn plain" type="button" id="new-course-cancel">Cancelar</button>
+                <button class="btn primary small-btn" type="button" id="new-course-btn">Criar</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="group" aria-labelledby="review-h">
+          <h2 class="group-h" id="review-h">Revisar e gerar</h2>
+          <div class="card">
+            <dl class="summary" id="summary"></dl>
+            <div class="list-row">
+              <label for="speed" class="inline">Velocidade da fala no arquivo
+                <small class="muted" id="speed-hint">Vale a velocidade do áudio do arquivo, não a do player.</small></label>
+              <select id="speed" class="compact">
+                <option value="auto">Automático</option>
+                <option value="1">Normal</option>
+                <option value="2">Acelerado 2×</option>
+                <option value="4">4× Ultra</option>
+              </select>
+            </div>
+            <div class="list-row">
+              <label for="lang" class="inline">Idioma da página</label>
+              <select id="lang" class="compact">
+                <option value="pt">Português</option>
+                <option value="original">Idioma original</option>
+              </select>
+            </div>
+            <fieldset class="dup" id="dup" hidden>
+              <legend>Esta aula parece já existir no Notion</legend>
+              <p class="muted small" id="dup-info"></p>
+              <label class="radio"><input type="radio" name="dup" value="open" checked> Abrir a página existente</label>
+              <label class="radio"><input type="radio" name="dup" value="replace"> Atualizar material (substitui a versão do Lumen se estiver nesta página)</label>
+              <label class="radio"><input type="radio" name="dup" value="new"> Adicionar outra cópia na página escolhida</label>
+            </fieldset>
+            <div class="actions">
+              <p class="muted small" id="go-hint" aria-live="polite"></p>
+              <button class="btn primary" type="button" id="go" disabled>Gerar resumo</button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="card run" id="run" hidden aria-labelledby="run-h">
+        <h2 id="run-h" tabindex="-1">Gerando a aula</h2>
+        <ol class="stages" id="stages">
+          <li data-stage="prepare">Preparar a fonte</li>
+          <li data-stage="transcribe">Transcrever no PC</li>
+          <li data-stage="generate">Escrever o material com IA local</li>
+          <li data-stage="publish">Salvar na página escolhida do Notion</li>
+        </ol>
+        <div class="bar" id="bar" role="progressbar" aria-label="Progresso da etapa atual" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+        <p id="detail" aria-live="polite"></p>
+        <p class="muted small" id="eta"></p>
+        <div class="result" id="result" aria-live="assertive"></div>
+        <div class="actions" id="run-actions"></div>
+      </section>
+
+      <section class="card review" id="review" hidden aria-labelledby="review-title">
+        <div class="review-head">
+          <div>
+            <h2 id="review-title" tabindex="-1">Revise a transcrição</h2>
+            <p class="muted small" id="review-info"></p>
+          </div>
+          <label class="switch-row compact-switch"><span>Só marcados</span><input type="checkbox" class="switch" role="switch" id="only-flagged"></label>
+        </div>
+        <div class="speed-row" id="speed-row">
+          <span class="small">Velocidade usada:</span>
+          <div class="segmented" role="radiogroup" aria-label="Velocidade da fala" id="review-speed">
+            <label><input type="radio" name="rspeed" value="1"> Normal</label>
+            <label><input type="radio" name="rspeed" value="2"> 2×</label>
+            <label><input type="radio" name="rspeed" value="4"> 4× Ultra</label>
+          </div>
+          <button class="btn" type="button" id="retranscribe" disabled>Transcrever de novo</button>
+        </div>
+        <div class="segments" id="segments" role="list" aria-label="Trechos da transcrição"></div>
+        <label id="review-link-row">Link da aula <span class="muted">opcional</span>
+          <input id="review-link" type="url" inputmode="url" maxlength="2000" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" aria-describedby="review-link-hint">
+          <small class="muted" id="review-link-hint">No YouTube, o vídeo aparece como player antes do resumo no Notion.</small></label>
+        <label class="switch-row"><span>Incluir a transcrição completa na página<small>Vai recolhida no fim da página. Desligado por padrão: a transcrição pode ser privada.</small></span><input type="checkbox" class="switch" role="switch" id="include-transcript"></label>
+        <div class="actions">
+          <p class="muted small" id="review-hint">O resumo e as perguntas serão feitos a partir desta versão.</p>
+          <button class="btn" type="button" id="review-cancel">Cancelar</button>
+          <button class="btn primary" type="button" id="review-go">Gerar página</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Biblioteca -->
+    <div id="view-library" hidden>
+      <div class="hero">
+        <h1>Biblioteca</h1>
+        <p>Aulas que o Lumen já criou no seu Notion.</p>
+      </div>
+      <div class="card list" id="library-list" aria-live="polite"></div>
+    </div>
+  </main>
+</div>
+</div>
+
+<dialog id="settings" aria-labelledby="set-h">
+  <form method="dialog" class="dlg-head">
+    <h2 id="set-h">Ajustes</h2>
+    <button class="btn primary small-btn" value="close">OK</button>
+  </form>
+  <div class="dlg-body">
+    <section class="desktop-settings">
+      <h3>Lumen sempre por perto</h3>
+      <p class="muted small">O Lumen fica escondido, deixando só uma pequena alça. Passe o mouse para revelar os controles; ao sair, ele se recolhe. Arraste pela alça superior quando estiver aberto para mover.</p>
+      <label>Barra flutuante
+        <select id="widget-position">
+          <option value="left">Lado esquerdo · padrão</option>
+          <option value="right">Lado direito</option>
+          <option value="top">Em cima</option>
+          <option value="bottom">Embaixo</option>
+          <option value="free">Posição livre</option>
+          <option value="off">Desativada</option>
+        </select>
+      </label>
+      <button class="btn" type="button" id="widget-reset">Restaurar posição</button>
+      <label class="switch-row"><span>Iniciar com o Windows<small>Abre discretamente, sem iniciar uma gravação</small></span><input type="checkbox" class="switch" role="switch" id="autostart"></label>
+      <p class="muted small" id="desktop-hint">Disponível na janela do Lumen.exe.</p>
+      <button class="btn" type="button" id="desktop-exit">Sair do Lumen</button>
+    </section>
+    <section>
+      <h3>Notion</h3>
+      <details>
+        <summary>Como conectar</summary>
+        <ol class="small">
+          <li>Abra <strong>notion.so/profile/integrations</strong> e crie uma integração <em>interna</em>.</li>
+          <li>Em <em>Capacidades</em>, deixe ler, atualizar e inserir conteúdo.</li>
+          <li>Copie o <em>token secreto</em> e cole abaixo. Ele fica no Gerenciador de Credenciais do Windows.</li>
+          <li>No Notion, abra a página dos seus cursos → ••• → <em>Conexões</em> → adicione a integração.</li>
+        </ol>
+      </details>
+      <label>Token da integração
+        <span class="row"><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ntn_…">
+        <button class="btn" type="button" id="token-save">Salvar</button></span></label>
+      <p class="muted small" id="token-status"></p>
+      <p class="muted small">O Lumen só vê as páginas que você libera para a integração. Liberar uma página raiz libera
+        também tudo dentro dela. <button class="link-btn" type="button" data-grant>Dar acesso no Notion</button></p>
+      <label>Página raiz dos cursos
+        <span class="row"><select id="root"></select>
+        <button class="tool-btn" type="button" id="root-load" aria-label="Recarregar páginas" title="Recarregar páginas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg></button></span></label>
+    </section>
+
+    <section>
+      <h3>Transcrição local</h3>
+      <p class="muted small" id="hw"></p>
+      <div class="segmented wide" role="radiogroup" aria-label="Qualidade da transcrição" id="quality"></div>
+      <p class="muted small" id="whisper-status"></p>
+      <button class="btn" type="button" id="whisper-dl" hidden>Baixar modelo</button>
+    </section>
+
+    <section>
+      <h3>IA local (Ollama)</h3>
+      <label>Modelo
+        <span class="row"><input id="model" spellcheck="false" list="model-list">
+        <datalist id="model-list"></datalist>
+        <button class="btn" type="button" id="model-save">Usar</button></span></label>
+      <p class="muted small" id="ollama-status"></p>
+      <button class="btn" type="button" id="ollama-dl" hidden>Baixar modelo pelo Ollama</button>
+    </section>
+
+    <section>
+      <h3>Capas com IA</h3>
+      <p class="muted small" id="covers-status"></p>
+      <button class="btn" type="button" id="covers-dl" hidden>Baixar gerador de capas</button>
+    </section>
+
+    <section>
+      <h3>Privacidade e dados</h3>
+      <label class="switch-row"><span>Guardar gravações e transcrições<small>Normalmente são apagadas sozinhas após o uso</small></span><input type="checkbox" class="switch" role="switch" id="keep"></label>
+      <div class="row wrap">
+        <button class="btn" type="button" id="clear">Limpar histórico e dados locais</button>
+        <button class="btn danger" type="button" id="forget">Desconectar Notion</button>
+      </div>
+      <p class="muted small">Nada é enviado a terceiros além do Notion. Sem telemetria.</p>
+    </section>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
