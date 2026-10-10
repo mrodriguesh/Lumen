@@ -57,9 +57,11 @@ Regras:
 - review_questions: 4 a 8 perguntas que testem a compreensão, com respostas baseadas na aula.
 - key_moments: até 10 momentos úteis para revisar, com marcador [mm:ss] existente (lista vazia se não houver marcadores).
 - caveats: trechos confusos ou possivelmente mal transcritos e pontos que a aula não deixou claros (lista vazia se não houver).
-- mind_map: mapa mental fiel à aula. center = o tema central em até 5 palavras. branches = 4 a 7 grandes ideias
-  da aula (label com até 5 palavras e um emoji que represente o ramo), cada uma com 2 a 4 children: palavras-chave
-  ou frases bem curtas (até 8 palavras) tiradas do conteúdo. Nada de frases longas nem de repetir itens entre ramos.
+- mind_map: mapa mental fiel à aula. center = o tema central em até 5 palavras. branches = as grandes ideias da
+  aula, de 2 a 7 conforme o conteúdo (label com até 5 palavras e um emoji que represente o ramo), cada uma com 1 a 4
+  children: fatos, termos, exemplos ou passos concretos ditos na aula, em até 8 palavras. Aula curta = mapa pequeno:
+  nunca complete com frases genéricas ("impacto global", "importância do tema", "foco da aula"), nem repita itens
+  entre ramos.
 {lang}
 Responda somente com JSON neste formato: {schema}"""
 

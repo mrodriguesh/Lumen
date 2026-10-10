@@ -102,7 +102,7 @@ def height(m):
     """Altura estimada da imagem: a coluna mais cheia manda (o script ainda encolhe o mapa se precisar)."""
     n = len(m["branches"])
     rows = lambda bs: sum(max(1, len(b["children"])) * 52 + 26 for b in bs)
-    return max(720, 140 + max(rows(m["branches"][:(n + 1) // 2]), rows(m["branches"][(n + 1) // 2:])))
+    return max(560, 140 + max(rows(m["branches"][:(n + 1) // 2]), rows(m["branches"][(n + 1) // 2:])))
 
 
 def render(m):
