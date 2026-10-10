@@ -163,6 +163,41 @@ lumen/
   entregam silêncio; os marcadores de tempo seguem a gravação, não o vídeo.
 - Use para estudo pessoal, respeitando os termos da plataforma de onde a aula vem.
 
+## Assistir a tela junto (10/10/2026; `lumen/vision.py`, `bench/vision_bench.py`)
+
+- **Modelo de visão:** `qwen3.5:4b` no Ollama (Apache 2.0, ≈ 3,3 GB, 3,1 GB de VRAM com `num_ctx` 4096). Teste com
+  18 telas sintéticas com gabarito (slides, tabela, código, diagrama, gráfico, fórmula, quadro escrito à mão, texto
+  pequeno dentro do player, professor com câmera, YouTube com recomendações e notificação, anúncio, editor e
+  anotações do aluno): 100% do texto lido, 18/18 decisões certas de guardar ou descartar, nenhum texto de
+  recomendação/notificação copiado, 1,5 s por tela na RTX 3060. Perderam: `qwen3-vl:4b` (o padrão “pensa” antes:
+  32 s por tela), `qwen3-vl:4b-instruct` (99,1%, 2,9 s, 4,2 GB de VRAM e o Ollama 0.40 guarda uma 2ª cópia
+  convertida no disco: 6,4 GB). Saída em JSON Schema; a ordem dos campos importa (com o tipo primeiro, quase tudo
+  virava “pessoa”). Em código, o pedido manda manter a indentação (sem isso o modelo a tirava).
+- **Captura da tela:** GDI (`BitBlt` do monitor da janela em foco) via `ctypes`, sem dependência nova. Pega vídeo
+  tocando no navegador (testado no Edge); conteúdo com DRM sai preto. 1 captura por segundo, miniatura 96×54 em
+  cinza: tela nova = parada ≥ 1,5 s e diferente das já guardadas (≥ 1% das células). As células que mudam quase
+  sempre (câmera do professor, vídeo) saem da comparação, com histerese (uma troca de slide não as marca). Um slide
+  ganhando tópicos (< 5% de mudança) guarda o estado mais recente a cada 20 s ou ao trocar de slide.
+- **Qual janela:** a tela é recortada na janela onde a mudança aconteceu (voto de até 25 pontos com
+  `WindowFromPoint`), com a borda visível do DWM. O modelo recebe “título — programa.exe”. Programas do aluno
+  (editores, anotações, Office, e-mail, WhatsApp, terminal, Explorer) nunca são lidos: no teste, o modelo aceitou o
+  VS Code do aluno como “aula” mesmo sabendo a janela, por isso a lista fixa. Testado na tela real: as 4 telas de
+  aula vieram da janela do vídeo e o professor falando foi descartado. Uma trava na “janela da aula” foi
+  descartada: se a primeira tela lida fosse de outra janela, todo o resto se perdia.
+- **Área do conteúdo:** pedir ao modelo a região do slide funcionou nas telas sintéticas (IoU 0,94), mas na
+  captura real cortava o título dos slides; foi retirada. A imagem só perde faixas pretas uniformes das bordas.
+- **Quando lê:** na gravação, entre um slide e outro (fila; pausa se outra aula estiver sendo processada); o que
+  faltar é lido ao processar. Num arquivo, depois da transcrição, só nos quadros-chave (o x264 os põe nas trocas de
+  cena; o tempo pode atrasar até o próximo quadro-chave). Telas parecidas com uma de “pessoa falando” já lida não
+  são relidas.
+- **Na IA de texto:** as telas entram intercaladas na transcrição como linhas “(na tela)”, no tempo em que
+  apareceram. Na aula de teste, a fala dizia “kick sort” (erro do Whisper) e a página saiu com “quicksort” e com as
+  complexidades O(n²) e O(n log n) que só estavam na tabela do slide.
+- **Na página:** galeria em `column_list` de 2 colunas (dois níveis de aninhamento, o limite da API), imagens pela
+  File Upload API em 3 envios paralelos, e o texto em toggles (código em `code`, tabela em `table`). Publicado de
+  verdade no Notion para conferir e apagado em seguida.
+- **Tempo (aula de teste de 91 s, 6 telas, RTX 3060):** transcrição 18 s + leitura da tela 10 s; escrita e envio 42 s.
+
 ## YouTube: limitação real
 
 - `captions.download` (YouTube Data API v3) exige OAuth **e permissão para editar o vídeo**. Para vídeos de
@@ -223,3 +258,5 @@ echo "isto nao e um video" > falso.mp4
 - Uma tarefa por vez. Fechar a janela cancela a tarefa em andamento; o que já foi feito fica guardado para retomar.
 - Não foi testado em macOS/Linux nem em GPUs AMD/Intel (nesses casos o app usa a CPU).
 - Publicar num workspace real do Notion depende do seu token: os testes automáticos usam um Notion simulado.
+- Assistir a tela junto: DRM aparece preto; com vários monitores, só o da janela em uso; tempo das telas de um
+  arquivo limitado aos quadros-chave; aulas reais (não sintéticas) ainda não foram medidas com gabarito.

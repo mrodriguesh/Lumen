@@ -9,7 +9,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from . import AppError, Cancelled, llm, mindmap, notion, sources, store, transcribe
+from . import AppError, Cancelled, llm, mindmap, notion, sources, store, transcribe, vision
 
 log = logging.getLogger("lumen")
 _lock = threading.Lock()
@@ -152,6 +152,8 @@ def process(spec):
     work = work_dir(src["key"])
     work.mkdir(parents=True, exist_ok=True)
     _save(work / "source.json", src)
+    if src["kind"] == "recording":  # telas capturadas junto com o som (“Assistir a tela junto”)
+        vision.adopt(Path(src["path"]).with_suffix(".screens"), work)
     if spec.get("retranscribe"):
         for f in ("transcript.json", "transcript_original.json", "lesson.json"):
             (work / f).unlink(missing_ok=True)
@@ -217,12 +219,47 @@ def process(spec):
         _save(work / "transcript.json", tr)
         _save(work / "transcript_original.json", tr)
     check()
+    screens = _screens(src, work, cfg)
+    check()
     (work / "transcript_review.json").unlink(missing_ok=True)
     engine = (f"{tr['model']} na {'GPU (CUDA, ' if tr.get('device') == 'cuda' else 'CPU ('}{tr.get('compute')})"
               if tr.get("model") else None)
     return {"review": True, "key": src["key"], "title": src["title"], "segments": tr["segments"], "engine": engine,
             "speed": tr.get("speed"), "duration": tr.get("duration"), "language": tr.get("language"),
-            "can_retranscribe": bool(src.get("path"))}
+            "can_retranscribe": bool(src.get("path")), "screens": screens}
+
+
+def _screens(src, work, cfg):
+    """“Assistir a tela junto”: lê as telas da gravação que ainda faltam, ou assiste o vídeo do arquivo.
+
+    Devolve o resumo para a revisão (telas escolhidas, com id e tempo) ou None se a opção não foi usada. Se o
+    modelo de visão não puder ser usado, a aula segue só com a fala e a revisão avisa."""
+    folder = work / "screens"
+    watched = (folder / "index.json").exists() and (folder / "complete").exists()  # gravação ou vídeo já assistido
+    video = cfg["watch_screen"] and src["kind"] != "recording" and src.get("path") and Path(src["path"]).exists()
+    if not (watched or video):
+        return None
+    _set(screen=True, stage="screen", detail="Preparando a leitura da tela…", progress=None)
+    status = lambda d, p: _set(stage="screen", detail=d, progress=p)  # noqa: E731
+    warning = None
+    try:
+        if (not watched or vision.Shots(folder).pending()) and not vision.ready(vision.MODEL):
+            raise AppError(f"o modelo de visão ({vision.MODEL}) não está instalado no Ollama ou o Ollama está fechado")
+        if not watched:  # começa do zero: uma extração cancelada no meio não deixa telas pela metade
+            shutil.rmtree(folder, ignore_errors=True)
+            folder.mkdir(parents=True)
+            if not vision.extract(src["path"], vision.Shots(folder), vision.MODEL, check, status):
+                shutil.rmtree(folder, ignore_errors=True)
+                return {"items": [], "seen": 0, "warning": "Este arquivo não tem imagem de vídeo: só a fala foi usada."}
+            (folder / "complete").touch()
+        vision.analyze(vision.Shots(folder), vision.MODEL, check, status)
+    except AppError as e:
+        left = len(vision.Shots(folder).pending())
+        warning = (f"{left} tela(s) ficaram sem leitura" if left else "A tela não foi lida") + f": {str(e).rstrip('.')}."
+    shots = vision.Shots(folder)
+    items = [{"id": s["id"], "t": s["t"], "titulo": s["note"]["titulo"], "tipo": s["note"]["tipo"]}
+             for s in vision.select(shots.items)]
+    return {"items": items, "seen": len(shots.items), "warning": warning}
 
 
 def finish(spec):
@@ -253,8 +290,13 @@ def finish(spec):
         _drop_upload(src)  # revisão confirmada: a gravação/cópia não é mais necessária
     check()
 
+    shots = vision.Shots(work / "screens")  # “Assistir a tela junto”: as telas que o usuário manteve na revisão
+    off = {int(i) for i in spec.get("screens_off") or []}
+    screens = [s for s in vision.select(shots.items) if s["id"] not in off]
+    lines, chosen = vision.screen_lines(screens), {s["id"] for s in screens}
     model, lang = cfg["ollama_model"], spec.get("language") or cfg["page_language"]
-    digest = hashlib.sha256(json.dumps([s["text"] for s in tr["segments"]], ensure_ascii=False).encode()).hexdigest()
+    digest = hashlib.sha256(json.dumps([s["text"] for s in tr["segments"]] + [x for _, x in lines],
+                                       ensure_ascii=False).encode()).hexdigest()
     redo = spec.get("mode") == "redo"  # “Refazer página”: material novo, versão anterior removida
     saved = _load(work / "lesson.json")
     if saved and not redo and saved.get("model") == model and saved.get("language") == lang and saved.get("transcript") == digest:
@@ -263,7 +305,7 @@ def finish(spec):
         _set(stage="generate", detail="Escrevendo o material de estudo…", progress=None, eta=None)
         lesson = llm.generate(tr["segments"], tr.get("duration"), model, lang, check,
                               lambda d, p: _set(stage="generate", detail=d, progress=p),
-                              redo=redo, note=spec.get("redo_note") or "")
+                              redo=redo, note=spec.get("redo_note") or "", screens=lines)
         _save(work / "lesson.json", {"model": model, "language": lang, "transcript": digest, "lesson": lesson})
     check()
 
@@ -284,6 +326,12 @@ def finish(spec):
             meta["mind_map_upload"] = notion.upload_image(token, mind_png, "mapa-mental.png")
         except AppError:
             pass  # o mapa vai em tópicos (notion._mind_map)
+    if screens:
+        step = -(-len(screens) // MAX_SCREENS)  # aula com muitas telas: no máximo 40, espalhadas pela aula
+        screens = screens[::step]
+        _set(stage="publish", detail=f"Enviando as {len(screens)} telas da aula ao Notion…", progress=None)
+        meta["screens"], meta["vision_model"] = _upload_screens(token, shots, screens), vision.MODEL
+        check()
     title, blocks = notion.build_page(lesson, meta)
     transcript = llm.transcript_text(tr["segments"]).split("\n") if spec.get("include_transcript") else None
     check()
@@ -312,7 +360,31 @@ def finish(spec):
             if mark.parent != work:
                 shutil.rmtree(mark.parent, ignore_errors=True)
         (work / "published").touch()
+        shots.prune(chosen)  # só as imagens das telas escolhidas ficam (para “Refazer página”)
     return {"url": url, "title": title, "course": course, "note": note}
+
+
+MAX_SCREENS = 40
+
+
+def _upload_screens(token, shots, screens):
+    """Envia as telas, 3 por vez. Uma falha (o Notion limita pedidos por segundo) tenta de novo; se insistir, a tela
+    entra só com o texto."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    def up(s):
+        for attempt in range(3):
+            try:
+                return notion.upload_image(token, shots.image(s["id"]), f"tela-{s['id'] + 1}.jpg", "image/jpeg")
+            except AppError:
+                time.sleep(2 * (attempt + 1))
+            except OSError:
+                return None
+        return None
+    with ThreadPoolExecutor(3) as ex:
+        ups = list(ex.map(up, screens))
+    return [{**s["note"], "t": s["t"], "upload": u} for s, u in zip(screens, ups)]
 
 
 def download_whisper(name):

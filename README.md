@@ -12,6 +12,8 @@ Só o material gerado e o link opcional da aula vão para o Notion; o áudio per
 - [Ollama](https://ollama.com/download) (gratuito, MIT) com um modelo de texto. Padrão: `qwen3:8b` (≈ 5,2 GB, Apache 2.0).
 - Espaço em disco: ≈ 0,5 GB (modelo Rápido) ou ≈ 1,6 GB (modelo Preciso), mais o modelo do Ollama.
 - Memória: 16 GB de RAM recomendados para `qwen3:8b`. Uma GPU NVIDIA (CUDA 12) acelera bastante, mas é opcional.
+- Opcional, para **Assistir a tela junto**: o modelo de visão `qwen3.5:4b` no Ollama (≈ 3,3 GB, Apache 2.0; Ollama
+  0.30 ou mais novo), baixado pelo próprio app.
 
 ## Instalar e abrir
 
@@ -96,6 +98,33 @@ integração interna crie páginas no topo do workspace, só dentro de uma pági
 Formatos testados: MP4 (H.264/AAC), MKV (H.264/AAC), WebM (VP9/Opus), MOV (H.264/AAC), MP3, M4A (AAC), WAV (PCM).
 Outros formatos são recusados com uma mensagem. Arquivos sem áudio ou corrompidos são detectados antes de começar.
 
+## Assistir a tela junto (opcional)
+
+Liga no cartão **Fonte** (ou em Ajustes). O Lumen passa a olhar a aula com você e põe na página o que aparece na
+tela: slides, quadro, código, tabelas, fórmulas e gráficos, com as imagens. Tudo no seu PC, com um modelo de
+visão local (`qwen3.5:4b`).
+
+- **Gravar ao assistir:** enquanto o som é gravado, a tela é capturada 1 vez por segundo (≈ 1,5% de um núcleo).
+  Só fica a tela nova que parou de mudar (um slide novo, não a transição), recortada na janela onde a mudança
+  aconteceu, e ela é lida nos intervalos da aula (≈ 1,5–3 s de GPU por slide). Quando você para a gravação, quase
+  tudo já foi lido. A câmera do professor num canto e vídeo em movimento são ignorados na comparação.
+- **Arquivo de vídeo:** o Lumen lê os quadros-chave do próprio arquivo depois de transcrever (≈ 2 s por tela nova).
+- **O que entra:** o modelo transcreve o texto da tela e descreve figuras; rosto do professor, anúncios, menus,
+  recomendações do YouTube e notificações ficam de fora. Seus próprios programas (editor de código, anotações,
+  Word, e-mail, WhatsApp, terminal, pastas) **nunca** são lidos, nem durante a aula, e a janela principal do Lumen
+  pausa a captura.
+- **Na revisão** aparecem as telas escolhidas; desmarque o que não quiser na página. A IA usa o texto delas para
+  acertar termos, nomes, números e fórmulas que a fala transcreveu errado.
+- **Na página:** seção **O que apareceu na tela** com a galeria (2 por linha, clique para ampliar) e o texto de cada
+  tela recolhido: código como bloco de código, tabela como tabela do Notion.
+- **Sem acumular arquivos:** telas sem conteúdo são apagadas na hora; ao publicar, só ficam as imagens que foram
+  para a página (para “Refazer página”), e elas somem quando a próxima aula é publicada. Telas de aulas nunca
+  publicadas e capturas de gravações descartadas são apagadas em até 7 dias.
+
+Limites: vídeo protegido por DRM (Netflix e alguns cursos pagos) aparece preto na captura; num arquivo, o tempo de
+cada tela pode atrasar até um quadro-chave (normalmente ≤ 10 s); com vários monitores, vale o monitor da janela em
+uso. Sem GPU, a leitura fica para depois da gravação e é mais lenta.
+
 ## A página gerada
 
 Em **Vídeo da aula → Link da aula**, cole o endereço do YouTube. Você também pode adicionar, trocar ou remover
@@ -110,7 +139,8 @@ da imagem falhar, o mapa entra em tópicos aninhados), **Explicação simples** 
 didática), **Tópicos principais** com marcadores de tempo, **Glossário**, **Exemplos e analogias** (separando “da aula”
 de “analogia didática”), **Passo a passo** quando a aula ensina um procedimento, **Perguntas de revisão** (a pergunta
 fica visível e a resposta dentro de um bloco *toggle*, que abre recolhido), **Momentos da aula** (no YouTube, são links
-para o tempo exato) e **Sobre esta página** (origem, modelo usado, trechos de baixa confiança, ressalvas).
+para o tempo exato) e **Sobre esta página** (origem, modelo usado, trechos de baixa confiança, ressalvas). Com
+**Assistir a tela junto**, entra também **O que apareceu na tela** depois dos tópicos.
 
 **Capas com IA (opcional):** em Ajustes → *Capas com IA*, baixe o Z-Image-Turbo (≈ 6,7 GB, Apache 2.0; prefira um
 SSD). Ao criar uma página com “Enfeitar com IA”, a capa vira uma ilustração do tema gerada no seu PC (≈ 30–45 s
@@ -191,6 +221,8 @@ Para outro modelo, informe o nome em Configurações → IA local (ex.: `qwen3:4
 - O log (`%LOCALAPPDATA%\Lumen\lumen.log`) registra só etapas e tipos de erro, nunca tokens ou conteúdo.
 - Gravações ficam no PC só até você confirmar a revisão. Transcrições ficam em `%LOCALAPPDATA%\Lumen\work` só até a página ser publicada, para permitir retomar após uma
   falha. Configurações → **Limpar histórico e dados locais** apaga tudo. **Desconectar Notion** também remove o token.
+- Assistir a tela junto: as capturas ficam no PC e são lidas pelo modelo local; só as imagens das telas que você
+  mantiver na revisão vão para o Notion. Detalhes em [Assistir a tela junto](#assistir-a-tela-junto-opcional).
 - O servidor da interface escuta só em `127.0.0.1`, confere o cabeçalho `Host` e exige um token aleatório por sessão.
 
 ## Testes
@@ -207,6 +239,7 @@ da API). Verificação ponta a ponta real (Whisper + Ollama de verdade, Notion s
 ```
 
 Para publicar de verdade numa página **sua** de teste, defina `LUMEN_E2E_TOKEN` e `LUMEN_E2E_PARENT`.
+Leitura da tela: `.venv\Scripts\python -m bench.vision_bench make` e `run qwen3.5:4b` (ver `bench/README.md`).
 As amostras podem ser geradas com a voz do Windows e o ffmpeg (ver `docs/DECISOES.md`).
 
 Decisões técnicas e limitações: [docs/DECISOES.md](docs/DECISOES.md).

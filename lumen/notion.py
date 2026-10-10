@@ -255,6 +255,60 @@ def _mind_map(lesson, upload_id):
                  children=[_b("bulleted_list_item", _rt(k)) for k in b["children"]]) for b in m["branches"]]]
 
 
+def _column(children):
+    return {"object": "block", "type": "column", "column": {"children": children}}
+
+
+def _screen_text(s):
+    """Texto de uma tela: código em bloco de código, tabela como tabela do Notion, o resto em parágrafos."""
+    text = s["texto"].strip("\n")
+    lines = [x.strip() for x in text.splitlines() if x.strip()]
+    if lines and lines[0].casefold() == s["titulo"].casefold():  # o título já está no cabeçalho do bloco
+        lines = lines[1:]
+        text = text.split("\n", 1)[1] if "\n" in text else ""
+    # colunas separadas por " | " (o pedido) ou por tabulação (às vezes o modelo usa); "| a | b |" também vale
+    cut = lambda ln: re.split(r"\t+|\|", ln[1:-1] if len(ln) > 1 and ln[0] == ln[-1] == "|" else ln)  # noqa: E731
+    rows = [[c.strip() for c in cut(ln)] for ln in lines if "|" in ln or "\t" in ln]
+    out = []
+    if s["tipo"] == "codigo" and lines:
+        out.append({"object": "block", "type": "code", "code": {"rich_text": _rt(text), "language": "plain text"}})
+    elif s["tipo"] == "tabela" and 2 <= len(rows) <= 99 and 2 <= len(rows[0]) <= 10 \
+            and all(len(r) == len(rows[0]) for r in rows):
+        out += [_b("paragraph", _rt(ln)) for ln in lines if "|" not in ln and "\t" not in ln][:10]  # legenda
+        out.append({"object": "block", "type": "table", "table": {
+            "table_width": len(rows[0]), "has_column_header": True, "has_row_header": False,
+            "children": [{"object": "block", "type": "table_row", "table_row": {"cells": [_rt(c) if c else [] for c in r]}}
+                         for r in rows]}})
+    else:
+        out += [_b("paragraph", _rt(ln)) for ln in lines[:80]]
+    if s["descricao"]:
+        out.append(_b("paragraph", _rt("Figura: " + s["descricao"], italic=True, color="gray")))
+    return out or [_b("paragraph", _rt(s["titulo"]))]
+
+
+def _screens(screens, yt):
+    """“O que apareceu na tela”: galeria das telas (2 por linha, clique para ampliar) e o texto de cada uma
+    recolhido, para buscar e copiar."""
+    from .vision import KINDS
+    if not screens:
+        return []
+    label = lambda s: f"{KINDS.get(s['tipo'], '🖥️')} {s['titulo'] or 'Tela'}"  # noqa: E731
+    out = [_h2("O que apareceu na tela"),
+           _b("paragraph", _rt("Slides, quadro e código lidos pelo Lumen enquanto assistia com você. "
+                               "Clique numa imagem para ampliar.", italic=True, color="gray"))]
+    imgs = [s for s in screens if s.get("upload")]
+    for i in range(0, len(imgs), 2):
+        cols = [_column([{"object": "block", "type": "image", "image": {
+            "type": "file_upload", "file_upload": {"id": s["upload"]},
+            "caption": _rt(f"{fmt_time(s['t'])} · {label(s)}", color="gray")}}]) for s in imgs[i:i + 2]]
+        if len(cols) == 1:  # última linha com uma tela só: mantém o mesmo tamanho das outras
+            cols.append(_column([_b("paragraph", [])]))
+        out.append({"object": "block", "type": "column_list", "column_list": {"children": cols}})
+    out.append(_b("heading_3", _rt("Texto das telas")))
+    out += [_b("toggle", _rt(label(s), bold=True) + _stamp(s["t"], yt), children=_screen_text(s)) for s in screens]
+    return out
+
+
 def build_page(lesson, meta):
     """Monta título e blocos. As respostas ficam dentro de toggles (recolhidos ao abrir a página)."""
     yt = meta.get("yt_id")
@@ -287,6 +341,7 @@ def build_page(lesson, meta):
               _h2("Tópicos principais")]
     blocks += [_b("bulleted_list_item", _rt(t["title"], bold=True) + _rt(" — " + t["explanation"])
                   + _stamp(t["timestamp"], yt)) for t in lesson["topics"]]
+    blocks += _screens(meta.get("screens"), yt)
     if lesson["glossary"]:
         blocks.append(_h2("Glossário"))
         blocks += [_b("bulleted_list_item", _rt(g["term"], bold=True) + _rt(": " + g["definition"]))
@@ -313,6 +368,9 @@ def build_page(lesson, meta):
              meta["transcript_origin"]]
     if meta.get("uncertain"):
         notes.append(f"{meta['uncertain']} trecho(s) da transcrição tiveram baixa confiança.")
+    if meta.get("screens"):
+        notes.append(f"{len(meta['screens'])} tela(s) da aula lidas por um modelo de visão local ({meta['vision_model']}); "
+                     "confira números e fórmulas nas imagens.")
     blocks += [{"object": "block", "type": "divider", "divider": {}}, _b("heading_3", _rt("Sobre esta página")),
                _b("callout", _rt("\n".join(notes)), icon={"type": "emoji", "emoji": "🔎"}, color="yellow_background")]
     blocks += [_b("bulleted_list_item", _rt(c)) for c in lesson["caveats"]]

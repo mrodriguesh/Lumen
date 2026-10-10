@@ -525,3 +525,23 @@ details ol { padding-left: 20px; margin: 6px 0; }
 .redo textarea { min-height: 56px; }
 .dest-slot .card { background: none; border: 0; box-shadow: none; padding: 0; }
 .dest-slot .group-h { padding: 0; }
+
+/* Assistir a tela junto */
+.watch { margin-top: 16px; padding-top: 14px; border-top: .5px solid var(--sep); }
+.watch-title { display: inline-flex; align-items: center; gap: 7px; }
+.eye { width: 18px; height: 18px; fill: none; stroke: var(--accent-text); stroke-width: 1.8; flex: none; }
+.watch #watch-status:empty { display: none; }
+.watch .btn { margin-top: 8px; }
+.shots { margin: 16px 0 6px; }
+.shots-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 10px; }
+.shots-head h3 { margin: 0; font-size: 1rem; }
+.shot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.shot { display: flex; flex-direction: column; margin: 0; border-radius: 12px; overflow: hidden; background: var(--fill);
+  box-shadow: 0 0 0 .5px var(--card-line); cursor: pointer; transition: opacity .15s, filter .15s; font-weight: 400; }
+.shot img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--fill-strong); }
+.shot-cap { display: flex; align-items: center; gap: 7px; padding: 8px 10px; font-size: .84rem; min-width: 0; }
+.shot-cap input { width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; flex: none; accent-color: var(--accent); box-shadow: none; }
+.shot-time { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.shot-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shot.off { opacity: .45; filter: grayscale(1); }
+.shot:focus-within { box-shadow: 0 0 0 3px var(--ring); }

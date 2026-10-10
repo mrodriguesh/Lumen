@@ -11,7 +11,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import AppError, cover, imagegen, jobs, llm, notion, record, sources, store, transcribe
+from . import AppError, cover, imagegen, jobs, llm, notion, record, sources, store, transcribe, vision
 
 log = logging.getLogger("lumen")
 WEB = Path(__file__).parent / "web"
@@ -67,6 +67,8 @@ def state():
         "formats": sources.MEDIA, "job": jobs.snapshot(), "recording": record.status(),
         "covers": {"ready": imagegen.ready(), "label": imagegen.ENGINES[imagegen.DEFAULT_ENGINE]["label"],
                    "size": imagegen.ENGINES[imagegen.DEFAULT_ENGINE]["size"]},
+        "vision": {"model": vision.MODEL, "size": vision.SIZE,
+                   "installed": om is not None and any(x in (vision.MODEL, vision.MODEL + ":latest") for x in om)},
     }
 
 
@@ -149,7 +151,8 @@ class Handler(BaseHTTPRequestHandler):
             fn = ROUTES.get((method, path))
             if not fn:
                 return self._send(404, {"error": {"message": "Não encontrado."}})
-            return self._send(200, fn(self))
+            out = fn(self)
+            return self._send(200, out, "image/jpeg" if isinstance(out, bytes) else "application/json")
         except AppError as e:
             return self._send(400, {"error": {"message": str(e), "action": e.action}})
         except (ValueError, KeyError, TypeError):
@@ -189,6 +192,8 @@ def _apply_settings(body):
         cfg["ollama_model"] = body["ollama_model"].strip()[:100]
     if "keep_temp" in body:
         cfg["keep_temp"] = bool(body["keep_temp"])
+    if "watch_screen" in body:
+        cfg["watch_screen"] = body["watch_screen"] is True
     if body.get("widget") in ("off", "left", "right", "top", "bottom", "free"):
         cfg["widget"] = body["widget"]
     if "autostart" in body:
@@ -331,10 +336,11 @@ def _download(h):
     if body.get("what") == "covers":
         jobs.start("download", jobs.download_covers)
         return jobs.snapshot()
-    if body.get("what") == "ollama":
+    if body.get("what") in ("ollama", "vision"):
         if llm.models() is None:
             raise AppError("O Ollama não está rodando.", "Instale/abra o Ollama (ollama.com) e tente de novo.")
-        jobs.start("download", jobs.download_ollama, store.load_config()["ollama_model"])
+        model = vision.MODEL if body["what"] == "vision" else store.load_config()["ollama_model"]
+        jobs.start("download", jobs.download_ollama, model)
     else:
         q = body.get("quality")
         jobs.start("download", jobs.download_whisper, transcribe.pick(q)[1]["name"])
@@ -354,6 +360,16 @@ def _clear(h):
             cfg["root_page_id"] = cfg["root_page_title"] = ""
             store.save_config(cfg)
     return state()
+
+
+def _screen(h):
+    """Miniatura de uma tela capturada, para a revisão (só de dentro da pasta de trabalho da aula)."""
+    q = h._query()
+    folder = jobs.work_dir(str(q["key"])) / "screens"
+    try:
+        return vision.Shots(folder).image(int(q["id"]))
+    except (OSError, ValueError):
+        raise AppError("Tela não encontrada.", "") from None
 
 
 def _start(h):
@@ -381,6 +397,7 @@ ROUTES = {
     ("POST", "/api/upload"): _upload,
     ("POST", "/api/inspect"): lambda h: inspect(h._json()),
     ("POST", "/api/start"): _start,
+    ("GET", "/api/screen"): _screen,
     ("POST", "/api/finish"): _finish,
     ("POST", "/api/cancel"): lambda h: (jobs.cancel(), jobs.snapshot())[1],
     ("POST", "/api/download"): _download,

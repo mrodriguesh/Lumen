@@ -20,6 +20,7 @@ DEFAULTS = {
     "ollama_model": "qwen3:8b",
     "page_language": "pt",      # pt | original
     "keep_temp": False,
+    "watch_screen": False,      # “Assistir a tela junto”: lê slides/quadro da tela ou do vídeo (lumen/vision.py)
     "widget": "left",           # off | left | right | top | bottom | free
     "autostart": False,         # abrir com o Windows (chave Run do usuário)
 }
@@ -79,12 +80,13 @@ def delete_token():
 
 
 def purge_old_uploads(days=7):
-    """Remove gravações e cópias esquecidas (gravadas mas nunca usadas) com mais de `days` dias."""
+    """Remove gravações, cópias e telas capturadas esquecidas com mais de `days` dias. As telas de uma aula (as
+    imagens são o que mais ocupa) também saem depois desse prazo; a transcrição fica para retomar."""
     cutoff = time.time() - days * 86400
-    for f in (WORK / "uploads").glob("*"):
+    for f in [*(WORK / "uploads").glob("*"), *WORK.glob("*/screens")]:
         try:
-            if f.is_file() and f.stat().st_mtime < cutoff:
-                f.unlink()
+            if f.stat().st_mtime < cutoff:
+                shutil.rmtree(f, ignore_errors=True) if f.is_dir() else f.unlink()
         except OSError:
             pass
 

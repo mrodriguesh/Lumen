@@ -13,7 +13,7 @@ from datetime import datetime
 
 import numpy as np
 
-from . import AppError, store
+from . import AppError, store, vision
 
 RATE = 48000                 # captura; gravado a 16 kHz (média de 3 amostras = filtro passa-baixa simples)
 _lock = threading.Lock()
@@ -21,11 +21,15 @@ _controls = threading.Lock()  # serializa os cliques da janela principal e da ba
 _state = {"active": False}
 _stop = threading.Event()
 _thread = None
+_watch = None  # vision.Watch: “Assistir a tela junto” ligado
 
 
 def status():
     with _lock:
-        return {k: v for k, v in _state.items() if k != "path"}
+        st = {k: v for k, v in _state.items() if k != "path"}
+    w = _watch
+    st["screens"] = w.counts() if w and st.get("active") else None
+    return st
 
 
 def _set(**kw):
@@ -39,7 +43,7 @@ def start(title=""):
 
 
 def _start(title):
-    global _thread
+    global _thread, _watch
     if _state.get("active"):
         raise AppError("Já existe uma gravação em andamento.", "Pare a gravação atual antes de começar outra.")
     up = store.WORK / "uploads"
@@ -62,6 +66,31 @@ def _start(title):
         path.unlink(missing_ok=True)
         raise AppError("Não foi possível acessar o som do PC.",
                        "Confira se há uma saída de áudio ativa (alto-falante ou fone) e tente de novo.")
+    try:
+        _watch = _start_watch(path) if store.load_config()["watch_screen"] else None
+    except Exception:  # opcional: se a tela não puder ser assistida, o som segue sendo gravado
+        _watch = None
+
+
+def _start_watch(path):
+    """Assiste a tela junto: as telas novas vão para <gravação>.screens e são lidas enquanto a aula toca (com GPU e
+    o modelo de visão instalado; senão, ao processar a aula)."""
+    from . import jobs, transcribe
+
+    def clock():
+        with _lock:
+            return _state.get("seconds", 0.0)
+    live = transcribe.has_gpu() and vision.ready(vision.MODEL)
+    return vision.Watch(path.with_suffix(".screens"), clock, vision.MODEL, paused=jobs.busy, live=live)
+
+
+def _stop_watch(drop=False):
+    global _watch
+    w, _watch = _watch, None
+    if w:
+        w.stop()
+        if drop:
+            shutil.rmtree(w.shots.dir, ignore_errors=True)
 
 
 def _open_loopback():
@@ -130,11 +159,14 @@ def _finish_recording():
     with _lock:
         path, st = _state.get("path"), dict(_state)
     if not path or not path.exists():
+        _stop_watch(drop=True)
         raise AppError("Nenhuma gravação encontrada.", "Clique em Iniciar gravação.")
     if not st.get("heard") or st.get("seconds", 0) < 3:
+        _stop_watch(drop=True)
         path.unlink(missing_ok=True)
         raise AppError("Nenhum som foi captado." if not st.get("heard") else "A gravação ficou curta demais.",
                        "Dê play na aula com o volume do PC ligado (não no mudo) e grave de novo.")
+    _stop_watch()
     return {"path": str(path), "name": path.name.split("_", 1)[1], "warning": st.get("error")}
 
 
@@ -150,6 +182,8 @@ def _discard_recording():
         if _thread.is_alive():
             raise AppError("O áudio ainda está sendo finalizado.", "Aguarde alguns segundos antes de descartar.")
     path = _state.get("path")
+    _stop_watch(drop=True)
     if path:
         path.unlink(missing_ok=True)
+        shutil.rmtree(path.with_suffix(".screens"), ignore_errors=True)
     _set(seconds=0.0, heard=False, error=None, path=None)

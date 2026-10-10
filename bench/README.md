@@ -20,6 +20,17 @@ Os modelos são baixados para o cache do Hugging Face (`%USERPROFILE%\.cache\hug
 Tamanhos: small 0,48 GB, medium 1,5 GB, large-v3-turbo 1,6 GB, large-v3 3,1 GB, Parakeet int8 0,67 GB,
 Canary int8 1,0 GB. Para liberar espaço depois, apague as pastas `models--*` que não usar.
 
+## Leitura da tela (Assistir a tela junto)
+
+```
+.venv\Scripts\python -m bench.vision_bench make              # desenha as 18 telas de teste (Edge headless)
+.venv\Scripts\python -m bench.vision_bench run qwen3.5:4b    # um modelo do Ollama; largura opcional (padrão 1280)
+.venv\Scripts\python -m bench.vision_bench report
+```
+
+Usa exatamente o pedido e o filtro do app (`lumen/vision.py`). Métricas: palavras do gabarito encontradas no texto
+lido, decisão de guardar ou descartar, textos que não podiam aparecer (recomendações, notificação, anúncio) e tempo.
+
 ## Dados
 
 - **FLEURS pt-BR** (Google, CC-BY 4.0), split *dev*: fala lida por várias pessoas, com transcrição humana.

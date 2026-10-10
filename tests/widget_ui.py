@@ -491,3 +491,5 @@ try:
     print("OK: alças horizontais/verticais, painéis superior/inferior, hover, gravação/parada, ajustes e entrega da gravação; API simulada.")
 finally:
     proc.terminate(); proc.wait(timeout=10)
+    import shutil
+    shutil.rmtree(env["LUMEN_DATA"], ignore_errors=True)

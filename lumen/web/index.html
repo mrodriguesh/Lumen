@@ -126,6 +126,12 @@
               <button class="btn" type="button" data-pick="telegram">Escolher arquivo do Telegram…</button>
             </div>
 
+            <div class="watch" id="watch-row">
+              <label class="switch-row"><span><span class="watch-title"><svg class="eye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3.2"/></svg>Assistir a tela junto</span><small>Lê slides, quadro, código e tabelas que aparecem na aula e põe na página, com as imagens. Tudo no seu PC.</small></span><input type="checkbox" class="switch" role="switch" id="watch" aria-describedby="watch-status"></label>
+              <p class="muted small" id="watch-status" aria-live="polite"></p>
+              <button class="btn small-btn" type="button" id="vision-dl" hidden>Baixar modelo de visão</button>
+            </div>
+
             <div class="source" id="source" hidden aria-live="polite"></div>
           </div>
         </section>
@@ -231,6 +237,7 @@
         <ol class="stages" id="stages">
           <li data-stage="prepare">Preparar a fonte</li>
           <li data-stage="transcribe">Transcrever no PC</li>
+          <li data-stage="screen" hidden>Ler o que apareceu na tela</li>
           <li data-stage="generate">Escrever o material com IA local</li>
           <li data-stage="publish">Salvar na página escolhida do Notion</li>
         </ol>
@@ -271,6 +278,10 @@
           <button class="btn" type="button" id="retranscribe" disabled>Transcrever de novo</button>
         </div>
         <div class="segments" id="segments" role="list" aria-label="Trechos da transcrição"></div>
+        <section class="shots" id="shots" hidden aria-labelledby="shots-h">
+          <div class="shots-head"><h3 id="shots-h">O que apareceu na tela</h3><span class="muted small" id="shots-info"></span></div>
+          <div class="shot-grid" id="shot-grid" role="list"></div>
+        </section>
         <label id="review-link-row">Link da aula <span class="muted">opcional</span>
           <input id="review-link" type="url" inputmode="url" maxlength="2000" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" aria-describedby="review-link-hint">
           <small class="muted" id="review-link-hint">No YouTube, o vídeo aparece como player antes do resumo no Notion.</small></label>
@@ -358,6 +369,13 @@
         <button class="btn" type="button" id="model-save">Usar</button></span></label>
       <p class="muted small" id="ollama-status"></p>
       <button class="btn" type="button" id="ollama-dl" hidden>Baixar modelo pelo Ollama</button>
+    </section>
+
+    <section>
+      <h3>Assistir a tela junto</h3>
+      <label class="switch-row"><span>Ler a tela da aula<small>Slides, quadro, código e tabelas entram na página, com as imagens. Na gravação, a tela é capturada 1 vez por segundo e só as telas novas ficam; num arquivo, o vídeo é lido direto.</small></span><input type="checkbox" class="switch" role="switch" id="watch-set"></label>
+      <p class="muted small" id="vision-status"></p>
+      <button class="btn" type="button" id="vision-dl-set" hidden>Baixar modelo de visão</button>
     </section>
 
     <section>

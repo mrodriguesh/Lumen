@@ -97,6 +97,7 @@ function selectTab(btn) {
   $("#speed-hint").textContent = kind === "recording"
     ? "A gravação sai na velocidade em que a aula tocou: se o player estava em 2× ou 4×, escolha essa velocidade."
     : "Vale a velocidade real do arquivo. Assistir em 2× ou 4× no player não acelera o arquivo: use Normal.";
+  renderWatch();
   $("#hero-title").textContent = btn.querySelector(".side-title").textContent;
   $("#hero-sub").textContent = btn.dataset.sub;
   found = null; renderSource();
@@ -216,12 +217,17 @@ function renderRec(r) {
     drawWave();
     recorder.style.setProperty("--lvl", Math.min(1, Math.sqrt(r.level || 0) * 1.4).toFixed(2));
     $("#rec-time").textContent = mmss(r.seconds);
-    $("#rec-hint").textContent = r.level > 0.005 ? "Gravando o som da aula…"
-      : r.heard ? "Silêncio no momento." : "Nenhum som ainda: dê play na aula (volume ligado).";
+    const sc = r.screens;
+    const eye = !sc ? "" : !sc.seen ? " · Assistindo a tela junto." : ` · ${sc.seen} tela${sc.seen === 1 ? " nova" : "s novas"}`
+      + (sc.read ? `, ${sc.kept} com conteúdo da aula.` : " (lidas ao processar).");
+    $("#rec-hint").textContent = (r.level > 0.005 ? "Gravando o som da aula…"
+      : r.heard ? "Silêncio no momento." : "Nenhum som ainda: dê play na aula (volume ligado).") + eye;
+    $("#watch").disabled = true;
   } else if (recorder.dataset.state === "live") {
     setRecState("idle", "Iniciar gravação");
     $("#rec-time").textContent = "00:00";
   }
+  if (!r.active) $("#watch").disabled = false;
   if (r.error) $("#rec-hint").textContent = r.error;
   updateGo();
 }
@@ -642,6 +648,7 @@ $("#new-course-name").addEventListener("keydown", (e) => {
 
 // ---------- revisão ----------
 function updateGo() {
+  renderWatch();
   const sel = $("#course"), go = $("#go");
   const course = sel.selectedOptions[0];
   const rows = [];
@@ -649,8 +656,10 @@ function updateGo() {
   rows.push(["Curso", course && course.value !== "__new__" ? course.textContent : "—"]);
   const local = found?.has_captions || found?.resumable ? "Material escrito pela IA local (Ollama)."
     : "Transcrição (Whisper) e material (Ollama) feitos no seu PC.";
-  rows.push(["No seu PC", local + " O vídeo e o áudio não são enviados."]);
-  rows.push(["Enviado ao Notion", "Somente o texto da página gerada (título, resumo, tópicos, perguntas)."]);
+  const watching = S?.config.watch_screen && !$("#watch-row").hidden;
+  rows.push(["No seu PC", local + (watching ? " A tela é lida por IA local." : "") + " O vídeo e o áudio não são enviados."]);
+  rows.push(["Enviado ao Notion", "Somente o texto da página gerada (título, resumo, tópicos, perguntas)"
+    + (watching ? " e as imagens das telas que você mantiver na revisão." : ".")]);
   $("#summary").replaceChildren(...rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
 
   let why = "";
@@ -704,7 +713,7 @@ async function start(spec, url = "/api/start") {
   poll();
 }
 
-const ORDER = ["prepare", "transcribe", "generate", "publish"];
+const ORDER = ["prepare", "transcribe", "screen", "generate", "publish"];
 function renderJob(j) {
   if (j.kind === "download") return renderDownload(j);
   const cur = ORDER.indexOf(j.stage);
@@ -712,6 +721,7 @@ function renderJob(j) {
     const i = ORDER.indexOf(li.dataset.stage);
     li.className = (j.status === "done" || i < cur ? "done" : i === cur && j.status === "running" ? "active" : "")
       + ((j.skipped || []).includes(li.dataset.stage) ? " skip" : "");
+    if (li.dataset.stage === "screen") li.hidden = !j.screen;
   }
   const bar = $("#bar");
   const det = j.status === "running" && (j.progress === null || j.progress === undefined);
@@ -769,9 +779,29 @@ async function cancelJob() {
 }
 
 // ---------- revisão da transcrição ----------
-let review = null, edits = {};
+let review = null, edits = {}, shotsOff = new Set();
+function renderShots(r) {
+  const sc = r.screens, items = sc?.items || [];
+  shotsOff = new Set();
+  $("#shots").hidden = !sc;
+  if (!sc) return;
+  $("#shots-info").textContent = (items.length
+    ? `${items.length} com conteúdo da aula${sc.seen > items.length ? `, de ${sc.seen} telas vistas` : ""}. Desmarque o que não deve ir para a página.`
+    : "Nenhuma tela com conteúdo da aula (slide, quadro, código) foi encontrada.") + (sc.warning ? " " + sc.warning : "");
+  $("#shot-grid").replaceChildren(...items.map((s) => {
+    const cb = el("input", { type: "checkbox", "aria-label": `Usar a tela de ${mmss(s.t)}: ${s.titulo}` });
+    cb.checked = true;
+    const card = el("label", { class: "shot", role: "listitem" },
+      el("img", { src: `/api/screen?key=${encodeURIComponent(r.key)}&id=${s.id}&t=${encodeURIComponent(TOKEN)}`,
+                  alt: s.titulo || "Tela da aula", loading: "lazy" }),
+      el("span", { class: "shot-cap" }, cb, el("span", { class: "shot-time" }, mmss(s.t)), el("span", { class: "shot-title" }, s.titulo)));
+    cb.addEventListener("change", () => { cb.checked ? shotsOff.delete(s.id) : shotsOff.add(s.id); card.classList.toggle("off", !cb.checked); });
+    return card;
+  }));
+}
 function showReview(r) {
   review = r; edits = {};
+  renderShots(r);
   $("#review-link-row").hidden = lastSpec?.kind === "youtube";
   $("#review-link").value = lastSpec?.link || "";
   $("#run").hidden = true; $("#review").hidden = false; dockDest($("#review-dest"));
@@ -818,7 +848,8 @@ $("#review-go").addEventListener("click", () => {
   const changed = Object.fromEntries(Object.entries(edits).filter(([i, t]) => t.trim() !== review.segments[i].text));
   const dest = chosenDest();
   if (!dest) { $("#review-hint").textContent = "Escolha onde salvar (ou termine de criar a página nova)."; return; }
-  lastSpec = { ...lastSpec, ...dest, retranscribe: false, edits: changed, include_transcript: $("#include-transcript").checked };
+  lastSpec = { ...lastSpec, ...dest, retranscribe: false, edits: changed, include_transcript: $("#include-transcript").checked,
+               screens_off: [...shotsOff] };
   if (lastSpec.kind !== "youtube") {
     lastSpec.link = $("#review-link").value.trim();
     $("#lesson-link").value = lastSpec.link;
@@ -892,6 +923,24 @@ function renderSettings() {
   $("#covers-dl").hidden = S.covers.ready;
   $("#covers-dl").textContent = `Baixar ${S.covers.label} (${S.covers.size})`;
   $("#lang").value = $("#lang").dataset.touched ? $("#lang").value : S.config.page_language;
+  renderWatch();
+}
+
+function renderWatch() {  // “Assistir a tela junto”: chave no cartão da fonte e nos Ajustes
+  if (!S) return;
+  const on = S.config.watch_screen, v = S.vision, missing = S.ollama.running && !v.installed;
+  $("#watch").checked = $("#watch-set").checked = on;
+  $("#watch-row").hidden = kind === "youtube" && !picked.ytcopy;
+  $("#watch-status").textContent = !on ? ""
+    : !S.ollama.running ? "Abra o Ollama para a IA ler a tela."
+    : missing ? `Falta o modelo de visão (${v.model}, ${v.size}). Ele é baixado uma vez e fica no PC.`
+    : kind === "recording" ? "A tela é capturada enquanto você grava e lida nos intervalos. Só ficam as telas com conteúdo da aula."
+    : "O vídeo do arquivo é lido depois da transcrição.";
+  $("#vision-dl").hidden = !on || !missing;
+  $("#vision-status").textContent = !S.ollama.running ? "Precisa do Ollama aberto."
+    : v.installed ? `Modelo de visão ${v.model} instalado (Apache 2.0).` : `O modelo de visão ${v.model} (${v.size}, Apache 2.0) ainda não foi baixado.`;
+  $("#vision-dl-set").hidden = !missing;
+  for (const b of [$("#vision-dl"), $("#vision-dl-set")]) b.textContent = `Baixar modelo de visão (${v.size})`;
 }
 
 async function saveSettings(body, msg) {
@@ -937,6 +986,10 @@ $("#root").addEventListener("change", (e) => {
 $("#quality").addEventListener("change", (e) => saveSettings({ quality: e.target.value }));
 $("#model-save").addEventListener("click", () => saveSettings({ ollama_model: $("#model").value }, "Modelo atualizado."));
 $("#keep").addEventListener("change", (e) => saveSettings({ keep_temp: e.target.checked }));
+for (const id of ["#watch", "#watch-set"])
+  $(id).addEventListener("change", (e) => saveSettings({ watch_screen: e.target.checked },
+    e.target.checked ? "O Lumen vai assistir a tela junto." : "Leitura da tela desligada.").then(updateGo));
+for (const id of ["#vision-dl", "#vision-dl-set"]) $(id).addEventListener("click", () => download({ what: "vision" }));
 $("#lang").addEventListener("change", (e) => { e.target.dataset.touched = "1"; });
 $("#whisper-dl").addEventListener("click", () => download({ what: "whisper", quality: S.whisper.active }));
 $("#ollama-dl").addEventListener("click", () => download({ what: "ollama" }));
@@ -946,11 +999,13 @@ async function download(body) {
 }
 function renderDownload(j) {
   const target = (j.detail || "").includes("capas") ? $("#covers-status")
+    : S && (j.detail || "").includes(S.vision.model) ? $("#vision-status")
     : $("#ollama-dl").hidden ? $("#whisper-status") : $("#ollama-status");
+  if (target.id === "vision-status" && j.status === "running") $("#watch-status").textContent = j.detail + (j.progress ? ` ${Math.round(j.progress * 100)}%` : "");
   if (j.status === "running") target.textContent = j.detail + (j.progress ? ` ${Math.round(j.progress * 100)}%` : "");
   else if (j.status === "done") toast("Download concluído.");
   else if (j.status === "error") fail(Object.assign(new Error(j.error.message), { action: j.error.action }));
-  for (const b of [$("#whisper-dl"), $("#ollama-dl"), $("#covers-dl")]) b.disabled = j.status === "running";
+  for (const b of [$("#whisper-dl"), $("#ollama-dl"), $("#covers-dl"), $("#vision-dl"), $("#vision-dl-set")]) b.disabled = j.status === "running";
 }
 $("#clear").addEventListener("click", async () => {
   if (!confirm("Apagar o histórico de aulas, transcrições guardadas e arquivos temporários deste PC? As páginas no Notion não são afetadas.")) return;

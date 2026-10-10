@@ -1,0 +1,501 @@
+"""“Assistir a tela junto”: quais telas são guardadas, como são lidas e escolhidas, e o caminho até a página."""
+import http.client
+import json
+import os
+import tempfile
+import threading
+import time
+import unittest
+from unittest import mock
+
+import numpy as np
+
+from lumen import jobs, llm, notion, server, sources, store, transcribe, vision
+from tests.fake_notion import Fake
+from tests.test_flow import wait
+from tests.test_llm import GOOD
+
+RNG = np.random.default_rng(7)
+
+
+def slide(kind, h=540, w=960, bullet=False, cam=False):
+    """Tela sintética: fundo claro com “linhas de texto” escuras em posições que dependem do slide."""
+    img = np.full((h, w), 235, np.uint8)
+    rows = {"A": [60, 140, 220], "B": [100, 260, 380], "C": [80, 300, 420], "D": [180, 240, 300, 360]}[kind]
+    for r in rows:
+        img[r:r + 24, 80:80 + (700 if kind != "D" else 500)] = 30
+    if bullet:
+        img[450:474, 80:620] = 30  # um tópico novo aparece no mesmo slide (~2% da tela)
+    if cam:  # câmera do professor num canto: muda a cada quadro
+        img[h - 130:h - 10, w - 200:w - 10] = RNG.integers(0, 255, (120, 190), dtype=np.uint8)
+    return img
+
+
+def bgra(gray):
+    return np.dstack([gray, gray, gray, np.full_like(gray, 255)])
+
+
+def note(titulo="Tela", texto="linha um dois tres quatro", keep=True, tipo="slide", t=0.0, i=0):
+    n = {"titulo": titulo, "texto": texto, "descricao": "", "tipo": tipo, "aula": keep, "keep": keep}
+    return {"id": i, "t": t, "state": "done", "note": n}
+
+
+class Scenes(unittest.TestCase):
+    def run_screen(self, frames):
+        """Captura 1×/s simulada: devolve os tempos das telas guardadas."""
+        p, out = vision.Picker(), []
+        for t, g in enumerate(frames):
+            out += [round(x[0]) for x in p.feed(float(t), vision._small(g[::2, ::2]), lambda: b"jpg")]
+        out += [round(x[0]) for x in p.flush()]
+        return out
+
+    def test_slides_bullets_and_revisit(self):
+        a, b = slide("A"), slide("B")
+        frames = [a] * 5 + [(a // 2 + b // 2)] + [b] * 5 + [slide("B", bullet=True)] * 5 + [slide("C")] * 5 + [a] * 5
+        # A; B (depois da transição); B com o tópico novo (guardado quando o slide troca); C; A de novo não conta
+        self.assertEqual(self.run_screen(frames), [0, 6, 11, 16])
+
+    def test_professor_camera_in_a_corner(self):
+        frames = ([slide("A", cam=True) for _ in range(15)] + [slide("C", cam=True) for _ in range(6)]
+                  + [slide("D", cam=True) for _ in range(6)])
+        times = self.run_screen(frames)
+        # a câmera muda a cada captura: o Lumen aprende a ignorá-la (≈ 10 s) e depois vê cada slide na hora
+        self.assertEqual(len(times), 3, times)
+        self.assertLessEqual(times[0], 12)
+        self.assertEqual(times[1:], [15, 21])
+
+    def test_talking_head_is_kept_once(self):
+        def head():
+            g = np.full((540, 960), 120, np.uint8)
+            g[60:480, 200:760] = RNG.integers(0, 255, (420, 560), dtype=np.uint8)  # pessoa se mexendo (45%)
+            return g
+        self.assertEqual(len(self.run_screen([head() for _ in range(30)])), 1)
+
+    def test_whole_screen_moving_is_never_kept(self):
+        self.assertEqual(self.run_screen([RNG.integers(0, 255, (540, 960), dtype=np.uint8) for _ in range(20)]), [])
+
+    def test_typing_keeps_latest_state_every_gap(self):
+        frames, g = [], slide("A")
+        for t in range(70):  # uma linha nova a cada 6 s, como código sendo digitado
+            if t and t % 6 == 0:
+                g = g.copy()
+                g[300 + t * 3:312 + t * 3, 80:600] = 30
+            frames.append(g)
+        times = self.run_screen(frames)
+        self.assertEqual(times[0], 0)
+        self.assertLess(len(times), 12, times)  # 11 linhas novas: não lê a cada uma
+        self.assertEqual(times[-1], 66)  # o estado final não se perde
+
+    def test_files_skip_frames_like_a_talking_head(self):
+        def head():
+            g = np.full((540, 960), 120, np.uint8)
+            g[150:390, 330:630] = RNG.integers(0, 255, (240, 300), dtype=np.uint8)  # 14% da tela
+            return vision._small(g[::2, ::2])
+        p = vision.Picker(still_s=0)
+        first = p.feed(0.0, head(), lambda: b"1")
+        self.assertEqual(len(first), 1)
+        p.skip.append(first[0][2])  # o modelo disse: pessoa falando
+        self.assertEqual(p.feed(2.0, head(), lambda: b"2"), [])  # o professor se mexeu: não relê
+        self.assertEqual(len(p.feed(4.0, vision._small(slide("A")[::2, ::2]), lambda: b"3")), 1)
+        # dois slides com pouco texto diferem em ~23%: o segundo não pode ser tratado como o primeiro “crescendo”
+        self.assertEqual(len(p.feed(6.0, vision._small(slide("B")[::2, ::2]), lambda: b"4")), 1)
+
+
+class Cleanup(unittest.TestCase):
+    def test_old_screens_are_purged(self):
+        store.clear_local_data()
+        old, new = jobs.work_dir("file:velha") / "screens", jobs.work_dir("file:nova") / "screens"
+        rec = store.WORK / "uploads" / "ab12cd34_Aula.screens"
+        for d in (old, new, rec):
+            vision.Shots(d).add(1.0, b"jpg")
+        week = time.time() - 8 * 86400
+        for d in (old, rec):
+            os.utime(d, (week, week))
+        store.purge_old_uploads()
+        self.assertEqual([old.exists(), new.exists(), rec.exists()], [False, True, False])
+        self.assertTrue((old.parent).exists())  # a transcrição da aula continua (retomar)
+
+
+class Small(unittest.TestCase):
+    def test_covers_the_whole_screen_at_any_resolution(self):
+        for h, w in ((768, 1366), (1080, 1920), (900, 1440), (135, 240)):
+            g = np.zeros((h, w), np.uint8)
+            g[-3:, -3:] = 255  # canto inferior direito
+            s = vision._small(g)
+            self.assertEqual(s.shape, vision.GRID)
+            self.assertGreater(s[-1, -1], 0, (h, w))
+
+
+class Notes(unittest.TestCase):
+    def test_clean_rejects_empty_or_person(self):
+        good = {"titulo": "Lei de Ohm", "texto": "V = R · I\nR: resistência", "descricao": "", "tipo": "slide",
+                "conteudo_da_aula": True}
+        self.assertTrue(vision.clean(good)["keep"])
+        self.assertFalse(vision.clean({**good, "texto": "Prof. Marina", "titulo": ""})["keep"])  # rosto com nome
+        self.assertFalse(vision.clean({**good, "tipo": "anuncio"})["keep"])
+        icon = {**good, "texto": "", "titulo": "Ícone", "descricao": "Mostra um ícone de perfil de usuário genérico"}
+        self.assertFalse(vision.clean(icon)["keep"])                       # sem texto e não é figura
+        self.assertTrue(vision.clean({**icon, "tipo": "diagrama"})["keep"])  # diagrama só com setas e formas
+        self.assertFalse(vision.clean({**good, "conteudo_da_aula": False})["keep"])
+        self.assertEqual(vision.clean("lixo")["keep"], False)
+
+    def test_select_merges_builds_and_drops_repeats(self):
+        items = [note("Agenda", "fotossintese fase clara", t=10, i=0),
+                 note("Agenda", "fotossintese fase clara fase escura calvin", t=25, i=1),  # mesmo slide, completo
+                 note("Rosto", "x", keep=False, t=30, i=2),
+                 note("Tabela", "quicksort merge insertion sort", t=40, i=3),
+                 note("Agenda", "fotossintese fase clara fase escura calvin", t=90, i=4)]  # voltou
+        got = vision.select(items)
+        self.assertEqual([(s["id"], s["t"]) for s in got], [(1, 10), (3, 40)])
+
+    def test_trim_removes_black_bars_only(self):
+        img = np.zeros((540, 960, 3), np.uint8)
+        img[:, 120:840] = 200       # vídeo 4:3 numa tela 16:9
+        img[300:310, 200:400] = 10  # texto escuro dentro do slide não é borda
+        self.assertEqual(vision._trim(img).shape, (540, 720, 3))
+        dark = np.full((540, 960, 3), 15, np.uint8)
+        dark[200:220, 300:700] = 255  # tela quase toda escura (tema escuro com um texto): não corta
+        self.assertEqual(vision._trim(dark).shape, (540, 960, 3))
+
+    def test_screen_lines_go_in_time_order_into_the_transcript(self):
+        lines = vision.screen_lines([note("Lei de Ohm", "V = R · I\nI: corrente", t=35)])
+        self.assertEqual(lines, [(35, "(na tela) Lei de Ohm: V = R · I / I: corrente")])
+        segs = [{"start": 0.0, "end": 31.0, "text": "Hoje vamos ver eletricidade."},
+                {"start": 40.0, "end": 50.0, "text": "A tensão é resistência vezes corrente."}]
+        self.assertEqual(llm.transcript_text(segs, lines).split("\n"),
+                         ["[00:00] Hoje vamos ver eletricidade.", "[00:35] (na tela) Lei de Ohm: V = R · I / I: corrente",
+                          "[00:40] A tensão é resistência vezes corrente."])
+
+    def test_read_sends_image_and_schema(self):
+        answer = json.dumps({"titulo": "T", "texto": "um dois tres quatro", "descricao": "", "tipo": "slide",
+                             "conteudo_da_aula": True})
+        with mock.patch.object(llm, "_chat", return_value=answer) as chat:
+            n = vision.read(b"\xff\xd8jpeg", vision.MODEL)
+        self.assertTrue(n["keep"])
+        kw = chat.call_args.kwargs
+        self.assertEqual(kw["images"], ["/9hqcGVn"])
+        self.assertEqual(kw["schema"], vision.SCHEMA)
+        self.assertEqual(kw["temperature"], 0)
+
+
+def make_video(path, scenes, fps=5, size=(320, 180)):
+    """MP4 (MPEG-4 Part 2, quadro-chave a cada 2 s) a partir de [(segundos, função que desenha o quadro)]."""
+    import av
+    with av.open(path, "w") as c:
+        s = c.add_stream("mpeg4", rate=fps)
+        s.width, s.height, s.pix_fmt = size[0], size[1], "yuv420p"
+        s.codec_context.gop_size = fps * 2
+        for secs, draw in scenes:
+            for _ in range(secs * fps):
+                g = draw()
+                for pkt in s.encode(av.VideoFrame.from_ndarray(np.dstack([g, g, g]), format="rgb24")):
+                    c.mux(pkt)
+        for pkt in s.encode(None):
+            c.mux(pkt)
+
+
+def fake_read(jpeg, model, check=lambda: None, keep_alive="3m"):
+    """“Modelo” que reconhece as telas sintéticas pelo desenho."""
+    import io
+    import av
+    with av.open(io.BytesIO(jpeg)) as c:
+        g = next(c.decode(video=0)).to_ndarray(format="gray").astype(float)
+    h, w = g.shape
+    if np.abs(np.diff(g[int(h * .3):int(h * .7), int(w * .35):int(w * .65)], axis=1)).mean() > 20:  # ruído = rosto
+        return vision.clean({"titulo": "", "texto": "", "descricao": "", "tipo": "pessoa",
+                             "conteudo_da_aula": False})
+    name = "A" if g[int(h * .36):int(h * .44)].mean() < 150 else "B"
+    return vision.clean({"titulo": f"Slide {name}", "texto": f"slide {name} com quatro palavras", "descricao": "",
+                         "tipo": "slide", "conteudo_da_aula": True})
+
+
+class Extract(unittest.TestCase):
+    def test_keyframes_to_notes(self):
+        small = lambda k: lambda: slide(k, 180, 320)  # noqa: E731
+
+        def head():  # professor falando: muda a cada quadro-chave, mas pouco da tela (14%)
+            g = np.full((180, 320), 120, np.uint8)
+            g[50:130, 110:210] = RNG.integers(0, 255, (80, 100), dtype=np.uint8)
+            return g
+        with tempfile.TemporaryDirectory() as tmp:
+            video = os.path.join(tmp, "aula.mp4")
+            make_video(video, [(6, small("A")), (6, head), (6, small("B")), (6, small("A"))])
+            shots = vision.Shots(os.path.join(tmp, "telas"))
+            with mock.patch.object(vision, "read", side_effect=fake_read) as read:
+                self.assertTrue(vision.extract(video, shots, vision.MODEL, lambda: None, lambda d, p: None))
+            # A, o rosto (lido uma vez só, apesar de mudar a cada quadro-chave) e B; A de novo não é relido
+            self.assertEqual(read.call_count, 3)
+            got = vision.select(shots.items)
+            self.assertEqual([(s["note"]["titulo"], s["t"]) for s in got], [("Slide A", 0.0), ("Slide B", 12.0)])
+            self.assertEqual(sorted(os.listdir(shots.dir)), ["0000.jpg", "0002.jpg", "index.json"])  # rosto apagado
+
+    def test_audio_only_has_no_screens(self):
+        import av
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "a.wav")
+            with av.open(path, "w") as c:
+                s = c.add_stream("pcm_s16le", rate=16000)
+                f = av.AudioFrame.from_ndarray(np.zeros((1, 16000), np.int16), format="s16", layout="mono")
+                f.sample_rate = 16000
+                for p in s.encode(f):
+                    c.mux(p)
+            self.assertFalse(vision.extract(path, vision.Shots(tmp), vision.MODEL, lambda: None, lambda d, p: None))
+
+
+class FakeScreen:
+    """Monitor 960×540 com duas janelas: a aula no navegador à esquerda (x < 640) e as anotações à direita."""
+
+    def __init__(self, frames):
+        self.frames, self.n = frames, 0
+
+    def grab(self):
+        g = self.frames[min(self.n, len(self.frames) - 1)]
+        self.n += 1
+        return bgra(g), (900, 0, 960, 540), (0, 0)  # barra do Lumen na borda direita
+
+    def window_at(self, points):
+        left = sum(x < 640 for x, _ in points)
+        return "aula" if left * 2 >= len(points) else "notas"
+
+    def rect(self, hwnd):
+        return (0, 0, 640, 540) if hwnd == "aula" else (640, 0, 960, 540)
+
+    def label(self, hwnd):
+        return "Aula 4 - YouTube — msedge.exe" if hwnd == "aula" else "Minhas anotações - Notion — Notion.exe"
+
+
+class Watching(unittest.TestCase):
+    def test_live_capture_reads_between_slides(self):
+        frames = [slide("A")] * 5 + [slide("B")] * 5 + [slide("C")] * 5
+        screen = FakeScreen(frames)
+        notes = iter([note()["note"], {**note()["note"], "keep": False}, note()["note"]])
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(vision, "INTERVAL_S", 0.01), \
+                mock.patch.object(vision, "read", side_effect=lambda *a, **k: dict(next(notes))):
+            w = vision.Watch(os.path.join(tmp, "g.screens"), lambda: float(screen.n), vision.MODEL, grabber=screen)
+            for _ in range(500):
+                if screen.n > len(frames) + 3 and w.read_n == 3:
+                    break
+                time.sleep(0.01)
+            w.stop()
+            self.assertEqual(w.counts(), {"seen": 3, "read": 3, "kept": 2})
+            self.assertTrue((w.shots.dir / "complete").exists())
+            self.assertFalse((w.shots.dir / "0001.jpg").exists())  # tela sem conteúdo: apagada na hora
+            self.assertTrue(w.mask[:, -4:].all() and not w.mask[:, :80].any())  # barra do Lumen fora da comparação
+
+    def test_crops_to_the_lesson_window_and_ignores_notes(self):
+        def frame(kind, note_lines=0):
+            g = slide(kind)
+            g[:, 640:] = 250  # janela das anotações
+            for k in range(note_lines):
+                g[40 + k * 40:60 + k * 40, 680:900] = 40
+            return g
+        frames = [frame("A")] * 5 + [frame("B")] * 5 + [frame("B", 3)] * 5 + [frame("C", 3)] * 5
+        screen = FakeScreen(frames)
+        sizes, windows = [], []
+
+        def fake(jpeg, *a, window=None, **k):
+            import io
+            import av
+            with av.open(io.BytesIO(jpeg)) as c:
+                sizes.append(next(c.decode(video=0)).width)
+            windows.append(window)
+            return note()["note"]
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(vision, "INTERVAL_S", 0.01), \
+                mock.patch.object(vision, "read", side_effect=fake):
+            w = vision.Watch(os.path.join(tmp, "g.screens"), lambda: float(screen.n), vision.MODEL, grabber=screen)
+            for _ in range(500):
+                if screen.n > len(frames) + 3 and w.read_n == 3:
+                    break
+                time.sleep(0.01)
+            w.stop()
+        # A (a janela que ocupa mais a tela), B e C recortados na janela da aula; as 3 linhas digitadas nas
+        # anotações (Notion) não viram tela nem vão para o modelo
+        self.assertEqual(sizes, [640, 640, 640])
+        self.assertEqual(windows, ["Aula 4 - YouTube — msedge.exe"] * 3)
+        self.assertEqual(w.counts()["seen"], 3)
+
+    def test_first_screen_in_student_app_does_not_block_the_lesson(self):
+        class Notes(FakeScreen):  # no começo, as anotações ocupam a maior parte da tela
+            def window_at(self, points):
+                return "notas" if self.n < 6 else super().window_at(points)
+        screen = Notes([slide("A")] * 5 + [slide("B")] * 5 + [slide("C")] * 5)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(vision, "INTERVAL_S", 0.01),                 mock.patch.object(vision, "read", return_value=note()["note"]):
+            w = vision.Watch(os.path.join(tmp, "g.screens"), lambda: float(screen.n), vision.MODEL, grabber=screen)
+            for _ in range(500):
+                if screen.n > 18 and w.read_n == 2:
+                    break
+                time.sleep(0.01)
+            w.stop()
+        self.assertEqual([s["window"] for s in w.shots.items], ["Aula 4 - YouTube — msedge.exe"] * 2)  # B e C
+
+    def test_stop_does_not_wait_for_a_slow_read(self):
+        screen = FakeScreen([slide("A")] * 5)
+        started, release = threading.Event(), threading.Event()
+
+        def slow(*a, **k):
+            started.set()
+            release.wait(10)
+            return note()["note"]
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(vision, "INTERVAL_S", 0.01), \
+                mock.patch.object(vision, "read", side_effect=slow):
+            w = vision.Watch(os.path.join(tmp, "g.screens"), lambda: float(screen.n), vision.MODEL, grabber=screen)
+            self.assertTrue(started.wait(5))
+            t = time.monotonic()
+            w.stop()
+            self.assertLess(time.monotonic() - t, 6.5)
+            release.set()
+            time.sleep(0.2)
+            self.assertEqual(w.shots.pending(), [0])  # a leitura que terminou depois de parar não grava nada
+
+    def test_waits_while_another_lesson_is_processed(self):
+        screen = FakeScreen([slide("A")] * 5)
+        busy = threading.Event()
+        busy.set()
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(vision, "INTERVAL_S", 0.01), \
+                mock.patch.object(vision, "read", return_value=note()["note"]) as read:
+            w = vision.Watch(os.path.join(tmp, "g.screens"), lambda: float(screen.n), vision.MODEL,
+                             paused=busy.is_set, grabber=screen)
+            time.sleep(0.3)
+            read.assert_not_called()
+            w.stop()
+            self.assertEqual(w.shots.pending(), [0])  # fica para quando a aula for processada
+
+
+class Page(unittest.TestCase):
+    def test_screen_text_blocks(self):
+        # o modelo repete o título do slide na 1ª linha (sem colunas): não pode impedir a tabela
+        table = notion._screen_text({"tipo": "tabela", "titulo": "Complexidade", "descricao": "",
+                                     "texto": "Complexidade\nAlgoritmo | Pior caso\nQuicksort | O(n²)\nMerge sort | \nFonte: livro"})
+        self.assertEqual([b["type"] for b in table], ["paragraph", "table"])
+        self.assertEqual(table[1]["table"]["table_width"], 2)
+        self.assertEqual(table[1]["table"]["children"][2]["table_row"]["cells"][1], [])
+        tabs = notion._screen_text({"tipo": "tabela", "titulo": "T", "descricao": "",
+                                    "texto": "Algoritmo\tPior caso\nQuicksort\tO(n²)"})
+        self.assertEqual(tabs[0]["table"]["children"][1]["table_row"]["cells"][1][0]["text"]["content"], "O(n²)")
+        code = notion._screen_text({"tipo": "codigo", "titulo": "Busca", "descricao": "Função",
+                                    "texto": "Busca\ndef f():\n    return 1"})
+        self.assertEqual([b["type"] for b in code], ["code", "paragraph"])
+        self.assertEqual(code[0]["code"]["rich_text"][0]["text"]["content"], "def f():\n    return 1")  # indentação
+
+
+class Flow(unittest.TestCase):
+    """Gravação com a tela assistida → revisão (com as telas) → página com galeria, sem sobras no disco."""
+
+    def setUp(self):
+        store.clear_local_data()
+        self.fake = Fake()
+        self.root = self.fake.add_page("Estudos")
+        store.save_config({**store.DEFAULTS, "root_page_id": self.root})
+        up = store.WORK / "uploads"
+        up.mkdir(parents=True)
+        self.wav = up / "ab12cd34_Aula.wav"
+        self.wav.write_bytes(b"RIFF" + os.urandom(2048))
+        shots = vision.Shots(self.wav.with_suffix(".screens"))
+        self.jpeg = jpeg = vision._encode(__import__("av").VideoFrame.from_ndarray(bgra(slide("A")), format="bgra"))
+        for t, n in [(5, note("Lei de Ohm", "V = R · I\nR: resistência")), (30, note("Rosto", keep=False)),
+                     (60, note("Tabela", "Algoritmo | Pior caso\nQuicksort | O(n²)", tipo="tabela")),
+                     (90, note("Código", "def f():\n    return 1", tipo="codigo"))]:
+            shots.done(shots.add(t, jpeg), n["note"])
+        (shots.dir / "complete").touch()
+        tr = {"segments": [{"start": 0.0, "end": 40.0, "text": "A tensão é a resistência vezes a corrente."}],
+              "language": "pt", "duration": 120.0, "device": "cuda", "second_opinion": False, "compute": "float16"}
+        self.patches = [mock.patch.object(store, "get_token", return_value="secret_test"),
+                        mock.patch.object(transcribe, "downloaded", return_value=True),
+                        mock.patch.object(transcribe, "transcribe", return_value=tr),
+                        mock.patch.object(transcribe, "make_room"),
+                        mock.patch.object(sources, "probe", return_value={"duration": 120.0, "format": "WAV"}),
+                        mock.patch.object(vision, "ready", return_value=True),
+                        mock.patch.object(llm, "_chat", return_value=json.dumps(GOOD)),
+                        mock.patch("lumen.mindmap.render", return_value=None)]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        self.assertEqual(self.fake.violations, [])
+        self.fake.close()
+
+    def test_recording_screens_reach_the_page(self):
+        spec = {"kind": "recording", "path": str(self.wav), "speed": "1", "language": "pt", "mode": "new",
+                "course_id": self.root}
+        jobs.start("process", jobs.process, spec)
+        j = wait()
+        self.assertEqual(j["status"], "done", j.get("error"))
+        sc = j["result"]["screens"]
+        self.assertEqual([s["titulo"] for s in sc["items"]], ["Lei de Ohm", "Tabela", "Código"])
+        self.assertEqual(sc["seen"], 4)
+        work = jobs.work_dir(j["result"]["key"])
+        self.assertFalse(self.wav.with_suffix(".screens").exists())  # foi para a pasta da aula
+        code_id = sc["items"][2]["id"]
+        jobs.start("process", jobs.finish, {**spec, "screens_off": [code_id]})  # o usuário desmarcou o código
+        j = wait()
+        self.assertEqual(j["status"], "done", j.get("error"))
+        prompt = llm._chat.call_args.args[2]
+        self.assertIn("(na tela) Lei de Ohm: V = R · I / R: resistência", prompt)
+        self.assertNotIn("def f()", prompt)
+        blocks = self.fake.pages[self.root]["blocks"]
+        heads = [b["heading_2"]["rich_text"][0]["text"]["content"] for b in blocks if b["type"] == "heading_2"]
+        self.assertEqual(heads[heads.index("Tópicos principais") + 1], "O que apareceu na tela")
+        gallery = [b for b in blocks if b["type"] == "column_list"]
+        self.assertEqual(len(gallery), 1)
+        imgs = [c["column"]["children"][0] for c in gallery[0]["column_list"]["children"]]
+        self.assertEqual([i["type"] for i in imgs], ["image", "image"])
+        self.assertTrue(all(self.fake.uploads[i["image"]["file_upload"]["id"]]["status"] == "uploaded" for i in imgs))
+        self.assertIn("00:05 · 📑 Lei de Ohm", imgs[0]["image"]["caption"][0]["text"]["content"])
+        toggles = [b for b in blocks if b["type"] == "toggle" and "Tabela" in b["toggle"]["rich_text"][0]["text"]["content"]]
+        self.assertEqual(toggles[0]["toggle"]["children"][0]["type"], "table")
+        # sobras: a gravação foi apagada; só ficam as imagens das telas que foram para a página
+        self.assertFalse(self.wav.exists())
+        self.assertEqual(sorted(p.name for p in (work / "screens").glob("*.jpg")), ["0000.jpg", "0002.jpg"])
+
+    def test_missing_vision_model_keeps_the_lesson_going(self):
+        vision.ready.return_value = False
+        vision.Shots(self.wav.with_suffix(".screens")).add(100, self.jpeg)  # parou de gravar antes de ler esta
+        jobs.start("process", jobs.process, {"kind": "recording", "path": str(self.wav), "speed": "1"})
+        j = wait()
+        self.assertEqual(j["status"], "done", j.get("error"))
+        self.assertIn("1 tela(s) ficaram sem leitura: o modelo de visão", j["result"]["screens"]["warning"])
+        self.assertEqual(len(j["result"]["screens"]["items"]), 3)  # as já lidas durante a gravação continuam
+
+
+class ScreenEndpoint(unittest.TestCase):
+    def test_serves_only_jpeg_of_the_lesson(self):
+        httpd = server.serve()
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            folder = jobs.work_dir("file:abc") / "screens"
+            shots = vision.Shots(folder)
+            shots.add(1.0, b"\xff\xd8 jpeg")
+
+            def get(path, token=True):
+                c = http.client.HTTPConnection("127.0.0.1", httpd.server_port)
+                c.request("GET", path + (f"&t={server.TOKEN}" if token else ""),
+                          headers={"Host": f"127.0.0.1:{httpd.server_port}"})
+                r = c.getresponse()
+                return r.status, r.getheader("Content-Type"), r.read()
+            self.assertEqual(get("/api/screen?key=file:abc&id=0"), (200, "image/jpeg; charset=utf-8", b"\xff\xd8 jpeg"))
+            self.assertEqual(get("/api/screen?key=file:abc&id=0", token=False)[0], 403)
+            self.assertEqual(get("/api/screen?key=file:abc&id=../../x")[0], 400)
+            self.assertEqual(get("/api/screen?key=file:abc&id=7")[0], 400)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+
+@unittest.skipUnless(os.name == "nt", "captura da tela só no Windows")
+class RealScreen(unittest.TestCase):
+    def test_grab_returns_the_monitor(self):
+        """Só confere tamanho e que não veio preto; a imagem não é guardada nem exibida."""
+        got = vision.Screen().grab()
+        if got is None:
+            self.skipTest("o Lumen está na frente")
+        img, _, _ = got
+        self.assertEqual(img.shape[2], 4)
+        self.assertGreaterEqual(img.shape[1], 640)
+        if float(img[::16, ::16, :3].std()) <= 0.5:
+            self.skipTest("tela toda escura (bloqueada ou desligada)")
+
+
+if __name__ == "__main__":
+    unittest.main()

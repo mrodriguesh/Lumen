@@ -326,3 +326,23 @@ Testado e **não adotado**:
 
 Resultado (`jobs.process` real, qwen3:8b do Ollama ocupando 6 GB da placa): **40,8 s** na primeira aula da sessão
 (com a carga do modelo) e **29,7 s** nas seguintes (antes: 55,6 s e ~48 s). WER da aula longa igual: 11,35%.
+
+## Leitura da tela: modelo de visão (10/10/2026, `python -m bench.vision_bench`)
+
+18 telas 1920×1080 com gabarito, enviadas a 1280 px (RTX 3060, Ollama 0.40.2, mesma mensagem do app). “Guardada
+certo” = a decisão final do app (modelo + filtro de texto mínimo + lista de programas do aluno).
+
+| modelo | texto lido | pior tela | guardada certo | ruído copiado | s/tela | VRAM do modelo | disco |
+|---|---|---|---|---|---|---|---|
+| **qwen3.5:4b** | **100%** | **100%** | **18/18** | **0** | **1,5** | 3,1 GB | 3,3 GB |
+| qwen3-vl:4b-instruct (12 telas, 1ª versão do pedido) | 99,1% | 90,9% | – | 0 | 2,9 | 4,2 GB | 6,4 GB* |
+| qwen3-vl:4b (padrão “thinking”) | 99,8% | 97,9% | – | 0 | 31,7 | 4,9 GB | 6,4 GB* |
+
+\* o Ollama 0.40.2 guarda uma cópia convertida para o executor llama.cpp além do arquivo baixado.
+
+- 960 px deu o mesmo texto lido (100%), sem ganho de tempo; ficou 1280 px.
+- `presence_penalty` 0 em vez do padrão do modelo: mesmo resultado (só mudaram quebras de linha).
+- Captura real (aula de teste tocando no Edge, em 2×, com outros programas abertos): 5 telas guardadas, todas da
+  janela do vídeo; código, tabela, gráfico e resumo lidos; professor falando descartado; 1,7% de um núcleo de CPU.
+- Ponta a ponta (arquivo de 91 s, large-v3 + qwen3.5:4b + qwen3:8b): processar 28,5 s (18 s de transcrição,
+  10 s de leitura da tela), escrever e publicar 42 s.

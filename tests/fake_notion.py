@@ -9,7 +9,7 @@ from lumen import notion
 
 def _check_blocks(blocks, depth=1):
     assert len(blocks) <= 100, "mais de 100 blocos numa requisição"
-    assert depth <= 3, "aninhamento acima do permitido"
+    assert depth <= 3 or not blocks, "aninhamento acima do permitido"
     for b in blocks:
         body = b[b["type"]]
         for rt in body.get("rich_text", []):
@@ -140,9 +140,14 @@ class Fake:
             if parts[1] not in self.pages and parts[1] not in self.blocks:
                 return 404, {"code": "object_not_found"}
             _check_blocks(body["children"])
-            for b in body["children"]:
-                if b["type"] == "image" and b["image"]["type"] == "file_upload":
-                    assert self.uploads.get(b["image"]["file_upload"]["id"], {}).get("status") == "uploaded",                         "imagem sem upload concluído"
+
+            def images(blocks):  # também dentro de colunas e toggles
+                for b in blocks:
+                    if b["type"] == "image" and b["image"]["type"] == "file_upload":
+                        assert self.uploads.get(b["image"]["file_upload"]["id"], {}).get("status") == "uploaded", \
+                            "imagem sem upload concluído"
+                    images(b[b["type"]].get("children", []))
+            images(body["children"])
             body = json.loads(json.dumps(body))
             for b in body["children"]:
                 b["id"] = str(uuid.uuid4())

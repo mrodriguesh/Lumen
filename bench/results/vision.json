@@ -1,0 +1,1670 @@
+{
+ "qwen3-vl:4b@1280": {
+  "summary": {
+   "model": "qwen3-vl:4b",
+   "width": 1280,
+   "recall": 0.998,
+   "recall_min": 0.979,
+   "relevance": 11,
+   "frames": 12,
+   "noise": 0,
+   "iou": [
+    0.95,
+    0.94
+   ],
+   "s_mean": 31.71,
+   "s_max": 48.9,
+   "vram_gb_total": 8.0
+  },
+  "rows": [
+   {
+    "id": "fotossintese",
+    "s": 48.9,
+    "prompt_tokens": 1477,
+    "out_tokens": 3599,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Fotossíntese: fase clara e fase escura",
+     "texto": "- Ocorre nos cloroplastos das células vegetais\n- Fase clara: tilacoides, produz ATP e NADPH\n- Fase escura (Ciclo de Calvin): estroma, fixa CO₂\n6 CO₂ + 6 H₂O → C₆H₁₂O₆ + 6 O₂\nBiologia - Aula 7 - 12/30\nProf. Lumen",
+     "descricao": "Mostra a equação geral da fotossíntese, representando a fixação de CO₂ e a produção de glicose e oxigênio.",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "tabela",
+    "s": 40.88,
+    "prompt_tokens": 1477,
+    "out_tokens": 3386,
+    "relevant_ok": true,
+    "recall": 0.9791666666666666,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      50,
+      150,
+      550,
+      500
+     ],
+     "titulo": "Complexidade dos algoritmos de ordenação",
+     "texto": "Algoritmo | Melhor caso | Pior caso | Estável\nQuick sort | O(n log n) | O(n²) | Não\nMerge sort | O(n log n) | O(n log n) | Sim\nInsertion sort | O(n) | O(n²) | Sim",
+     "descricao": "A tabela compara a complexidade de diferentes algoritmos de ordenação, mostrando melhor caso, pior caso e estabilidade.",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "codigo",
+    "s": 33.82,
+    "prompt_tokens": 1477,
+    "out_tokens": 2809,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Busca binária em Python",
+     "texto": "def busca_binaria(lista, alvo):\n    inicio, fim = 0, len(lista) - 1\n    while inicio <= fim:\n        meio = (inicio + fim) // 2\n        if lista[meio] == alvo:\n            return meio\n        if lista[meio] < alvo:\n            inicio = meio + 1\n        else:\n            fim = meio - 1\n    return -1",
+     "descricao": "A função de busca binária em Python que implementa o algoritmo de busca binária, com a lógica de divisão do intervalo e ajuste dos limites de busca.",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "diagrama",
+    "s": 36.09,
+    "prompt_tokens": 1477,
+    "out_tokens": 2997,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Ciclo da água",
+     "texto": "Ciclo da água\nEvaporação\nCondensação\nInfiltração\nPrecipitação",
+     "descricao": "Diagrama que ilustra os principais processos do ciclo da água, conectando evaporação, condensação, precipitação e infiltração com setas indicando a sequência e direção dos processos.",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "formula",
+    "s": 23.34,
+    "prompt_tokens": 1477,
+    "out_tokens": 1942,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Teorema de Pitágoras",
+     "texto": "Teorema de Pitágoras\n• Vale apenas para triângulos retângulos\n• Exemplo: catetos 3 e 4 → hipotenusa 5\na² + b² = c²\nMatemática · Geometria\nProf. Lumen",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "denso",
+    "s": 46.42,
+    "prompt_tokens": 1477,
+    "out_tokens": 3821,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Glossário de redes",
+     "texto": "Latência: tempo que um pacote leva para ir e voltar\nLargura de banda: quantidade máxima de dados transmitidos por segundo\nDNS: traduz nomes de domínio em endereços IP\nTCP: entrega confiável e ordenada dos pacotes\nUDP: envio rápido, sem garantia de entrega\nRoteador: encaminha pacotes entre redes diferentes",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "rosto",
+    "s": 22.04,
+    "prompt_tokens": 1477,
+    "out_tokens": 1782,
+    "relevant_ok": false,
+    "recall": null,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      45,
+      190,
+      690,
+      895
+     ],
+     "titulo": "Instructor Profile",
+     "texto": "Prof. Marina Souza",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "youtube_aula",
+    "s": 35.16,
+    "prompt_tokens": 1477,
+    "out_tokens": 2931,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": 0.95,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      10,
+      150,
+      675,
+      790
+     ],
+     "titulo": "Revolução Francesa (1789)",
+     "texto": "Revolução Francesa (1789)\n- Queda da Bastilha: 14 de julho de 1789\n- Lema: Liberdade, Igualdade, Fraternidade\n- Fim do Antigo Regime e dos privilégios do clero\nHistória • Aula 3\nProf. Lumen",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "camera",
+    "s": 30.49,
+    "prompt_tokens": 1477,
+    "out_tokens": 2518,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Lei de Ohm",
+     "texto": "Lei de Ohm\n• V = R · I\n• V: tensão (volts)\n• R: resistência (ohms, Ω)\n• I: corrente (ampères)\n• Exemplo: R = 10 Ω e I = 2 A → V = 20 V\nFísica - Eletricidade\nProf. Lumen",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "quadro",
+    "s": 15.66,
+    "prompt_tokens": 1477,
+    "out_tokens": 1295,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Derivada",
+     "texto": "Derivada\nf(x) = x³ → f'(x) = 3x²\nregra do tombo: desce o expoente",
+     "descricao": "A slide explica a regra da derivada do tombo, mostrando que ao derivar x³, o resultado é 3x², com a explicação de que o expoente é reduzido.",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "ingles",
+    "s": 32.86,
+    "prompt_tokens": 1477,
+    "out_tokens": 2750,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Supply and Demand",
+     "texto": "Supply and Demand\n- When price rises, demand falls\n- When price rises, supply rises\n- Equilibrium: supply = demand\nEconomics 101 · Week 2\nProf. Lumen",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "youtube_anuncio",
+    "s": 14.82,
+    "prompt_tokens": 1477,
+    "out_tokens": 1203,
+    "relevant_ok": true,
+    "recall": null,
+    "noise": [],
+    "iou": 0.94,
+    "answer": {
+     "tipo": "anuncio",
+     "area": [
+      0,
+      145,
+      675,
+      790
+     ],
+     "titulo": "Curso de inglês com 50% de desconto",
+     "texto": "Curso de inglês com 50% de desconto\n\nPatrocinado · Saiba mais\n\nPular anúncio",
+     "descricao": "Anúncio promocional de curso de inglês com desconto de 50%.",
+     "conteudo_da_aula": false
+    }
+   }
+  ]
+ },
+ "qwen3-vl:4b-instruct@1280": {
+  "summary": {
+   "model": "qwen3-vl:4b-instruct",
+   "width": 1280,
+   "recall": 0.991,
+   "recall_min": 0.909,
+   "relevance": 11,
+   "frames": 12,
+   "noise": 0,
+   "iou": [
+    0.95,
+    0.96
+   ],
+   "s_mean": 2.92,
+   "s_max": 6.98,
+   "vram_gb_total": 7.87
+  },
+  "rows": [
+   {
+    "id": "fotossintese",
+    "s": 2.63,
+    "prompt_tokens": 1477,
+    "out_tokens": 152,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Fotossíntese: fase clara e fase escura",
+     "texto": "• Ocorre nos cloroplastos das células vegetais\n• Fase clara: tilacoides, produz ATP e NADPH\n• Fase escura (Ciclo de Calvin): estroma, fixa CO₂\n\n6 CO₂ + 6 H₂O → C₆H₁₂O₆ + 6 O₂",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "tabela",
+    "s": 2.32,
+    "prompt_tokens": 1477,
+    "out_tokens": 131,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Complexidade dos algoritmos de ordenação",
+     "texto": "Algoritmo | Melhor caso | Pior caso | Estável\nQuicksort | O(n log n) | O(n²) | Não\nMerge sort | O(n log n) | O(n log n) | Sim\nInsertion sort | O(n) | O(n²) | Sim",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "codigo",
+    "s": 6.98,
+    "prompt_tokens": 1477,
+    "out_tokens": 162,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "codigo",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Busca binária em Python",
+     "texto": "def busca_binaria(lista, alvo):\n    inicio, fim = 0, len(lista) - 1\n    while inicio <= fim:\n        meio = (inicio + fim) // 2\n        if lista[meio] == alvo:\n            return meio\n        if lista[meio] < alvo:\n            inicio = meio + 1\n        else:\n            fim = meio - 1\n    return -1",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "diagrama",
+    "s": 2.94,
+    "prompt_tokens": 1477,
+    "out_tokens": 148,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Ciclo da água",
+     "texto": "Ciclo da água\nEvaporação\nCondensação\nInfiltração\nPrecipitação",
+     "descricao": "Diagrama que mostra os principais processos do ciclo da água, conectados por setas que indicam a direção do fluxo: evaporação para condensação, precipitação para infiltração, e infiltração voltando para evaporação.",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "formula",
+    "s": 2.53,
+    "prompt_tokens": 1477,
+    "out_tokens": 108,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Teorema de Pitágoras",
+     "texto": "• Vale apenas para triângulos retângulos\n• Exemplo: catetos 3 e 4 → hipotenusa 5\n\na² + b² = c²",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "denso",
+    "s": 2.94,
+    "prompt_tokens": 1477,
+    "out_tokens": 148,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Glossário de redes",
+     "texto": "Latência: tempo que um pacote leva para ir e voltar\nLargura de banda: quantidade máxima de dados transmitidos por segundo\nDNS: traduz nomes de domínio em endereços IP\nTCP: entrega confiável e ordenada dos pacotes\nUDP: envio rápido, sem garantia de entrega\nRoteador: encaminha pacotes entre redes diferentes",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "rosto",
+    "s": 2.09,
+    "prompt_tokens": 1477,
+    "out_tokens": 69,
+    "relevant_ok": false,
+    "recall": null,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Prof. Marina Souza",
+     "texto": "Prof. Marina Souza",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "youtube_aula",
+    "s": 2.8,
+    "prompt_tokens": 1477,
+    "out_tokens": 134,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": 0.95,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      148,
+      683,
+      798
+     ],
+     "titulo": "Revolução Francesa (1789)",
+     "texto": "Revolução Francesa (1789)\n• Queda da Bastilha: 14 de julho de 1789\n• Lema: Liberdade, Igualdade, Fraternidade\n• Fim do Antigo Regime e dos privilégios do clero",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "camera",
+    "s": 2.78,
+    "prompt_tokens": 1477,
+    "out_tokens": 129,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Lei de Ohm",
+     "texto": "• V = R · I\n• V: tensão (volts)\n• R: resistência (ohms, Ω)\n• I: corrente (amperes)\n• Exemplo: R = 10 Ω e I = 2 A → V = 20 V",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "quadro",
+    "s": 2.33,
+    "prompt_tokens": 1477,
+    "out_tokens": 96,
+    "relevant_ok": true,
+    "recall": 0.9090909090909091,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Derivada",
+     "texto": "Derivada\nf(x) = x^3 → f'(x) = 3x^2\nregra do tombo: desce o expoente",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "ingles",
+    "s": 2.28,
+    "prompt_tokens": 1477,
+    "out_tokens": 85,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "tipo": "slide",
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ],
+     "titulo": "Supply and Demand",
+     "texto": "• When price rises, demand falls\n• When price rises, supply rises\n• Equilibrium: supply = demand",
+     "descricao": "",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "youtube_anuncio",
+    "s": 2.44,
+    "prompt_tokens": 1477,
+    "out_tokens": 103,
+    "relevant_ok": true,
+    "recall": null,
+    "noise": [],
+    "iou": 0.96,
+    "answer": {
+     "tipo": "anuncio",
+     "area": [
+      0,
+      143,
+      683,
+      798
+     ],
+     "titulo": "Curso de inglês com 50% de desconto",
+     "texto": "Curso de inglês\ncom 50% de desconto\n\nPatrocinado • Saiba mais\n\nPular anúncio",
+     "descricao": "",
+     "conteudo_da_aula": false
+    }
+   }
+  ]
+ },
+ "qwen3.5:4b@1280": {
+  "summary": {
+   "model": "qwen3.5:4b",
+   "width": 1280,
+   "recall": 1.0,
+   "recall_min": 1.0,
+   "relevance": 17,
+   "keep": 18,
+   "frames": 18,
+   "noise": 0,
+   "s_mean": 1.5,
+   "s_max": 2.88,
+   "vram_gb_total": 5.47,
+   "options": {}
+  },
+  "rows": [
+   {
+    "id": "fotossintese",
+    "s": 2.88,
+    "prompt_tokens": 1357,
+    "out_tokens": 167,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "Fotossíntese: fase clara e fase escura",
+     "texto": "Fotossíntese: fase clara e fase escura\nOcorre nos cloroplastos das células vegetais\nFase clara: tilacoides, produz ATP e NADPH\nFase escura (Ciclo de Calvin): estroma, fixa CO2\n6 CO2 + 6 H2O → C6H12O6 + 6 O2",
+     "descricao": "Apresentação sobre a fotossíntese, dividindo-a em fase clara e fase escura, com localização celular e produtos químicos envolvidos.",
+     "tipo": "slide",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "tabela",
+    "s": 2.1,
+    "prompt_tokens": 1357,
+    "out_tokens": 157,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "Complexidade dos algoritmos de ordenação",
+     "texto": "Complexidade dos algoritmos de ordenação\nAlgoritmo | Melhor caso | Pior caso | Estável\nQuicksort | O(n log n) | O(n²) | Não\nMerge sort | O(n log n) | O(n log n) | Sim\nInsertion sort | O(n) | O(n²) | Sim",
+     "descricao": "Tabela comparando a complexidade de três algoritmos de ordenação: Quicksort, Merge sort e Insertion sort, indicando melhor caso, pior caso e estabilidade.",
+     "tipo": "tabela",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "codigo",
+    "s": 2.15,
+    "prompt_tokens": 1357,
+    "out_tokens": 159,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "Busca binária em Python",
+     "texto": "def busca_binaria(lista, alvo):\n    inicio, fim = 0, len(lista) - 1\n    while inicio <= fim:\n        meio = (inicio + fim) // 2\n        if lista[meio] == alvo:\n            return meio\n        if lista[meio] < alvo:\n            inicio = meio + 1\n        else:\n            fim = meio - 1\n    return -1",
+     "descricao": "Mostra o código Python para implementar a busca binária em uma lista ordenada.",
+     "tipo": "codigo",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "diagrama",
+    "s": 1.43,
+    "prompt_tokens": 1357,
+    "out_tokens": 101,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "Ciclo da água",
+     "texto": "Ciclo da água\nEvaporação → Condensação\n↓\nPrecipitação ← Infiltração",
+     "descricao": "Diagrama do ciclo da água mostrando as etapas de evaporação, condensação, precipitação e infiltração com setas indicando o fluxo.",
+     "tipo": "diagrama",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "formula",
+    "s": 1.79,
+    "prompt_tokens": 1357,
+    "out_tokens": 131,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "Teorema de Pitágoras",
+     "texto": "Teorema de Pitágoras\nVale apenas para triângulos retângulos\nExemplo: catetos 3 e 4 → hipotenusa 5\na² + b² = c²\nMatemática · Geometria\nProf. Lumen",
+     "descricao": "Apresentação do Teorema de Pitágoras com a fórmula matemática e um exemplo numérico.",
+     "tipo": "slide",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "denso",
+    "s": 1.68,
+    "prompt_tokens": 1357,
+    "out_tokens": 121,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "Glossário de redes",
+     "texto": "Latência: tempo que um pacote leva para ir e voltar\nLargura de banda: quantidade máxima de dados transmitidos por segundo\nDNS: traduz nomes de domínio em endereços IP\nTCP: entrega confiável e ordenada dos pacotes\nUDP: envio rápido, sem garantia de entrega\nRoteador: encaminha pacotes entre redes diferentes",
+     "descricao": "",
+     "tipo": "slide",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "rosto",
+    "s": 0.96,
+    "prompt_tokens": 1357,
+    "out_tokens": 60,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": null,
+    "noise": [],
+    "answer": {
+     "titulo": "Prof. Marina Souza",
+     "texto": "",
+     "descricao": "Tela de introdução com avatar genérico e nome do professor.",
+     "tipo": "tabela",
+     "conteudo_da_aula": false
+    }
+   },
+   {
+    "id": "youtube_aula",
+    "s": 1.86,
+    "prompt_tokens": 1357,
+    "out_tokens": 139,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "Revolução Francesa (1789)",
+     "texto": "Revolução Francesa (1789)\n\n• Queda da Bastilha: 14 de julho de 1789\n\n• Lema: Liberdade, Igualdade, Fraternidade\n\n• Fim do Antigo Regime e dos privilégios do clero",
+     "descricao": "Slide de aula sobre a Revolução Francesa de 1789 com tópicos principais.",
+     "tipo": "slide",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "camera",
+    "s": 1.79,
+    "prompt_tokens": 1357,
+    "out_tokens": 129,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "Lei de Ohm",
+     "texto": "Lei de Ohm\nV = R · I\nV: tensão (volts)\nR: resistência (ohms, Ω)\nI: corrente (ampères)\nExemplo: R = 10 Ω e I = 2 A → V = 20 V",
+     "descricao": "Apresenta a fórmula da Lei de Ohm e suas definições com unidades, além de um exemplo prático.",
+     "tipo": "slide",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "quadro",
+    "s": 1.5,
+    "prompt_tokens": 1357,
+    "out_tokens": 107,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "Derivada",
+     "texto": "Derivada\nf(x) = x³ → f'(x) = 3x²\nregra do tombo: desce o expoente",
+     "descricao": "A tela mostra um exemplo de derivada usando a regra do tombo, onde o expoente é 'descido' ao derivar.",
+     "tipo": "formula",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "ingles",
+    "s": 1.26,
+    "prompt_tokens": 1357,
+    "out_tokens": 88,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "Supply and Demand",
+     "texto": "Supply and Demand\n• When price rises, demand falls\n• When price rises, supply rises\n• Equilibrium: supply = demand\nEconomics 101 · Week 2\nProf. Lumen",
+     "descricao": "",
+     "tipo": "slide",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "youtube_anuncio",
+    "s": 1.19,
+    "prompt_tokens": 1357,
+    "out_tokens": 78,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": null,
+    "noise": [],
+    "answer": {
+     "titulo": "Curso de inglês com 50% de desconto",
+     "texto": "Curso de inglês\ncom 50% de desconto\nPatrocinado · Saiba mais\nPular anúncio",
+     "descricao": "",
+     "tipo": "anuncio",
+     "conteudo_da_aula": false
+    }
+   },
+   {
+    "id": "youtube_denso",
+    "s": 1.66,
+    "prompt_tokens": 1357,
+    "out_tokens": 121,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "Glossário de redes",
+     "texto": "Latência: tempo que um pacote leva para ir e voltar\nLargura de banda: quantidade máxima de dados transmitidos por segundo\nDNS: traduz nomes de domínio em endereços IP\nTCP: entrega confiável e ordenada dos pacotes\nUDP: envio rápido, sem garantia de entrega\nRoteador: encaminha pacotes entre redes diferentes",
+     "descricao": "",
+     "tipo": "slide",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "grafico",
+    "s": 1.57,
+    "prompt_tokens": 1357,
+    "out_tokens": 113,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "Vendas por trimestre (2025)",
+     "texto": "Vendas por trimestre (2025)\n120 mil\nT1\n150 mil\nT2\n90 mil\nT3\n200 mil\nT4",
+     "descricao": "Gráfico de barras mostrando as vendas estimadas para cada trimestre de 2025.",
+     "tipo": "grafico",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "editor_do_aluno",
+    "s": 0.0,
+    "prompt_tokens": null,
+    "out_tokens": null,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": null,
+    "noise": [],
+    "answer": {
+     "conteudo_da_aula": false,
+     "titulo": "",
+     "texto": "",
+     "descricao": "",
+     "tipo": "outro"
+    }
+   },
+   {
+    "id": "editor_na_aula",
+    "s": 1.94,
+    "prompt_tokens": 1365,
+    "out_tokens": 141,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "answer": {
+     "titulo": "baixar.py",
+     "texto": "import requests\nfrom pathlib import Path\n\nAPI_KEY = \"sk-minha-chave-secreta\"\n\ndef baixar(url, destino):\n    r = requests.get(url, timeout=10)\n    Path(destino).write_bytes(r.content)\n    return len(r.content)\n\nif __name__ == \"__main__\":\n    print(baixar(\"https://exemplo.com/a.pdf\", \"a.pdf\"))",
+     "descricao": "",
+     "tipo": "codigo",
+     "conteudo_da_aula": true
+    }
+   },
+   {
+    "id": "anotacoes_do_aluno",
+    "s": 0.0,
+    "prompt_tokens": null,
+    "out_tokens": null,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": null,
+    "noise": [],
+    "answer": {
+     "conteudo_da_aula": false,
+     "titulo": "",
+     "texto": "",
+     "descricao": "",
+     "tipo": "outro"
+    }
+   },
+   {
+    "id": "rosto_sem_nome",
+    "s": 1.17,
+    "prompt_tokens": 1357,
+    "out_tokens": 70,
+    "relevant_ok": false,
+    "keep_ok": true,
+    "recall": null,
+    "noise": [],
+    "answer": {
+     "titulo": "Ícone de usuário genérico",
+     "texto": "",
+     "descricao": "Mostra um ícone de perfil de usuário genérico, com fundo azul escuro e contorno branco.",
+     "tipo": "slide",
+     "conteudo_da_aula": true
+    }
+   }
+  ]
+ },
+ "qwen3.5:4b@960": {
+  "summary": {
+   "model": "qwen3.5:4b",
+   "width": 960,
+   "recall": 1.0,
+   "recall_min": 1.0,
+   "relevance": 15,
+   "keep": 15,
+   "frames": 15,
+   "noise": 0,
+   "iou": [
+    0.75,
+    0.96,
+    0.84
+   ],
+   "s_mean": 2.39,
+   "s_max": 3.0,
+   "vram_gb_total": 5.48,
+   "options": {}
+  },
+  "rows": [
+   {
+    "id": "fotossintese",
+    "s": 2.86,
+    "prompt_tokens": 918,
+    "out_tokens": 194,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Fotossíntese: fase clara e fase escura",
+     "texto": "Fotossíntese: fase clara e fase escura\nOcorre nos cloroplastos das células vegetais\nFase clara: tilacoides, produz ATP e NADPH\nFase escura (Ciclo de Calvin): estroma, fixa CO₂\n6 CO₂ + 6 H₂O → C₆H₁₂O₆ + 6 O₂",
+     "descricao": "Slide explicando as fases da fotossíntese e a equação química geral do processo.",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "tabela",
+    "s": 2.94,
+    "prompt_tokens": 918,
+    "out_tokens": 193,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Complexidade dos algoritmos de ordenação",
+     "texto": "Complexidade dos algoritmos de ordenação\n| Algoritmo | Melhor caso | Pior caso | Estável |\n| Quicksort | O(n log n) | O(n²) | Não |\n| Merge sort | O(n log n) | O(n log n) | Sim |\n| Insertion sort | O(n) | O(n²) | Sim |",
+     "descricao": "Tabela comparando a complexidade de três algoritmos de ordenação: Quicksort, Merge sort e Insertion sort, mostrando seus casos melhores e piores e se são estáveis.",
+     "tipo": "tabela",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      150,
+      980,
+      750
+     ]
+    }
+   },
+   {
+    "id": "codigo",
+    "s": 2.89,
+    "prompt_tokens": 918,
+    "out_tokens": 186,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Busca binária em Python",
+     "texto": "def busca_binaria(lista, alvo):\n    inicio, fim = 0, len(lista) - 1\n    while inicio <= fim:\n        meio = (inicio + fim) // 2\n        if lista[meio] == alvo:\n            return meio\n        if lista[meio] < alvo:\n            inicio = meio + 1\n        else:\n            fim = meio - 1\n    return -1",
+     "descricao": "O slide mostra o código Python completo da função de busca binária, com indentação preservada.",
+     "tipo": "codigo",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "diagrama",
+    "s": 2.3,
+    "prompt_tokens": 918,
+    "out_tokens": 137,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Ciclo da água",
+     "texto": "Ciclo da água\nEvaporação → Condensação\n↓\nPrecipitação ← Infiltração",
+     "descricao": "Diagrama do ciclo da água mostrando as etapas de evaporação, condensação, precipitação e infiltração com setas indicando o fluxo.",
+     "tipo": "diagrama",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "formula",
+    "s": 2.46,
+    "prompt_tokens": 918,
+    "out_tokens": 155,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Teorema de Pitágoras",
+     "texto": "Teorema de Pitágoras\nVale apenas para triângulos retângulos\nExemplo: catetos 3 e 4 → hipotenusa 5\na² + b² = c²\nMatemática - Geometria\nProf. Lumen",
+     "descricao": "Apresentação do Teorema de Pitágoras com a fórmula matemática e um exemplo numérico.",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "denso",
+    "s": 2.47,
+    "prompt_tokens": 918,
+    "out_tokens": 156,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Glossário de redes",
+     "texto": "Latência: tempo que um pacote leva para ir e voltar\nLargura de banda: quantidade máxima de dados transmitidos por segundo\nDNS: traduz nomes de domínio em endereços IP\nTCP: entrega confiável e ordenada dos pacotes\nUDP: envio rápido, sem garantia de entrega\nRoteador: encaminha pacotes entre redes diferentes",
+     "descricao": "",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "rosto",
+    "s": 1.63,
+    "prompt_tokens": 918,
+    "out_tokens": 81,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": null,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Prof. Marina Souza",
+     "texto": "",
+     "descricao": "",
+     "tipo": "tabela",
+     "conteudo_da_aula": false,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "youtube_aula",
+    "s": 3.0,
+    "prompt_tokens": 918,
+    "out_tokens": 198,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": 0.75,
+    "answer": {
+     "titulo": "Revolução Francesa (1789)",
+     "texto": "Revolução Francesa (1789)\n\n• Queda da Bastilha: 14 de julho de 1789\n\n• Lema: Liberdade, Igualdade, Fraternidade\n\n• Fim do Antigo Regime e dos privilégios do clero",
+     "descricao": "Slide de aula sobre a Revolução Francesa de 1789, com tópicos principais como a Queda da Bastilha, o lema da revolução e o fim do Antigo Regime.",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      150,
+      720,
+      680
+     ]
+    }
+   },
+   {
+    "id": "camera",
+    "s": 2.71,
+    "prompt_tokens": 918,
+    "out_tokens": 177,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Lei de Ohm",
+     "texto": "Lei de Ohm\n\n• V = R · I\n\n• V: tensão (volts)\n\n• R: resistência (ohms, Ω)\n\n• I: corrente (ampères)\n\n• Exemplo: R = 10 Ω e I = 2 A → V = 20 V",
+     "descricao": "Apresenta a fórmula da Lei de Ohm e define os termos tensão, resistência e corrente, além de um exemplo numérico.",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "quadro",
+    "s": 1.8,
+    "prompt_tokens": 918,
+    "out_tokens": 101,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Derivada",
+     "texto": "Derivada\nf(x) = x³ → f'(x) = 3x²\nregra do tombo: desce o expoente",
+     "descricao": "",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "ingles",
+    "s": 2.09,
+    "prompt_tokens": 918,
+    "out_tokens": 125,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Supply and Demand",
+     "texto": "Supply and Demand\n\nWhen price rises, demand falls\n\nWhen price rises, supply rises\n\nEquilibrium: supply = demand\n\nEconomics 101 - Week 2\n\nProf. Lumen",
+     "descricao": "",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "youtube_anuncio",
+    "s": 2.03,
+    "prompt_tokens": 918,
+    "out_tokens": 114,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": null,
+    "noise": [],
+    "iou": 0.96,
+    "answer": {
+     "titulo": "Curso de inglês com 50% de desconto",
+     "texto": "Curso de inglês\ncom 50% de desconto\n\nPatrocinado - Saiba mais\n\nPular anúncio",
+     "descricao": "",
+     "tipo": "anuncio",
+     "conteudo_da_aula": false,
+     "area": [
+      12,
+      148,
+      670,
+      795
+     ]
+    }
+   },
+   {
+    "id": "youtube_denso",
+    "s": 2.53,
+    "prompt_tokens": 918,
+    "out_tokens": 156,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": 0.84,
+    "answer": {
+     "titulo": "Glossário de redes",
+     "texto": "Latência: tempo que um pacote leva para ir e voltar\nLargura de banda: quantidade máxima de dados transmitidos por segundo\nDNS: traduz nomes de domínio em endereços IP\nTCP: entrega confiável e ordenada dos pacotes\nUDP: envio rápido, sem garantia de entrega\nRoteador: encaminha pacotes entre redes diferentes",
+     "descricao": "",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      150,
+      680,
+      720
+     ]
+    }
+   },
+   {
+    "id": "grafico",
+    "s": 2.5,
+    "prompt_tokens": 918,
+    "out_tokens": 157,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Vendas por trimestre (2025)",
+     "texto": "Vendas por trimestre (2025)\n\nT1: 120 mil\nT2: 150 mil\nT3: 90 mil\nT4: 200 mil",
+     "descricao": "Gráfico de barras mostrando as vendas por trimestre em 2025, com valores específicos para cada trimestre.",
+     "tipo": "grafico",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "rosto_sem_nome",
+    "s": 1.6,
+    "prompt_tokens": 918,
+    "out_tokens": 77,
+    "relevant_ok": true,
+    "keep_ok": true,
+    "recall": null,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "",
+     "texto": "",
+     "descricao": "",
+     "tipo": "slide",
+     "conteudo_da_aula": false,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   }
+  ]
+ },
+ "qwen3.5:4b@1280{\"presence_penalty\": 0}": {
+  "summary": {
+   "model": "qwen3.5:4b",
+   "width": 1280,
+   "recall": 1.0,
+   "recall_min": 1.0,
+   "relevance": 15,
+   "frames": 15,
+   "noise": 0,
+   "iou": [
+    0.96,
+    0.44,
+    0.96
+   ],
+   "s_mean": 2.74,
+   "s_max": 3.3,
+   "vram_gb_total": 5.43,
+   "options": {
+    "presence_penalty": 0
+   }
+  },
+  "rows": [
+   {
+    "id": "fotossintese",
+    "s": 3.3,
+    "prompt_tokens": 1309,
+    "out_tokens": 206,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Fotossíntese: fase clara e fase escura",
+     "texto": "Fotossíntese: fase clara e fase escura\nOcorre nos cloroplastos das células vegetais\nFase clara: tilacoides, produz ATP e NADPH\nFase escura (Ciclo de Calvin): estroma, fixa CO₂\n6 CO₂ + 6 H₂O → C₆H₁₂O₆ + 6 O₂",
+     "descricao": "Slide de aula sobre fotossíntese, apresentando as fases clara e escura, seus locais de ocorrência e a equação química geral da reação.",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "tabela",
+    "s": 3.05,
+    "prompt_tokens": 1309,
+    "out_tokens": 192,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Complexidade dos algoritmos de ordenação",
+     "texto": "Complexidade dos algoritmos de ordenação\nAlgoritmo | Melhor caso | Pior caso | Estável\nQuicksort | O(n log n) | O(n²) | Não\nMerge sort | O(n log n) | O(n log n) | Sim\nInsertion sort | O(n) | O(n²) | Sim",
+     "descricao": "Tabela comparando a complexidade de três algoritmos de ordenação: Quicksort, Merge sort e Insertion sort, indicando melhor caso, pior caso e estabilidade.",
+     "tipo": "tabela",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "codigo",
+    "s": 3.22,
+    "prompt_tokens": 1309,
+    "out_tokens": 201,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Busca binária em Python",
+     "texto": "def busca_binaria(lista, alvo):\ninicio, fim = 0, len(lista) - 1\nwhile inicio <= fim:\nmeio = (inicio + fim) // 2\nif lista[meio] == alvo:\nreturn meio\nif lista[meio] < alvo:\ninicio = meio + 1\nelse:\nfim = meio - 1\nreturn -1",
+     "descricao": "O slide mostra o código Python para implementar a busca binária, com a função def busca_binaria e suas instruções de comparação e atualização dos limites do intervalo.",
+     "tipo": "codigo",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "diagrama",
+    "s": 2.43,
+    "prompt_tokens": 1309,
+    "out_tokens": 136,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Ciclo da água",
+     "texto": "Ciclo da água\nEvaporação → Condensação\n↓\nPrecipitação ← Infiltração",
+     "descricao": "Diagrama do ciclo da água mostrando as etapas de evaporação, condensação, precipitação e infiltração com setas indicando o fluxo.",
+     "tipo": "diagrama",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "formula",
+    "s": 2.78,
+    "prompt_tokens": 1309,
+    "out_tokens": 166,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Teorema de Pitágoras",
+     "texto": "Teorema de Pitágoras\nVale apenas para triângulos retângulos\nExemplo: catetos 3 e 4 → hipotenusa 5\na² + b² = c²\nMatemática · Geometria\nProf. Lumen",
+     "descricao": "Apresentação do Teorema de Pitágoras com a fórmula matemática e um exemplo numérico.",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "denso",
+    "s": 3.03,
+    "prompt_tokens": 1309,
+    "out_tokens": 189,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Glossário de redes",
+     "texto": "Latência: tempo que um pacote leva para ir e voltar\nLargura de banda: quantidade máxima de dados transmitidos por segundo\nDNS: traduz nomes de domínio em endereços IP\nTCP: entrega confiável e ordenada dos pacotes\nUDP: envio rápido, sem garantia de entrega\nRoteador: encaminha pacotes entre redes diferentes",
+     "descricao": "Apresenta um glossário de termos relacionados a redes, definindo conceitos como latência, largura de banda, DNS, TCP, UDP e roteador.",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "rosto",
+    "s": 1.89,
+    "prompt_tokens": 1309,
+    "out_tokens": 81,
+    "relevant_ok": true,
+    "recall": null,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Prof. Marina Souza",
+     "texto": "",
+     "descricao": "",
+     "tipo": "tabela",
+     "conteudo_da_aula": false,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "youtube_aula",
+    "s": 2.9,
+    "prompt_tokens": 1309,
+    "out_tokens": 176,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": 0.96,
+    "answer": {
+     "titulo": "Revolução Francesa (1789)",
+     "texto": "Revolução Francesa (1789)\n\n• Queda da Bastilha: 14 de julho de 1789\n\n• Lema: Liberdade, Igualdade, Fraternidade\n\n• Fim do Antigo Regime e dos privilégios do clero",
+     "descricao": "Slide de aula sobre a Revolução Francesa de 1789, apresentando eventos e conceitos-chave.",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      150,
+      680,
+      800
+     ]
+    }
+   },
+   {
+    "id": "camera",
+    "s": 2.93,
+    "prompt_tokens": 1309,
+    "out_tokens": 175,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Lei de Ohm",
+     "texto": "Lei de Ohm\nV = R · I\nV: tensão (volts)\nR: resistência (ohms, Ω)\nI: corrente (ampères)\nExemplo: R = 10 Ω e I = 2 A → V = 20 V\nFísica · Eletricidade\nProf. Lumen",
+     "descricao": "Apresentação da Lei de Ohm com a fórmula, definições das variáveis e um exemplo numérico.",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "quadro",
+    "s": 2.53,
+    "prompt_tokens": 1309,
+    "out_tokens": 143,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Derivada",
+     "texto": "Derivada\nf(x) = x³ → f'(x) = 3x²\nregra do tombo: desce o expoente",
+     "descricao": "A tela mostra um exemplo de derivada usando a regra do tombo, onde o expoente desce e se multiplica pelo coeficiente.",
+     "tipo": "formula",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "ingles",
+    "s": 2.52,
+    "prompt_tokens": 1309,
+    "out_tokens": 143,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Supply and Demand",
+     "texto": "Supply and Demand\n\nWhen price rises, demand falls\n\nWhen price rises, supply rises\n\nEquilibrium: supply = demand\n\nEconomics 101 · Week 2\n\nProf. Lumen",
+     "descricao": "Slide de economia apresentando os conceitos básicos de oferta e demanda e o equilíbrio de mercado.",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "youtube_anuncio",
+    "s": 2.15,
+    "prompt_tokens": 1309,
+    "out_tokens": 110,
+    "relevant_ok": true,
+    "recall": null,
+    "noise": [],
+    "iou": 0.44,
+    "answer": {
+     "titulo": "Curso de inglês com 50% de desconto",
+     "texto": "Curso de inglês\ncom 50% de desconto\nPatrocinado · Saiba mais\nPular anúncio",
+     "descricao": "",
+     "tipo": "slide",
+     "conteudo_da_aula": false,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "youtube_denso",
+    "s": 3.1,
+    "prompt_tokens": 1309,
+    "out_tokens": 191,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": 0.96,
+    "answer": {
+     "titulo": "Glossário de redes",
+     "texto": "Latência: tempo que um pacote leva para ir e voltar\nLargura de banda: quantidade máxima de dados transmitidos por segundo\nDNS: traduz nomes de domínio em endereços IP\nTCP: entrega confiável e ordenada dos pacotes\nUDP: envio rápido, sem garantia de entrega\nRoteador: encaminha pacotes entre redes diferentes",
+     "descricao": "O slide apresenta um glossário de termos relacionados a redes de computadores, definindo conceitos como latência, largura de banda, DNS, TCP, UDP e roteador.",
+     "tipo": "slide",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      150,
+      680,
+      800
+     ]
+    }
+   },
+   {
+    "id": "grafico",
+    "s": 3.05,
+    "prompt_tokens": 1309,
+    "out_tokens": 183,
+    "relevant_ok": true,
+    "recall": 1.0,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Vendas por trimestre (2025)",
+     "texto": "Vendas por trimestre (2025)\n120 mil | T1\n150 mil | T2\n90 mil | T3\n200 mil | T4",
+     "descricao": "Gráfico de barras mostrando as vendas por trimestre em 2025, com valores de 120 mil em T1, 150 mil em T2, 90 mil em T3 e 200 mil em T4.",
+     "tipo": "grafico",
+     "conteudo_da_aula": true,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   },
+   {
+    "id": "rosto_sem_nome",
+    "s": 2.23,
+    "prompt_tokens": 1309,
+    "out_tokens": 106,
+    "relevant_ok": true,
+    "recall": null,
+    "noise": [],
+    "iou": null,
+    "answer": {
+     "titulo": "Ícone de usuário genérico",
+     "texto": "",
+     "descricao": "Mostra um ícone genérico de usuário com fundo azul e círculo branco, sem texto ou informações adicionais.",
+     "tipo": "slide",
+     "conteudo_da_aula": false,
+     "area": [
+      0,
+      0,
+      1000,
+      1000
+     ]
+    }
+   }
+  ]
+ }
+}

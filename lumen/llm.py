@@ -47,6 +47,10 @@ SYSTEM = """Você é um professor que prepara material de estudo a partir da tra
 Regras:
 - Use somente informações presentes na transcrição. Não invente fatos, números, nomes, datas nem referências.
 - Linhas marcadas com (?) podem ter sido mal transcritas: não as apresente como fato confirmado.
+- Linhas "(na tela)", quando houver, trazem o que apareceu no vídeo (slide, quadro, código, tabela), lido da imagem.
+  Fazem parte da aula: use-as para acertar termos, nomes, números e fórmulas que a fala pode ter transcrito errado
+  e para completar tópicos, glossário, exemplos e passo a passo com os dados, valores e fórmulas mostrados. Não
+  copie código nem tabelas inteiros: a página já mostra as telas; explique o que eles dizem.
 - title: título claro e específico do assunto da aula.
 - summary: 3 a 6 frases com as ideias centrais.
 - simple_explanation: explique o assunto para um iniciante, em linguagem simples. Pode usar analogias, sem acrescentar fatos novos.
@@ -67,7 +71,8 @@ Responda somente com JSON neste formato: {schema}"""
 
 NOTES = """Você está lendo a parte {i} de {n} da transcrição de uma aula. Escreva notas detalhadas desta parte:
 tópicos, definições, exemplos, procedimentos e nomes próprios citados. Mantenha os marcadores [mm:ss] dos
-momentos importantes. Use somente o que está no texto; não invente. {lang}"""
+momentos importantes e o conteúdo das linhas "(na tela)" (slides, fórmulas, código). Use somente o que está no
+texto; não invente. {lang}"""
 
 
 def fmt_time(seconds):
@@ -80,19 +85,23 @@ def parse_time(value):
     return int(m[1] or 0) * 3600 + int(m[2]) * 60 + int(m[3]) if m else None
 
 
-def transcript_text(segments):
-    """Agrupa segmentos em parágrafos de ~30 s com marcador [mm:ss]; (?) marca baixa confiança."""
-    lines, cur, start = [], [], None
+def transcript_text(segments, screens=()):
+    """Agrupa segmentos em parágrafos de ~30 s com marcador [mm:ss]; (?) marca baixa confiança.
+
+    screens: [(segundos, texto)] do que apareceu na tela (vision.screen_lines), intercalados no tempo certo."""
+    paras, cur, start = [], [], None
     for s in segments:
         if start is None:
             start = s.get("start")
         cur.append(("(?) " if s.get("uncertain") else "") + s["text"])
         if s.get("start") is None or (s.get("end") or 0) - (start or 0) >= 30:
-            lines.append((f"[{fmt_time(start)}] " if start is not None else "") + " ".join(cur))
+            paras.append((start, " ".join(cur)))
             cur, start = [], None
     if cur:
-        lines.append((f"[{fmt_time(start)}] " if start is not None else "") + " ".join(cur))
-    return "\n".join(lines)
+        paras.append((start, " ".join(cur)))
+    if screens:  # sem marcadores de tempo na transcrição, as telas vêm antes
+        paras = sorted(paras + list(screens), key=lambda p: p[0] if p[0] is not None else float("inf"))
+    return "\n".join((f"[{fmt_time(t)}] " if t is not None else "") + text for t, text in paras)
 
 
 def chunks(text, size=CHUNK_CHARS):
@@ -168,10 +177,12 @@ def pull(model, progress, check):
             progress(d.get("completed", 0) / d["total"], None)
 
 
-def _chat(model, system, user, check, tokens, schema=None, num_ctx=20480, temperature=0.2, keep_alive="5m"):
+def _chat(model, system, user, check, tokens, schema=None, num_ctx=20480, temperature=0.2, keep_alive="5m",
+          images=None):
     body = {"model": model, "stream": True, "think": False, "keep_alive": keep_alive,
             "options": {"num_ctx": num_ctx, "temperature": temperature},
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+            "messages": [{"role": "system", "content": system},
+                         {"role": "user", "content": user, **({"images": images} if images else {})}]}
     if schema:
         body["format"] = schema
     out = []
@@ -229,13 +240,14 @@ def validate(data, duration=None, has_times=True):
     return lesson
 
 
-def generate(segments, duration, model, language, check, status, redo=False, note=""):
+def generate(segments, duration, model, language, check, status, redo=False, note="", screens=()):
     """Transcrição → material de estudo validado. status(detail, progress).
 
-    redo: o aluno pediu para refazer a página; note: o que ele quer diferente (opcional)."""
+    redo: o aluno pediu para refazer a página; note: o que ele quer diferente (opcional).
+    screens: o que apareceu na tela (vision.screen_lines), intercalado na transcrição."""
     lang = ("Escreva tudo em português do Brasil." if language == "pt"
             else "Escreva no mesmo idioma em que a aula foi falada.")
-    text = transcript_text(segments)
+    text = transcript_text(segments, screens)
     has_times = any(s.get("start") is not None for s in segments)
     rnd = 0
     while len(text) > SINGLE_PASS_CHARS:  # aula longa: resume por partes e junta as notas
@@ -260,7 +272,8 @@ def generate(segments, duration, model, language, check, status, redo=False, not
         ask += "\n\n"
     for attempt in (1, 2):
         status("Escrevendo o material de estudo…" + (" (2ª tentativa)" if attempt == 2 else ""), None)
-        raw = _chat(model, system, ask + "Transcrição da aula:\n\n" + text, check,
+        head = "Transcrição da aula, com o que apareceu na tela:" if screens else "Transcrição da aula:"
+        raw = _chat(model, system, ask + head + "\n\n" + text, check,
                     lambda n: status(f"Escrevendo o material de estudo… ({n} trechos gerados)", None),
                     schema=SCHEMA, temperature=0.6 if redo else 0.2)
         try:
