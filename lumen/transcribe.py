@@ -54,6 +54,9 @@ def has_gpu():
 
 # Pico de VRAM medido no benchmark (GB, float16) + folga; usado para não carregar modelo que não cabe.
 VRAM_NEED_GB = {"small": 1.0, "large-v3-turbo": 2.6, "large-v3": 3.2}  # large-v3 int8_float16: pico 2,7 GB com o small (bench/fast)
+# Com o modelo já carregado, a inferência ainda precisa desta memória de trabalho (medido: large-v3 0,74 GB,
+# turbo e small 0,24 GB; aula de 6 min, RTX 3060) + folga.
+WORK_GB = {"small": 0.5, "large-v3-turbo": 0.5, "large-v3": 1.0}
 
 
 def gpu_free_gb():
@@ -67,16 +70,21 @@ def gpu_free_gb():
         return None
 
 
-def _free_for(name):
-    """VRAM disponível para `name`: infinita se ele já está carregado na GPU; senão, mede com os modelos do Lumen
-    descarregados. (Medir com o próprio modelo carregado mandava o large-v3 para a CPU: 339 s em vez de 26 s.)"""
+def _vram(name):
+    """(VRAM livre, VRAM necessária) para transcrever com `name` agora.
+
+    Já carregado na GPU: precisa só da memória de trabalho (WORK_GB). Medir como se fosse carregar de novo mandava
+    o large-v3 para a CPU (339 s em vez de 26 s). Se nem isso houver, ou se o modelo não está carregado, os modelos
+    do Lumen são descarregados e a medida vale para carregar o modelo inteiro (VRAM_NEED_GB)."""
     if (name, "cuda") in _loaded:
-        return float("inf")
+        free = gpu_free_gb()
+        if free is None or free >= WORK_GB[name]:
+            return free, WORK_GB[name]
     if _loaded:
         _loaded.clear()
         import gc
         gc.collect()
-    return gpu_free_gb()
+    return gpu_free_gb(), VRAM_NEED_GB[name]
 
 
 def make_room(name, release):
@@ -85,12 +93,12 @@ def make_room(name, release):
     turbo ou para a CPU (“Pouca memória livre… 0,9 GB”)."""
     if not has_gpu() or name not in VRAM_NEED_GB:
         return
-    free = _free_for(name)
-    if free is None or free >= VRAM_NEED_GB[name] or not release():
+    free, need = _vram(name)
+    if free is None or free >= need or not release():
         return
     for _ in range(20):
         free = gpu_free_gb()
-        if free is None or free >= VRAM_NEED_GB[name]:
+        if free is None or free >= need:
             return
         time.sleep(0.25)
 
@@ -99,8 +107,8 @@ def fit_gpu(name):
     """Se o modelo não cabe na VRAM livre, troca por um que caiba (ou pelo Parakeet na CPU). Devolve (nome, aviso)."""
     if not has_gpu() or name not in VRAM_NEED_GB:
         return name, None
-    free = _free_for(name)
-    if free is None or free >= VRAM_NEED_GB[name]:
+    free, need = _vram(name)
+    if free is None or free >= need:
         return name, None
     for alt in ("large-v3-turbo", "small"):
         if VRAM_NEED_GB[alt] <= free and downloaded(alt):
@@ -364,12 +372,12 @@ def speech_rate(path, name, check, seconds=120):
     return words / speech if speech >= 5 else None
 
 
-def transcribe(path, name, progress, check, speed=1.0, second=True):
+def transcribe(path, name, progress, check, speed=1.0, second=True, release=None):
     """Devolve {segments, language, duration, device, prep}; tempos sempre na linha do tempo do arquivo.
 
     speed (1, 2 ou 4) é a velocidade real do conteúdo do arquivo, não a do player. Se PREP pedir, o áudio é
     desacelerado pelo fator f (atempo, sem mudar o tom) e cada tempo volta ao arquivo como t × f.
-    `check()` levanta Cancelled."""
+    `check()` levanta Cancelled. `release()` libera VRAM de outros programas (Ollama) se a GPU encher no meio."""
     if not downloaded(name):
         raise AppError("O modelo de transcrição ainda não foi baixado.", "Abra Configurações e baixe o modelo.")
     samples = audio.load(path)
@@ -381,24 +389,34 @@ def transcribe(path, name, progress, check, speed=1.0, second=True):
     with _background_priority():
         # 4x: o small erra ~100% (bench/ultra); a conferência só marcaria tudo, então não roda
         return _run(samples, name, progress, check, duration, factor, scale, second and int(speed) != 4,
-                    SPEED_OPTIONS.get(int(speed)))
+                    SPEED_OPTIONS.get(int(speed)), release)
 
 
-def _run(samples, name, progress, check, duration, factor, scale, second, opts=None):
+def _run(samples, name, progress, check, duration, factor, scale, second, opts=None, release=None):
     devices = ["cuda", "cpu"] if has_gpu() and name != PARAKEET else ["cpu"]
-    if name == "large-v3" and devices[0] == "cuda" and (_free_for(name) or 99) < VRAM_NEED_GB[name]:
-        devices = ["cpu"]  # não tenta a GPU sem memória; fit_gpu() já deveria ter evitado isso
-    for device in devices:
-        segs = []
+    if devices[0] == "cuda" and name in VRAM_NEED_GB:
+        free, need = _vram(name)
+        if free is not None and free < need:
+            devices = ["cpu"]  # não tenta a GPU sem memória; make_room()/fit_gpu() já deveriam ter evitado isso
+    if devices[0] == "cuda" and release:
+        devices.insert(1, "cuda")  # GPU encheu no meio: libera o Ollama e continua na GPU antes de ir para a CPU
+    segs, info, at = [], None, 0.0  # `at`: até onde (s, áudio processado) já foi transcrito; nunca se perde
+    total = len(samples) / audio.SR
+    for i, device in enumerate(devices):
         try:
             model = _model(name, device)
-            t0, total = time.monotonic(), len(samples) / audio.SR
-            info = None
-            for s, info in _segments(model, samples, check, opts):
-                segs.append({"start": round(s.start / scale, 2), "end": round(s.end / scale, 2), "text": s.text.strip(),
+            t0, base = time.monotonic(), at
+            o = dict(opts or {})
+            if segs:  # retomada: o texto anterior serve de contexto, como no condition_on_previous_text
+                o["initial_prompt"] = " ".join(s["text"] for s in segs)[-600:]
+            for s, info in _segments(model, samples[int(at * audio.SR):], check, o):
+                start, end = s.start + base, s.end + base
+                segs.append({"start": round(start / scale, 2), "end": round(end / scale, 2), "text": s.text.strip(),
                              "uncertain": s.avg_logprob < UNCERTAIN_LOGPROB})
-                done = s.end / total if total else None
-                eta = (time.monotonic() - t0) / done * (1 - done) if done and done > 0.02 else None
+                at = end
+                done = end / total if total else None
+                part = (end - base) / (total - base) if total > base else None
+                eta = (time.monotonic() - t0) / part * (1 - part) if part and part > 0.02 else None
                 progress(done, eta)
             segs = [s for s in segs if s["text"]]
             for s in segs:  # o Whisper às vezes estima fim além do áudio; nenhum tempo passa da duração do arquivo
@@ -417,9 +435,11 @@ def _run(samples, name, progress, check, duration, factor, scale, second, opts=N
             raise AppError("Memória insuficiente para transcrever.",
                            "Feche outros programas ou escolha a qualidade “Rápido” em Configurações.") from None
         except RuntimeError as e:
-            # Falha de CUDA (DLL ausente, VRAM cheia): cai para CPU antes de produzir qualquer segmento.
-            if device == "cuda" and not segs:
+            # Falha de CUDA (DLL ausente, VRAM cheia): libera memória e continua de onde parou (GPU, depois CPU).
+            if device == "cuda" and i + 1 < len(devices):
                 _loaded.clear()
+                if devices[i + 1] == "cuda" and not release():
+                    devices[i + 1] = "cpu"  # nada a liberar: tentar a GPU de novo daria o mesmo erro
                 continue
             if "out of memory" in str(e).lower():
                 raise AppError("Memória insuficiente para transcrever.",

@@ -183,10 +183,12 @@ def process(spec):
             speed, unsure, auto_note = (transcribe.suggest_speed(estimate) if speed is None
                                         else (speed, False, None))
             name, warning = transcribe.for_speed(m["name"], speed)
+            transcribe.make_room(name, llm.release_vram)  # antes de decidir trocar de modelo por falta de VRAM
             name, vram_warning = transcribe.fit_gpu(name)
             warning = " ".join(w for w in (auto_note, warning, vram_warning) if w) or None
             _set(stage="transcribe", detail=detail, progress=0)
-            tr = transcribe.transcribe(src["path"], name, _progress("transcribe", detail), check, speed=speed)
+            tr = transcribe.transcribe(src["path"], name, _progress("transcribe", detail), check, speed=speed,
+                                       release=llm.release_vram)
             if not tr["segments"]:
                 raise AppError("Não foi detectada fala neste arquivo.", "Confira se o vídeo tem narração audível.")
             tr["model"] = name

@@ -102,17 +102,29 @@ class Vram(unittest.TestCase):
             self.assertEqual(transcribe._loaded_compute("large-v3-turbo", "cuda"), "float16")
             self.assertEqual(transcribe._loaded_compute("large-v3", "cpu"), "int8")
 
-    def test_loaded_model_counts_as_fitting(self):
+    def test_loaded_model_needs_only_working_memory(self):
         """Bug real: com o large-v3 já carregado (1,4 GB livres), o app achava que ele não cabia e ia para a CPU."""
         with mock.patch.object(transcribe, "has_gpu", return_value=True), \
                 mock.patch.object(transcribe, "gpu_free_gb", return_value=1.4), \
                 mock.patch.dict(transcribe._loaded, {("large-v3", "cuda"): object()}, clear=True):
             self.assertEqual(transcribe.fit_gpu("large-v3"), ("large-v3", None))
-            self.assertEqual(transcribe._free_for("large-v3"), float("inf"))
+            self.assertEqual(transcribe._vram("large-v3"), (1.4, transcribe.WORK_GB["large-v3"]))
+            self.assertIn(("large-v3", "cuda"), transcribe._loaded)  # cabe: continua carregado
         with mock.patch.object(transcribe, "gpu_free_gb", return_value=7.0), \
                 mock.patch.dict(transcribe._loaded, {("small", "cuda"): object()}, clear=True):
-            self.assertEqual(transcribe._free_for("large-v3"), 7.0)
+            self.assertEqual(transcribe._vram("large-v3"), (7.0, transcribe.VRAM_NEED_GB["large-v3"]))
             self.assertEqual(transcribe._loaded, {})  # outro modelo do Lumen é liberado antes de medir
+
+    def test_loaded_model_without_working_memory_releases_ollama(self):
+        """Revisão do Codex: Whisper carregado e o Ollama ocupando a GPU (0,3 GB livres) não pode pular a checagem."""
+        release = mock.Mock(return_value=True)
+        with mock.patch.object(transcribe, "has_gpu", return_value=True), \
+                mock.patch.object(transcribe, "gpu_free_gb", side_effect=[0.3, 0.3, 0.3, 9.0]), \
+                mock.patch.object(transcribe.time, "sleep"), \
+                mock.patch.dict(transcribe._loaded, {("large-v3", "cuda"): object()}, clear=True):
+            transcribe.make_room("large-v3", release)
+            release.assert_called_once()
+            self.assertEqual(transcribe._loaded, {})  # descarregado para medir o modelo inteiro de novo
 
     def test_make_room_releases_ollama_only_when_needed(self):
         release = mock.Mock(return_value=True)
@@ -129,6 +141,38 @@ class Vram(unittest.TestCase):
         with mock.patch.object(transcribe, "has_gpu", return_value=False):
             self.assertEqual(transcribe.fit_gpu("large-v3-turbo"), ("large-v3-turbo", None))
 
+
+
+class MidRunOom(unittest.TestCase):
+    """GPU encheu no meio da transcrição: libera o Ollama e continua de onde parou, sem perder nem repetir trechos."""
+
+    def test_resumes_after_out_of_memory(self):
+        from types import SimpleNamespace as N
+        calls = []
+
+        def fake_segments(model, samples, check, opts):
+            calls.append((len(samples), dict(opts or {})))
+            info = N(language="pt")
+            if len(calls) == 1:
+                yield N(start=0.0, end=4.0, text="Primeiro trecho.", avg_logprob=-0.2), info
+                yield N(start=4.0, end=8.0, text="Segundo trecho.", avg_logprob=-0.2), info
+                raise RuntimeError("CUDA failed with error out of memory")
+            yield N(start=0.5, end=3.0, text="Terceiro trecho.", avg_logprob=-0.2), info
+
+        release = mock.Mock(return_value=True)
+        samples = transcribe.np.zeros(16000 * 12, dtype="float32") if hasattr(transcribe, "np") else [0.0] * (16000 * 12)
+        with mock.patch.object(transcribe, "has_gpu", return_value=True), \
+                mock.patch.object(transcribe, "_vram", return_value=(9.0, 3.2)), \
+                mock.patch.object(transcribe, "_model", return_value=object()), \
+                mock.patch.object(transcribe, "_segments", side_effect=fake_segments), \
+                mock.patch.object(transcribe, "_loaded_compute", return_value="int8_float16"):
+            r = transcribe._run(samples, "large-v3", lambda *a: None, lambda: None, 12.0, 1.0, 1.0, False, release=release)
+        release.assert_called_once()
+        self.assertEqual(r["device"], "cuda")                         # continuou na GPU, não caiu para a CPU
+        self.assertEqual([s["text"] for s in r["segments"]], ["Primeiro trecho.", "Segundo trecho.", "Terceiro trecho."])
+        self.assertEqual(r["segments"][2]["start"], 8.5)              # tempo na linha do arquivo (8 s + 0,5 s)
+        self.assertEqual(calls[1][0], 16000 * 4)                      # só o resto do áudio
+        self.assertIn("Segundo trecho.", calls[1][1]["initial_prompt"])  # com o texto anterior como contexto
 
 
 class Speeds(unittest.TestCase):
