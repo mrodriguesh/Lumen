@@ -18,6 +18,7 @@ import re
 import shutil
 import threading
 import time
+import unicodedata
 from fractions import Fraction
 from pathlib import Path
 
@@ -300,25 +301,39 @@ class Shots:
             self._save()
 
 
-def select(items):
-    """Anotações que valem para a página, sem repetição: um slide que volta conta uma vez, e os estados de um slide
-    que vai ganhando tópicos viram um só (o mais completo, com o tempo em que apareceu)."""
-    def sig(s):  # palavras do texto da tela; sem texto (figura), título + descrição
-        n = s["note"]
-        return set(_words(n["texto"])) or set(_words(n["titulo"] + " " + n["descricao"]))
+def _lines(note):
+    """Linhas do texto da tela, na ordem e com todos os símbolos (“x > 0” e “x < 0” são telas diferentes); só
+    caixa, espaços, marcadores de tópico e formas Unicode equivalentes são igualados. Sem texto: título + figura."""
+    out = []
+    for ln in (note["texto"] or note["titulo"] + "\n" + note["descricao"]).splitlines():
+        ln = " ".join(re.sub(r"^\s*[•◦▪‣\-–—*]\s+", "", unicodedata.normalize("NFKC", ln)).casefold().split())
+        if ln:
+            out.append(ln)
+    return out
 
+
+def _within(big, small):
+    """Todas as linhas de `small` aparecem em `big`, na mesma ordem."""
+    rest = iter(big)
+    return all(line in rest for line in small)
+
+
+def select(items):
+    """Anotações que valem para a página, sem perder conteúdo: uma tela igual a uma já escolhida (slide que voltou)
+    conta uma vez; um slide que vai ganhando tópicos vira um só (o mais completo, com o tempo em que apareceu) só
+    quando todas as linhas do anterior continuam no seguinte. Qualquer linha diferente mantém as duas."""
     out = []
     for s in sorted((s for s in items if s["state"] == "done" and s["note"] and s["note"]["keep"]),
                     key=lambda s: s["t"]):
-        words = sig(s)
-        if any(sig(o) == words for o in out):
+        lines = _lines(s["note"])
+        if any(_lines(o["note"]) == lines for o in out):
             continue
         if out:
-            prev = sig(out[-1])
-            if prev and len(prev & words) >= 0.9 * len(prev):  # esta contém a anterior: fica a mais completa
+            prev = _lines(out[-1]["note"])
+            if prev and _within(lines, prev):  # a anterior continua inteira nesta: fica a mais completa
                 out[-1] = {**s, "t": out[-1]["t"]}
                 continue
-            if words and len(words & prev) >= 0.9 * len(words):  # esta é parte da anterior
+            if lines and _within(prev, lines):  # esta é parte da anterior (um controle do player cobriu uma linha)
                 continue
         out.append(s)
     return out
@@ -412,6 +427,9 @@ class Screen:
         u.GetAncestor.restype, u.GetAncestor.argtypes = w.HWND, [w.HWND, w.UINT]
         u.GetClassNameW.argtypes = [w.HWND, w.LPWSTR, ctypes.c_int]
         u.GetWindowThreadProcessId.argtypes = [w.HWND, ctypes.POINTER(w.DWORD)]
+        u.PrintWindow.argtypes = [w.HWND, w.HDC, w.UINT]
+        u.GetWindow.restype, u.GetWindow.argtypes = w.HWND, [w.HWND, w.UINT]
+        u.GetWindowLongW.restype, u.GetWindowLongW.argtypes = ctypes.c_long, [w.HWND, ctypes.c_int]
         k = ctypes.WinDLL("kernel32")
         k.OpenProcess.restype, k.OpenProcess.argtypes = w.HANDLE, [w.DWORD, w.BOOL, w.DWORD]
         k.QueryFullProcessImageNameW.argtypes = [w.HANDLE, w.DWORD, w.LPWSTR, ctypes.POINTER(w.DWORD)]
@@ -483,6 +501,59 @@ class Screen:
             self.k.CloseHandle(h)
         return f"{self._title(hwnd)[:150]} — {exe}".strip(" —")
 
+    def _cloaked(self, hwnd):  # janelas “visíveis” que o Windows esconde (apps da loja suspensos, outras áreas)
+        v = self.w.DWORD()
+        return bool(self.dwm and self.dwm.DwmGetWindowAttribute(hwnd, 14, self.c.byref(v), 4) == 0 and v.value)
+
+    def _bitmap(self, width, height, draw):
+        """draw(dc de memória, dc da tela) desenha num bitmap width×height; devolve BGRA (h×w×4) ou None."""
+        c, g, u = self.c, self.g, self.u
+        screen = u.GetDC(None)
+        mem = g.CreateCompatibleDC(screen)
+        bmp = g.CreateCompatibleBitmap(screen, width, height)
+        old = g.SelectObject(mem, bmp)
+        try:
+            if not draw(mem, screen):
+                return None
+            # BITMAPINFOHEADER de 32 bits, de cima para baixo (altura negativa), + 1 cor que o GDI não usa
+            info = (c.c_uint32 * 11)(40, width, (-height) & 0xFFFFFFFF, 1 | (32 << 16), 0, 0, 0, 0, 0, 0, 0)
+            buf = np.empty((height, width, 4), np.uint8)
+            return buf if g.GetDIBits(mem, bmp, 0, height, buf.ctypes.data, info, 0) == height else None
+        finally:
+            g.SelectObject(mem, old)
+            g.DeleteObject(bmp)
+            g.DeleteDC(mem)
+            u.ReleaseDC(None, screen)
+
+    def window_image(self, hwnd):
+        """O conteúdo da própria janela (PrintWindow com PW_RENDERFULLCONTENT: o Windows desenha a janela, inclusive
+        vídeo da GPU), sem o que estiver por cima dela: avisos, outros programas, a barra do Lumen. None se o
+        programa não se deixa desenhar assim (sai preto)."""
+        wr = self.w.RECT()
+        box = self.rect(hwnd)
+        if not box or not self.u.GetWindowRect(hwnd, self.c.byref(wr)) or wr.right <= wr.left or wr.bottom <= wr.top:
+            return None
+        buf = self._bitmap(wr.right - wr.left, wr.bottom - wr.top, lambda mem, _: self.u.PrintWindow(hwnd, mem, 2))
+        if buf is None:
+            return None
+        img = buf[max(box[1] - wr.top, 0):box[3] - wr.top, max(box[0] - wr.left, 0):box[2] - wr.left]
+        return img if img.size and img[::8, ::8, :3].max() > 16 else None
+
+    def covering(self, hwnd):
+        """Retângulos das janelas visíveis acima de `hwnd` na pilha (avisos, outros programas, a barra do Lumen).
+        Camadas transparentes de sobreposição (as que deixam o clique passar, como a da NVIDIA) não contam."""
+        out, h = [], self.u.GetWindow(hwnd, 3)  # GW_HWNDPREV: a de cima
+        for _ in range(1000):
+            if not h:
+                break
+            if (self.u.IsWindowVisible(h) and not self.u.IsIconic(h) and not self._cloaked(h)
+                    and not self.u.GetWindowLongW(h, -20) & 0x20):  # GWL_EXSTYLE, WS_EX_TRANSPARENT
+                r = self.rect(h)
+                if r and r[2] > r[0] and r[3] > r[1]:
+                    out.append(r)
+            h = self.u.GetWindow(h, 3)
+        return out
+
     def grab(self):
         """(BGRA h×w×4 do monitor, barra do Lumen nele ou None, canto (x, y) do monitor na tela).
 
@@ -500,23 +571,11 @@ class Screen:
             return None
         r = mi.rcMonitor
         x, y, width, height = r.left, r.top, r.right - r.left, r.bottom - r.top
-        screen = u.GetDC(None)
-        mem = g.CreateCompatibleDC(screen)
-        bmp = g.CreateCompatibleBitmap(screen, width, height)
-        old = g.SelectObject(mem, bmp)
-        try:
-            if not g.BitBlt(mem, 0, 0, width, height, screen, x, y, 0x00CC0020):  # SRCCOPY
-                return None
-            # BITMAPINFOHEADER de 32 bits, de cima para baixo (altura negativa), + 1 cor que o GDI não usa
-            info = (c.c_uint32 * 11)(40, width, (-height) & 0xFFFFFFFF, 1 | (32 << 16), 0, 0, 0, 0, 0, 0, 0)
-            buf = np.empty((height, width, 4), np.uint8)
-            if g.GetDIBits(mem, bmp, 0, height, buf.ctypes.data, info, 0) != height:
-                return None
-        finally:
-            g.SelectObject(mem, old)
-            g.DeleteObject(bmp)
-            g.DeleteDC(mem)
-            u.ReleaseDC(None, screen)
+        # a cópia da tela só serve para ver o que mudou; a imagem guardada vem de window_image
+        buf = self._bitmap(width, height, lambda mem, screen: g.BitBlt(mem, 0, 0, width, height, screen, x, y,
+                                                                         0x00CC0020))  # SRCCOPY
+        if buf is None:
+            return None
         bar = None
         hwnd = u.FindWindowW(None, "Lumen · barra flutuante")
         rect = w.RECT()
@@ -582,9 +641,12 @@ class Watch:
         self._keep(self.picker.flush())
 
     def _image(self, bgra, small, origin, av):
-        """(JPEG da janela onde a tela mudou, rótulo dela) ou None para não guardar (programa do estudante).
-        A primeira tela, sem mudança para comparar, usa a janela que ocupa mais o monitor. Fora de uma janela
-        clara, vai o monitor inteiro sem rótulo."""
+        """(JPEG da janela onde a tela mudou, rótulo dela) ou None para não guardar.
+
+        A primeira tela, sem mudança para comparar, usa a janela que ocupa mais o monitor. Nunca guarda a tela
+        inteira nem pixels de outras janelas: a imagem vem da própria janela (window_image); se o programa não
+        deixar, é recortada da tela com o que estiver por cima coberto de cinza. Sem janela clara, programa do
+        estudante ou janela pequena (aviso, menu): não guarda."""
         h, w = bgra.shape[:2]
         keys = self.picker.scenes.keys  # a candidata já é a última; compara com a tela distinta anterior
         ref = keys[-2] if len(keys) >= 2 else None
@@ -595,17 +657,23 @@ class Watch:
             cells = changed[np.linspace(0, len(changed) - 1, min(len(changed), 25)).astype(int)] if len(changed) else []
         hwnd = self.screen.window_at([(origin[0] + (c + .5) * w / GRID[1], origin[1] + (r + .5) * h / GRID[0])
                                       for r, c in cells]) if len(cells) else None
-        img = bgra
-        box = self.screen.rect(hwnd) if hwnd else None
-        label = self.screen.label(hwnd) if hwnd else None
-        if student_app(label):
-            return None  # mudança no editor, nas anotações ou no chat do estudante: não é a aula
-        if box:
+        if not hwnd:
+            return None
+        label = self.screen.label(hwnd)
+        box = self.screen.rect(hwnd)
+        if student_app(label) or not box or box[2] - box[0] < 320 or box[3] - box[1] < 180:
+            return None
+        img = self.screen.window_image(hwnd)
+        if img is None:
             x1, y1 = max(box[0] - origin[0], 0), max(box[1] - origin[1], 0)
             x2, y2 = min(box[2] - origin[0], w), min(box[3] - origin[1], h)
-            if (x2 - x1) * (y2 - y1) >= 0.2 * w * h:  # janela pequena (um aviso): melhor a tela toda
-                img = np.ascontiguousarray(bgra[y1:y2, x1:x2])
-        return _encode(av.VideoFrame.from_ndarray(_trim(img), format="bgra")), label
+            img = bgra[y1:y2, x1:x2].copy()
+            for left, top, right, bottom in self.screen.covering(hwnd):  # coordenadas da tela → da janela recortada
+                img[max(top - origin[1] - y1, 0):max(bottom - origin[1] - y1, 0),
+                    max(left - origin[0] - x1, 0):max(right - origin[0] - x1, 0), :3] = 128
+        if not img.size:
+            return None
+        return _encode(av.VideoFrame.from_ndarray(_trim(np.ascontiguousarray(img)), format="bgra")), label
 
     def _keep(self, found):
         for t, (jpeg, window), small in found:
@@ -639,8 +707,9 @@ class Watch:
     def stop(self):
         """Termina a captura (a tela mais recente, se ainda não guardada, entra) e marca as telas como completas."""
         self.stop_ev.set()
-        for t in self.threads:  # a leitura em andamento não grava nada depois disto: não precisa esperá-la
-            t.join(timeout=5)
+        self.threads[0].join(timeout=5)  # captura: guarda a última tela
+        for t in self.threads[1:]:  # leitura em andamento: não grava nada depois de parar, não precisa esperar
+            t.join(timeout=0.5)
         with self.shots.lock:
             self.shots.dir.mkdir(parents=True, exist_ok=True)
             self.shots._save()

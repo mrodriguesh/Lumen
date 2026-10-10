@@ -21,7 +21,8 @@ _controls = threading.Lock()  # serializa os cliques da janela principal e da ba
 _state = {"active": False}
 _stop = threading.Event()
 _thread = None
-_watch = None  # vision.Watch: “Assistir a tela junto” ligado
+_watch = None  # vision.Watch da gravação atual (“Assistir a tela junto”); para junto com o som
+_watch_lock = threading.Lock()
 
 
 def status():
@@ -67,9 +68,17 @@ def _start(title):
         raise AppError("Não foi possível acessar o som do PC.",
                        "Confira se há uma saída de áudio ativa (alto-falante ou fone) e tente de novo.")
     try:
-        _watch = _start_watch(path) if store.load_config()["watch_screen"] else None
+        watch = _start_watch(path) if store.load_config()["watch_screen"] else None
     except Exception:  # opcional: se a tela não puder ser assistida, o som segue sendo gravado
-        _watch = None
+        watch = None
+    with _watch_lock:
+        old, _watch = _watch, watch
+    if old:  # não deveria sobrar nenhuma; se sobrou, não fica rodando sem dono
+        old.stop()
+    with _lock:
+        alive = _state.get("active")
+    if not alive:  # o som parou enquanto a tela começava: não deixa a captura sozinha
+        _stop_watch()
 
 
 def _start_watch(path):
@@ -84,13 +93,12 @@ def _start_watch(path):
     return vision.Watch(path.with_suffix(".screens"), clock, vision.MODEL, paused=jobs.busy, live=live)
 
 
-def _stop_watch(drop=False):
+def _stop_watch():
     global _watch
-    w, _watch = _watch, None
+    with _watch_lock:
+        w, _watch = _watch, None
     if w:
         w.stop()
-        if drop:
-            shutil.rmtree(w.shots.dir, ignore_errors=True)
 
 
 def _open_loopback():
@@ -121,6 +129,7 @@ def _run(path, ready, failed):
         _set(error=f"A gravação foi interrompida ({type(e).__name__}).")
     finally:
         _set(active=False, level=0.0)
+        _stop_watch()  # o som parou (fim, falha, disco cheio, saída do app): a tela para junto
 
 
 def _capture(rec, path):
@@ -158,15 +167,16 @@ def _finish_recording():
             raise AppError("O áudio ainda está sendo finalizado.", "Aguarde alguns segundos e tente parar de novo.")
     with _lock:
         path, st = _state.get("path"), dict(_state)
+    _stop_watch()
     if not path or not path.exists():
-        _stop_watch(drop=True)
+        if path:
+            shutil.rmtree(path.with_suffix(".screens"), ignore_errors=True)
         raise AppError("Nenhuma gravação encontrada.", "Clique em Iniciar gravação.")
     if not st.get("heard") or st.get("seconds", 0) < 3:
-        _stop_watch(drop=True)
+        shutil.rmtree(path.with_suffix(".screens"), ignore_errors=True)
         path.unlink(missing_ok=True)
         raise AppError("Nenhum som foi captado." if not st.get("heard") else "A gravação ficou curta demais.",
                        "Dê play na aula com o volume do PC ligado (não no mudo) e grave de novo.")
-    _stop_watch()
     return {"path": str(path), "name": path.name.split("_", 1)[1], "warning": st.get("error")}
 
 
@@ -182,7 +192,7 @@ def _discard_recording():
         if _thread.is_alive():
             raise AppError("O áudio ainda está sendo finalizado.", "Aguarde alguns segundos antes de descartar.")
     path = _state.get("path")
-    _stop_watch(drop=True)
+    _stop_watch()
     if path:
         path.unlink(missing_ok=True)
         shutil.rmtree(path.with_suffix(".screens"), ignore_errors=True)

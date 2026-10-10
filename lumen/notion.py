@@ -384,6 +384,28 @@ def transcript_section(lines):
     return head, paras
 
 
+MAX_BLOCKS, MAX_BYTES = 1000, 500_000  # por requisição, contando os blocos internos (developers.notion.com/
+#                                        reference/request-limits); 100 por lista vale em cada nível
+
+
+def _count(block):
+    return 1 + sum(_count(c) for c in block[block["type"]].get("children", []))
+
+
+def batches(blocks):
+    """Lotes que respeitam os três limites: 100 blocos no nível de cima, 1000 no total e 500 KB (com folga para o
+    envelope do pedido). Uma galeria de telas cheias de texto tem poucos blocos em cima e muitos dentro."""
+    out, cur, n, size = [], [], 0, 0
+    for b in blocks:
+        c, s = _count(b), len(json.dumps(b))  # o mesmo json.dumps de request(): é o tamanho que vai pela rede
+        if cur and (len(cur) == 100 or n + c > MAX_BLOCKS or size + s > MAX_BYTES - 10_000):
+            out.append(cur)
+            cur, n, size = [], 0, 0
+        cur.append(b)
+        n, size = n + c, size + s
+    return out + ([cur] if cur else [])
+
+
 def publish(token, parent, title, blocks, check, transcript=None):
     """Acrescenta a aula à página escolhida, preservando seus enfeites e conteúdo.
 
@@ -397,9 +419,9 @@ def publish(token, parent, title, blocks, check, transcript=None):
     added = []
     blocks = [_b("heading_1", _rt(title)), *blocks]
     try:
-        for i in range(0, len(blocks), 100):
+        for batch in batches(blocks):
             check()
-            res = request("PATCH", f"/blocks/{parent}/children", token, {"children": blocks[i:i + 100]})
+            res = request("PATCH", f"/blocks/{parent}/children", token, {"children": batch})
             added.extend(b["id"] for b in res["results"])
         if transcript:
             head, paras = transcript_section(transcript)
@@ -408,9 +430,9 @@ def publish(token, parent, title, blocks, check, transcript=None):
                           {"children": [{**head, "heading_3": {**head["heading_3"], "children": paras[:100]}}]})
             added.extend(b["id"] for b in res["results"])
             toggle_id = res["results"][-1]["id"]
-            for i in range(100, len(paras), 100):
+            for batch in batches(paras[100:]):
                 check()
-                request("PATCH", f"/blocks/{toggle_id}/children", token, {"children": paras[i:i + 100]})
+                request("PATCH", f"/blocks/{toggle_id}/children", token, {"children": batch})
         check()
     except BaseException:
         incomplete = False

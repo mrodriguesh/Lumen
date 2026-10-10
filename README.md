@@ -104,9 +104,10 @@ Liga no cartão **Fonte** (ou em Ajustes). O Lumen passa a olhar a aula com voc�
 tela: slides, quadro, código, tabelas, fórmulas e gráficos, com as imagens. Tudo no seu PC, com um modelo de
 visão local (`qwen3.5:4b`).
 
-- **Gravar ao assistir:** enquanto o som é gravado, a tela é capturada 1 vez por segundo (≈ 1,5% de um núcleo).
-  Só fica a tela nova que parou de mudar (um slide novo, não a transição), recortada na janela onde a mudança
-  aconteceu, e ela é lida nos intervalos da aula (≈ 1,5–3 s de GPU por slide). Quando você para a gravação, quase
+- **Gravar ao assistir:** enquanto o som é gravado, a tela é observada 1 vez por segundo (≈ 2% de um núcleo).
+  Só fica a tela nova que parou de mudar (um slide novo, não a transição). A imagem é tirada da própria janela da
+  aula, como o Windows a desenha: o que estiver por cima dela (avisos, uma conversa, outro programa) não entra.
+  Ela é lida nos intervalos da aula (≈ 1,5–3 s de GPU por slide). Quando você para a gravação, quase
   tudo já foi lido. A câmera do professor num canto e vídeo em movimento são ignorados na comparação.
 - **Arquivo de vídeo:** o Lumen lê os quadros-chave do próprio arquivo depois de transcrever (≈ 2 s por tela nova).
 - **O que entra:** o modelo transcreve o texto da tela e descreve figuras; rosto do professor, anúncios, menus,

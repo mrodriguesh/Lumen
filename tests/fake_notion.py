@@ -7,6 +7,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from lumen import notion
 
 
+def _check_request(body):
+    """Limites de cada requisição: 1000 blocos contando os internos e 500 KB."""
+    def count(blocks):
+        return sum(1 + count(b[b["type"]].get("children", [])) for b in blocks)
+    assert count(body.get("children", [])) <= 1000, "mais de 1000 blocos numa requisição"
+    assert len(json.dumps(body)) <= 500_000, "requisição acima de 500 KB"
+
+
 def _check_blocks(blocks, depth=1):
     assert len(blocks) <= 100, "mais de 100 blocos numa requisição"
     assert depth <= 3 or not blocks, "aninhamento acima do permitido"
@@ -104,6 +112,7 @@ class Fake:
             cov = (body.get("cover") or {})
             if cov.get("type") == "file_upload":
                 assert self.uploads.get(cov["file_upload"]["id"], {}).get("status") == "uploaded", "capa sem upload concluído"
+            _check_request(body)
             _check_blocks(body.get("children", []))
             parent = body["parent"]["page_id"]
             if parent not in self.pages:
@@ -139,6 +148,7 @@ class Fake:
                 return 400, {"code": "validation_error"}
             if parts[1] not in self.pages and parts[1] not in self.blocks:
                 return 404, {"code": "object_not_found"}
+            _check_request(body)
             _check_blocks(body["children"])
 
             def images(blocks):  # também dentro de colunas e toggles

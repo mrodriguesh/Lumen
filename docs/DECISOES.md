@@ -178,8 +178,13 @@ lumen/
   cinza: tela nova = parada ≥ 1,5 s e diferente das já guardadas (≥ 1% das células). As células que mudam quase
   sempre (câmera do professor, vídeo) saem da comparação, com histerese (uma troca de slide não as marca). Um slide
   ganhando tópicos (< 5% de mudança) guarda o estado mais recente a cada 20 s ou ao trocar de slide.
-- **Qual janela:** a tela é recortada na janela onde a mudança aconteceu (voto de até 25 pontos com
-  `WindowFromPoint`), com a borda visível do DWM. O modelo recebe “título — programa.exe”. Programas do aluno
+- **Qual janela:** a mudança é localizada na janela onde aconteceu (voto de até 25 pontos com `WindowFromPoint`).
+  A imagem guardada vem da **própria janela** (`PrintWindow` com `PW_RENDERFULLCONTENT`, o Windows desenha a janela,
+  inclusive o vídeo da GPU; 28 ms), não da cópia da tela: avisos, conversas e outros programas por cima ficam de
+  fora. Testado com uma janela “PRIVADO” por cima do vídeo durante toda a aula: nenhuma imagem a trouxe. Se um
+  programa não se deixar desenhar assim (sai preto), a janela é recortada da tela com o que estiver acima dela na
+  pilha coberto de cinza. Nunca vai a tela inteira; janela pequena (aviso, menu) não é guardada. O modelo recebe
+  “título — programa.exe”. Programas do aluno
   (editores, anotações, Office, e-mail, WhatsApp, terminal, Explorer) nunca são lidos: no teste, o modelo aceitou o
   VS Code do aluno como “aula” mesmo sabendo a janela, por isso a lista fixa. Testado na tela real: as 4 telas de
   aula vieram da janela do vídeo e o professor falando foi descartado. Uma trava na “janela da aula” foi
@@ -194,8 +199,13 @@ lumen/
   apareceram. Na aula de teste, a fala dizia “kick sort” (erro do Whisper) e a página saiu com “quicksort” e com as
   complexidades O(n²) e O(n log n) que só estavam na tabela do slide.
 - **Na página:** galeria em `column_list` de 2 colunas (dois níveis de aninhamento, o limite da API), imagens pela
-  File Upload API em 3 envios paralelos, e o texto em toggles (código em `code`, tabela em `table`). Publicado de
-  verdade no Notion para conferir e apagado em seguida.
+  File Upload API em 3 envios paralelos (com novas tentativas), e o texto em toggles (código em `code`, tabela em
+  `table`). Os envios são divididos pelos três limites do Notion por pedido: 100 blocos no nível de cima, 1000 no
+  total (contando os internos) e 500 KB. 20 telas com 80 linhas (1674 blocos) foram em 2 pedidos no Notion real.
+- **Telas repetidas:** comparadas linha a linha, em ordem e com todos os símbolos (“x > 0” e “x < 0” ficam as
+  duas); um slide que ganha tópicos vira um só apenas quando todas as linhas do anterior continuam no seguinte.
+- **Ciclo de vida:** a captura da tela para junto com o som em qualquer saída (parar, falha do áudio, disco cheio,
+  sair do app); uma gravação nova nunca deixa a anterior capturando. Parar não espera uma leitura em andamento.
 - **Tempo (aula de teste de 91 s, 6 telas, RTX 3060):** transcrição 18 s + leitura da tela 10 s; escrita e envio 42 s.
 
 ## YouTube: limitação real

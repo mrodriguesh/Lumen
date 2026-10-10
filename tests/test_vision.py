@@ -10,7 +10,10 @@ from unittest import mock
 
 import numpy as np
 
-from lumen import jobs, llm, notion, server, sources, store, transcribe, vision
+import sys
+import types
+
+from lumen import jobs, llm, notion, record, server, sources, store, transcribe, vision
 from tests.fake_notion import Fake
 from tests.test_flow import wait
 from tests.test_llm import GOOD
@@ -140,13 +143,24 @@ class Notes(unittest.TestCase):
         self.assertEqual(vision.clean("lixo")["keep"], False)
 
     def test_select_merges_builds_and_drops_repeats(self):
-        items = [note("Agenda", "fotossintese fase clara", t=10, i=0),
-                 note("Agenda", "fotossintese fase clara fase escura calvin", t=25, i=1),  # mesmo slide, completo
+        items = [note("Agenda", "Fotossíntese\n• fase clara", t=10, i=0),
+                 note("Agenda", "Fotossíntese\n- fase clara\n- fase escura (Calvin)", t=25, i=1),  # o mesmo, completo
                  note("Rosto", "x", keep=False, t=30, i=2),
-                 note("Tabela", "quicksort merge insertion sort", t=40, i=3),
-                 note("Agenda", "fotossintese fase clara fase escura calvin", t=90, i=4)]  # voltou
+                 note("Tabela", "Algoritmo | Pior caso\nQuicksort | O(n²)", t=40, i=3),
+                 note("Tabela", "Algoritmo | Pior caso", t=45, i=5),  # o controle do player cobriu uma linha
+                 note("Agenda", "fotossíntese\nfase clara\nfase escura (calvin)", t=90, i=4)]  # voltou
         got = vision.select(items)
         self.assertEqual([(s["id"], s["t"]) for s in got], [(1, 10), (3, 40)])
+
+    def test_select_keeps_screens_that_differ_only_in_symbols_or_order(self):
+        # revisão do Codex: o conjunto de palavras juntava telas com operadores ou ordem diferentes
+        items = [note("Condição", "Condição de validade\nx > 0", t=10, i=0),
+                 note("Condição", "Condição de validade\nx < 0", t=20, i=1),
+                 note("Ordem", "primeiro A\ndepois B", t=30, i=2),
+                 note("Ordem", "depois B\nprimeiro A", t=40, i=3),
+                 note("Código", "x = a - b", t=50, i=4),
+                 note("Código", "x = a + b", t=60, i=5)]
+        self.assertEqual([s["id"] for s in vision.select(items)], [0, 1, 2, 3, 4, 5])
 
     def test_trim_removes_black_bars_only(self):
         img = np.zeros((540, 960, 3), np.uint8)
@@ -263,6 +277,90 @@ class FakeScreen:
     def label(self, hwnd):
         return "Aula 4 - YouTube — msedge.exe" if hwnd == "aula" else "Minhas anotações - Notion — Notion.exe"
 
+    def window_image(self, hwnd):  # o conteúdo da janela, sem o que está por cima (como o PrintWindow)
+        l, t, r, b = self.rect(hwnd)
+        return bgra(self.frames[min(self.n, len(self.frames)) - 1])[t:b, l:r]
+
+    def covering(self, hwnd):
+        return []
+
+
+RED = np.array([0, 0, 255, 255], np.uint8)  # BGRA
+
+
+def with_popup(g):
+    """A tela com uma conversa particular aberta por cima do vídeo da aula (em vermelho)."""
+    img = bgra(g)
+    img[200:320, 200:420] = RED
+    return img
+
+
+class Private(unittest.TestCase):
+    """Revisão do Codex: recortar a janela da aula na cópia da tela levava junto o que estivesse por cima dela."""
+
+    def run_watch(self, screen, frames=15):
+        jpegs = []
+
+        def fake(jpeg, *a, **k):
+            jpegs.append(jpeg)
+            return note()["note"]
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(vision, "INTERVAL_S", 0.01), \
+                mock.patch.object(vision, "read", side_effect=fake):
+            w = vision.Watch(os.path.join(tmp, "g.screens"), lambda: float(screen.n), vision.MODEL, grabber=screen)
+            for _ in range(500):
+                if screen.n > frames + 3 and w.q.empty():
+                    break
+                time.sleep(0.01)
+            w.stop()
+        return jpegs
+
+    @staticmethod
+    def pixels(jpeg):
+        import io
+        import av
+        with av.open(io.BytesIO(jpeg)) as c:
+            return next(c.decode(video=0)).to_ndarray(format="rgb24")
+
+    def test_window_content_leaves_out_what_is_on_top(self):
+        class Popup(FakeScreen):
+            def grab(self):
+                g, bar, origin = super().grab()
+                return with_popup(g[..., 0]), bar, origin
+        jpegs = self.run_watch(Popup([slide("A")] * 5 + [slide("B")] * 10))
+        self.assertTrue(jpegs)
+        for j in jpegs:
+            p = self.pixels(j)
+            self.assertFalse(((p[..., 0] > 200) & (p[..., 1] < 80)).any(), "a conversa por cima foi parar na imagem")
+
+    def test_without_window_content_the_overlap_is_covered(self):
+        class Popup(FakeScreen):
+            def grab(self):
+                g, bar, origin = super().grab()
+                return with_popup(g[..., 0]), bar, origin
+
+            def window_image(self, hwnd):  # programa que não se deixa desenhar
+                return None
+
+            def covering(self, hwnd):
+                return [(200, 200, 420, 320)]
+        jpegs = self.run_watch(Popup([slide("A")] * 5 + [slide("B")] * 10))
+        self.assertTrue(jpegs)
+        for j in jpegs:
+            p = self.pixels(j)
+            self.assertFalse(((p[..., 0] > 200) & (p[..., 1] < 80)).any())
+            self.assertTrue((abs(p[230:290, 230:390].astype(int) - 128) < 12).all())  # coberta de cinza
+
+    def test_no_clear_window_or_small_window_is_not_saved(self):
+        class Nowhere(FakeScreen):
+            def window_at(self, points):
+                return None
+        self.assertEqual(self.run_watch(Nowhere([slide("A")] * 5 + [slide("B")] * 10)), [])  # nada da tela inteira
+
+        class Toast(FakeScreen):
+            def rect(self, hwnd):
+                return (600, 440, 900, 520)  # um aviso de 300×80
+        self.assertEqual(self.run_watch(Toast([slide("A")] * 5 + [slide("B")] * 10)), [])
+
 
 class Watching(unittest.TestCase):
     def test_live_capture_reads_between_slides(self):
@@ -361,6 +459,77 @@ class Watching(unittest.TestCase):
             self.assertEqual(w.shots.pending(), [0])  # fica para quando a aula for processada
 
 
+class Lifecycle(unittest.TestCase):
+    """Revisão do Codex: se o som parasse sozinho (falha, disco cheio), a captura da tela continuava e uma nova
+    gravação deixava a antiga rodando sem dono."""
+
+    def setUp(self):
+        store.clear_local_data()
+        store.save_config({**store.DEFAULTS, "watch_screen": True})
+        self.watches = []
+
+        def start_watch(path):
+            w = mock.Mock(stopped=False)
+            w.stop.side_effect = lambda: setattr(w, "stopped", True)
+            self.watches.append(w)
+            return w
+        self.p = mock.patch.object(record, "_start_watch", side_effect=start_watch)
+        self.p.start()
+
+    def tearDown(self):
+        self.p.stop()
+        try:
+            record.discard()
+        except Exception:
+            pass
+
+    def test_audio_failure_stops_the_screen_and_restart_is_clean(self):
+        from tests.test_record import fake_soundcard
+        broken = fake_soundcard(.3)
+        calls = [0]
+        rec = broken.get_microphone().recorder()
+        real = rec.record
+
+        def failing(numframes):
+            calls[0] += 1
+            if calls[0] > 20:
+                raise OSError("dispositivo de áudio removido")
+            return real(numframes)
+        rec.record = failing
+        broken.get_microphone = lambda **k: types.SimpleNamespace(recorder=lambda **kw: rec)
+        with mock.patch.dict(sys.modules, {"soundcard": broken}):
+            record.start("Aula")
+            for _ in range(300):
+                if not record.status()["active"]:
+                    break
+                time.sleep(0.01)
+            self.assertFalse(record.status()["active"])
+            self.assertTrue(self.watches[0].stopped)  # parou junto com o som
+            self.assertIsNone(record._watch)
+        from tests.test_record import fake_soundcard as ok
+        with mock.patch.dict(sys.modules, {"soundcard": ok(.3)}):
+            record.start("Aula 2")
+            self.assertIs(record._watch, self.watches[1])
+            record.discard()
+        self.assertTrue(all(w.stopped for w in self.watches))
+
+    def test_audio_that_dies_while_the_screen_starts_does_not_leave_it_running(self):
+        from tests.test_record import fake_soundcard
+        real_start = self.p.new if hasattr(self.p, "new") else None  # noqa: F841
+
+        def slow_start(path):  # o som morre enquanto a captura da tela começa
+            record._set(active=False)
+            w = mock.Mock(stopped=False)
+            w.stop.side_effect = lambda: setattr(w, "stopped", True)
+            self.watches.append(w)
+            return w
+        with mock.patch.object(record, "_start_watch", side_effect=slow_start), \
+                mock.patch.dict(sys.modules, {"soundcard": fake_soundcard(.3)}):
+            record.start("Aula")
+            self.assertTrue(self.watches[-1].stopped)
+            self.assertIsNone(record._watch)
+
+
 class Page(unittest.TestCase):
     def test_screen_text_blocks(self):
         # o modelo repete o título do slide na 1ª linha (sem colunas): não pode impedir a tabela
@@ -376,6 +545,47 @@ class Page(unittest.TestCase):
                                     "texto": "Busca\ndef f():\n    return 1"})
         self.assertEqual([b["type"] for b in code], ["code", "paragraph"])
         self.assertEqual(code[0]["code"]["rich_text"][0]["text"]["content"], "def f():\n    return 1")  # indentação
+
+
+class NotionLimits(unittest.TestCase):
+    """Revisão do Codex: 20 telas com 80 linhas = 1.673 blocos em 33 no nível de cima; o Notion recusa acima de
+    1000 blocos ou 500 KB por pedido."""
+
+    def test_big_gallery_is_split_by_total_blocks_and_size(self):
+        from tests.test_llm import GOOD
+        screens = [{"titulo": f"Tela {k}", "tipo": "slide", "descricao": "Figura de exemplo", "t": k * 30.0,
+                    "upload": None, "texto": "\n".join(f"linha {k}.{n} do slide com algum texto" for n in range(80))}
+                   for k in range(20)]
+        meta = {"course": "C", "source": "Arquivo — aula", "model": "m", "transcript_origin": "x", "screens": screens,
+                "vision_model": vision.MODEL}
+        title, blocks = notion.build_page(llm.validate(GOOD, 600), meta)
+        self.assertGreater(sum(notion._count(b) for b in blocks), 1000)
+        for batch in notion.batches(blocks):
+            self.assertLessEqual(len(batch), 100)
+            self.assertLessEqual(sum(notion._count(b) for b in batch), 1000)
+            self.assertLessEqual(len(json.dumps({"children": batch})), 500_000)
+        self.assertEqual([b for batch in notion.batches(blocks) for b in batch], blocks)  # nada perdido, na ordem
+        fake = Fake()
+        try:
+            page = fake.add_page("Estudos")
+            with mock.patch.object(store, "get_token", return_value="secret_test"):
+                notion.publish("secret_test", page, title, blocks, lambda: None)
+            self.assertEqual(fake.violations, [])
+            self.assertEqual(len(fake.pages[page]["blocks"]), len(blocks) + 1)
+        finally:
+            fake.close()
+
+    def test_fake_notion_rejects_oversized_requests(self):
+        fake = Fake()
+        try:
+            page = fake.add_page("Estudos")
+            big = [{"object": "block", "type": "toggle", "toggle": {"rich_text": [], "children": [
+                {"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}}] * 99}}] * 11
+            with self.assertRaises(Exception):
+                notion.request("PATCH", f"/blocks/{page}/children", "secret_test", {"children": big})
+            self.assertIn("mais de 1000 blocos numa requisição", fake.violations)
+        finally:
+            fake.close()
 
 
 class Flow(unittest.TestCase):
