@@ -144,35 +144,38 @@ class Vram(unittest.TestCase):
 
 
 class MidRunOom(unittest.TestCase):
-    """GPU encheu no meio da transcrição: libera o Ollama e continua de onde parou, sem perder nem repetir trechos."""
+    """GPU encheu no meio: libera o Ollama e transcreve de novo do início. Revisão do Codex: o fim estimado do último
+    trecho pode passar do fim real da fala; retomar dali perdia a fala seguinte."""
 
-    def test_resumes_after_out_of_memory(self):
+    def test_retry_keeps_all_speech_when_end_time_overshoots(self):
         from types import SimpleNamespace as N
-        calls = []
+        speech = [(0.0, 3.5, "Primeiro trecho aqui."), (4.0, 8.0, "Segundo trecho ali."), (8.2, 11.0, "Terceiro trecho final.")]
+        offsets = []
 
-        def fake_segments(model, samples, check, opts):
-            calls.append((len(samples), dict(opts or {})))
-            info = N(language="pt")
-            if len(calls) == 1:
-                yield N(start=0.0, end=4.0, text="Primeiro trecho.", avg_logprob=-0.2), info
-                yield N(start=4.0, end=8.0, text="Segundo trecho.", avg_logprob=-0.2), info
-                raise RuntimeError("CUDA failed with error out of memory")
-            yield N(start=0.5, end=3.0, text="Terceiro trecho.", avg_logprob=-0.2), info
+        def fake_segments(model, samples, check, opts):  # o “áudio”: só a fala que está na fatia recebida
+            offset = 12.0 - len(samples) / 16000
+            offsets.append(offset)
+            for k, (a, b, text) in enumerate(speech):
+                if a < offset:
+                    continue
+                end = b + 1.0 if k == 1 else b  # o Whisper diz que o 2º trecho termina aos 9 s; a fala acaba aos 8 s
+                yield N(start=a - offset, end=end - offset, text=text, avg_logprob=-0.2), N(language="pt")
+                if len(offsets) == 1 and k == 1:
+                    raise RuntimeError("CUDA failed with error out of memory")
 
         release = mock.Mock(return_value=True)
-        samples = transcribe.np.zeros(16000 * 12, dtype="float32") if hasattr(transcribe, "np") else [0.0] * (16000 * 12)
         with mock.patch.object(transcribe, "has_gpu", return_value=True), \
                 mock.patch.object(transcribe, "_vram", return_value=(9.0, 3.2)), \
                 mock.patch.object(transcribe, "_model", return_value=object()), \
-                mock.patch.object(transcribe, "_segments", side_effect=fake_segments), \
+                mock.patch.object(transcribe, "_segments", new=fake_segments), \
                 mock.patch.object(transcribe, "_loaded_compute", return_value="int8_float16"):
-            r = transcribe._run(samples, "large-v3", lambda *a: None, lambda: None, 12.0, 1.0, 1.0, False, release=release)
+            r = transcribe._run([0.0] * (16000 * 12), "large-v3", lambda *a: None, lambda: None, 12.0, 1.0, 1.0, False,
+                                release=release)
         release.assert_called_once()
-        self.assertEqual(r["device"], "cuda")                         # continuou na GPU, não caiu para a CPU
-        self.assertEqual([s["text"] for s in r["segments"]], ["Primeiro trecho.", "Segundo trecho.", "Terceiro trecho."])
-        self.assertEqual(r["segments"][2]["start"], 8.5)              # tempo na linha do arquivo (8 s + 0,5 s)
-        self.assertEqual(calls[1][0], 16000 * 4)                      # só o resto do áudio
-        self.assertIn("Segundo trecho.", calls[1][1]["initial_prompt"])  # com o texto anterior como contexto
+        self.assertEqual(r["device"], "cuda")                    # continuou na GPU, não caiu para a CPU
+        self.assertEqual(offsets, [0.0, 0.0])                    # a nova tentativa recebe o áudio inteiro
+        self.assertEqual([s["text"] for s in r["segments"]],     # nada perdido, nada repetido
+                         ["Primeiro trecho aqui.", "Segundo trecho ali.", "Terceiro trecho final."])
 
 
 class RetryReleasesModel(unittest.TestCase):
@@ -198,10 +201,10 @@ class RetryReleasesModel(unittest.TestCase):
             return m
 
         def fake_segments(model, samples, check, opts):  # como o real: o gerador guarda o modelo no frame
+            yield N(start=0.0, end=4.0, text="Antes da falha.", avg_logprob=-0.2), N(language="pt")
             if len(made) == 1:
-                yield N(start=0.0, end=4.0, text="Antes da falha.", avg_logprob=-0.2), N(language="pt")
                 raise RuntimeError("CUDA failed with error out of memory")
-            yield N(start=0.0, end=3.0, text="Depois da falha.", avg_logprob=-0.2), N(language="pt")
+            yield N(start=4.0, end=7.0, text="Depois da falha.", avg_logprob=-0.2), N(language="pt")
 
         samples = [0.0] * (16000 * 10)
         with mock.patch.object(transcribe, "has_gpu", return_value=True), \

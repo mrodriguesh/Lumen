@@ -400,29 +400,25 @@ def _run(samples, name, progress, check, duration, factor, scale, second, opts=N
             devices = ["cpu"]  # não tenta a GPU sem memória; make_room()/fit_gpu() já deveriam ter evitado isso
     if devices[0] == "cuda" and release:
         devices.insert(1, "cuda")  # GPU encheu no meio: libera o Ollama e continua na GPU antes de ir para a CPU
-    segs, info, at = [], None, 0.0  # `at`: até onde (s, áudio processado) já foi transcrito; nunca se perde
-    total = len(samples) / audio.SR
-    model = None
+    # Nova tentativa recomeça do início do áudio. Retomar do meio (bench/RESULTADOS.md, “Retomada”) perdia 3 a 15
+    # palavras na emenda e, com o texto anterior como contexto, numa falha o Whisper repetiu 165 palavras.
+    # Do início, na GPU, o resultado é igual ao de uma transcrição sem falha; o custo é refazer o trecho já feito.
+    info, total, model = None, len(samples) / audio.SR, None
     for i, device in enumerate(devices):
         if i:  # nova tentativa: o modelo que falhou sai da VRAM ANTES de carregar o substituto (medido na RTX 3060:
             model = None  # sem isto, ~2 GB do large-v3 continuavam presos e os dois precisavam caber juntos)
             _loaded.clear()
             import gc
             gc.collect()  # o traceback da falha e o gerador do Whisper podem formar ciclos que seguram o modelo
+        segs = []
         try:
             model = _model(name, device)
-            t0, base = time.monotonic(), at
-            o = dict(opts or {})
-            if segs:  # retomada: o texto anterior serve de contexto, como no condition_on_previous_text
-                o["initial_prompt"] = " ".join(s["text"] for s in segs)[-600:]
-            for s, info in _segments(model, samples[int(at * audio.SR):], check, o):
-                start, end = s.start + base, s.end + base
-                segs.append({"start": round(start / scale, 2), "end": round(end / scale, 2), "text": s.text.strip(),
+            t0 = time.monotonic()
+            for s, info in _segments(model, samples, check, opts):
+                segs.append({"start": round(s.start / scale, 2), "end": round(s.end / scale, 2), "text": s.text.strip(),
                              "uncertain": s.avg_logprob < UNCERTAIN_LOGPROB})
-                at = end
-                done = end / total if total else None
-                part = (end - base) / (total - base) if total > base else None
-                eta = (time.monotonic() - t0) / part * (1 - part) if part and part > 0.02 else None
+                done = s.end / total if total else None
+                eta = (time.monotonic() - t0) / done * (1 - done) if done and done > 0.02 else None
                 progress(done, eta)
             segs = [s for s in segs if s["text"]]
             for s in segs:  # o Whisper às vezes estima fim além do áudio; nenhum tempo passa da duração do arquivo
@@ -441,7 +437,7 @@ def _run(samples, name, progress, check, duration, factor, scale, second, opts=N
             raise AppError("Memória insuficiente para transcrever.",
                            "Feche outros programas ou escolha a qualidade “Rápido” em Configurações.") from None
         except RuntimeError as e:
-            # Falha de CUDA (DLL ausente, VRAM cheia): libera memória e continua de onde parou (GPU, depois CPU).
+            # Falha de CUDA (DLL ausente, VRAM cheia): libera memória e transcreve de novo (GPU, depois CPU).
             if device == "cuda" and i + 1 < len(devices):
                 if devices[i + 1] == "cuda" and not release():
                     devices[i + 1] = "cpu"  # nada a liberar: tentar a GPU de novo daria o mesmo erro

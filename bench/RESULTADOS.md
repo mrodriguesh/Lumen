@@ -293,3 +293,16 @@ cada aula. Os logs mostravam “Pouca memória livre (3,3 GB): usei large-v3-tur
 transcrição foi feita na CPU”. Agora, se faltar VRAM, o Lumen pede ao Ollama para descarregar o modelo antes de
 transcrever (`transcribe.make_room`). Teste real com o qwen3:8b carregado (2 GB livres): large-v3 na GPU, 56 s,
 sem troca de modelo. O código antigo, na mesma aula, trocou o large-v3 pelo **small** (aviso “2,3 GB livres”).
+
+### Retomada depois de falha de CUDA no meio (10/10/2026)
+
+Falha simulada depois de k trechos da aula longa (large-v3 na GPU), com e sem desvio de +1,5 s no fim do último
+trecho (o cenário da revisão do Codex). Comparado com a transcrição contínua (WER 11,35%):
+
+| Estratégia | Palavras perdidas | Palavras repetidas | WER |
+|---|---|---|---|
+| Retomar do fim do último trecho, com o texto anterior como contexto | 3 a 15 | 3 a **165** | 10,8% a **34,8%** |
+| **Recomeçar do início do áudio (adotado)** | **0** | **0** | **11,35%** (igual à contínua, nos 8 casos) |
+
+Com o texto anterior como `initial_prompt`, numa das falhas o Whisper repetiu 165 palavras. Recomeçar do início
+custa refazer o que já tinha sido feito (na GPU, 15× o tempo real), em troca de um resultado idêntico ao sem falha.
