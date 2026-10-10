@@ -53,7 +53,7 @@ def has_gpu():
 
 
 # Pico de VRAM medido no benchmark (GB, float16) + folga; usado para não carregar modelo que não cabe.
-VRAM_NEED_GB = {"small": 1.0, "large-v3-turbo": 2.6, "large-v3": 5.2}
+VRAM_NEED_GB = {"small": 1.0, "large-v3-turbo": 2.6, "large-v3": 3.2}  # large-v3 int8_float16: pico 2,7 GB com o small (bench/fast)
 
 
 def gpu_free_gb():
@@ -67,11 +67,39 @@ def gpu_free_gb():
         return None
 
 
+def _free_for(name):
+    """VRAM disponível para `name`: infinita se ele já está carregado na GPU; senão, mede com os modelos do Lumen
+    descarregados. (Medir com o próprio modelo carregado mandava o large-v3 para a CPU: 339 s em vez de 26 s.)"""
+    if (name, "cuda") in _loaded:
+        return float("inf")
+    if _loaded:
+        _loaded.clear()
+        import gc
+        gc.collect()
+    return gpu_free_gb()
+
+
+def make_room(name, release):
+    """Antes de transcrever: sem VRAM para o modelo, chama release() (descarrega o modelo de texto do Ollama, que o
+    próprio Lumen deixou carregado) e espera a memória voltar. Nos logs reais, era o que mandava o large-v3 para o
+    turbo ou para a CPU (“Pouca memória livre… 0,9 GB”)."""
+    if not has_gpu() or name not in VRAM_NEED_GB:
+        return
+    free = _free_for(name)
+    if free is None or free >= VRAM_NEED_GB[name] or not release():
+        return
+    for _ in range(20):
+        free = gpu_free_gb()
+        if free is None or free >= VRAM_NEED_GB[name]:
+            return
+        time.sleep(0.25)
+
+
 def fit_gpu(name):
     """Se o modelo não cabe na VRAM livre, troca por um que caiba (ou pelo Parakeet na CPU). Devolve (nome, aviso)."""
     if not has_gpu() or name not in VRAM_NEED_GB:
         return name, None
-    free = gpu_free_gb()
+    free = _free_for(name)
     if free is None or free >= VRAM_NEED_GB[name]:
         return name, None
     for alt in ("large-v3-turbo", "small"):
@@ -142,7 +170,7 @@ def download(name):
 
 def speed_factor(name):
     """Vezes mais rápido que o tempo real (benchmark: RTX 3060 / i5-11400F), arredondado para baixo."""
-    gpu = {"small": 25, "large-v3-turbo": 20, "large-v3": 10}   # medido: 29,7 / 23,5 / 11,9
+    gpu = {"small": 25, "large-v3-turbo": 20, "large-v3": 14}   # medido: 29,7 / 23,5 / 14,6 (int8_float16)
     cpu = {"small": 4, "large-v3-turbo": 1.5, PARAKEET: 15}     # medido: 4,6 / 1,6 / 19,2
     return (gpu if has_gpu() and name in gpu else cpu).get(name, 1)
 
@@ -172,8 +200,6 @@ def _model(name, device):
 def _compute(name, device):
     if device != "cuda":
         return "int8"
-    if name in FP32_GPU and (gpu_free_gb() or 0) >= FP32_GPU[name]:
-        return "float32"
     return "float16"
 
 
@@ -198,10 +224,10 @@ LOW_WPS = 1.2             # abaixo disto (fala normal medida: ≥ 1,48) o modelo
 PREP = {("large-v3-turbo", 2): 0.5, ("large-v3-turbo", 4): 0.5}
 SPEED_OPTIONS = {4: {"condition_on_previous_text": False}}  # 4x: evita repetições em cadeia (53,2% x 54,6%)
 ULTRA_WER = 0.53  # melhor erro medido em fala 4x (bench/ultra): o modo é experimental
-COMPUTE = {}       # (modelo, dispositivo) → tipo numérico fixo (o benchmark usa); vazio = regra abaixo
-# Critério 14 (bench/ultra): large-v3 em float16 errou 0,57 ponto a mais que em float32 em 1× (limite 0,5) →
-# o modo Maior precisão usa float32 na GPU se couber na VRAM (pico medido 8,5 GB); senão, float16.
-FP32_GPU = {"large-v3": 9.0}
+# (modelo, dispositivo) → tipo numérico. bench/fast (10/10/2026): large-v3 em int8_float16 teve a mesma precisão
+# que float32 nas 200 falas (10,6% x 10,6%), a melhor na aula longa (11,3% x 12,1%; timestamps 0,23 s x 0,87 s),
+# 1,7× a velocidade e metade da VRAM. A regra antiga (float32, critério 14) se apoiava em 0,57 ponto num só áudio.
+COMPUTE = {("large-v3", "cuda"): "int8_float16"}
 CPU_RESERVE = 0    # núcleos lógicos deixados livres durante a inferência na CPU
 LOW_PRIORITY = False  # prioridade “abaixo do normal” do processo enquanto transcreve (não mexe em clock/energia)
 
@@ -240,6 +266,31 @@ def _segments(model, samples, check, opts=None):
     for s in it:
         check()
         yield s, info
+
+
+def split_words(segments, max_s=12.0, gap=0.8):
+    """Em lote, o Whisper devolve trechos de até 30 s (timestamps grosseiros, bench/RESULTADOS.md). Com o tempo de
+    cada palavra, corta de novo em frases: fim de frase, pausa > gap ou trecho > max_s. Confiança = média do log da
+    probabilidade das palavras (mesma escala do avg_logprob por token, usada para marcar “incerto”)."""
+    import math
+    from types import SimpleNamespace
+    out = []
+    for s in segments:
+        words = [w for w in (s.words or []) if w.word.strip()]
+        if not words:
+            out.append(SimpleNamespace(start=s.start, end=s.end, text=s.text, avg_logprob=s.avg_logprob))
+            continue
+        cur = []
+        for i, w in enumerate(words):
+            cur.append(w)
+            nxt = words[i + 1] if i + 1 < len(words) else None
+            sentence = w.word.strip()[-1] in ".?!" and w.end - cur[0].start >= 2
+            if nxt is None or sentence or nxt.start - w.end > gap or nxt.end - cur[0].start > max_s:
+                lp = sum(math.log(max(x.probability, 1e-6)) for x in cur) / len(cur)
+                out.append(SimpleNamespace(start=cur[0].start, end=cur[-1].end, avg_logprob=lp,
+                                           text="".join(x.word for x in cur)))
+                cur = []
+    return out
 
 
 class _OnnxSeg:
@@ -335,7 +386,7 @@ def transcribe(path, name, progress, check, speed=1.0, second=True):
 
 def _run(samples, name, progress, check, duration, factor, scale, second, opts=None):
     devices = ["cuda", "cpu"] if has_gpu() and name != PARAKEET else ["cpu"]
-    if name == "large-v3" and devices[0] == "cuda" and (gpu_free_gb() or 99) < VRAM_NEED_GB[name]:
+    if name == "large-v3" and devices[0] == "cuda" and (_free_for(name) or 99) < VRAM_NEED_GB[name]:
         devices = ["cpu"]  # não tenta a GPU sem memória; fit_gpu() já deveria ter evitado isso
     for device in devices:
         segs = []

@@ -258,3 +258,38 @@ A tabela principal usou `condition_on_previous_text=False` em todos os Whisper. 
 - **whisper-large-v3-turbo-cpu**: `large-v3-turbo` em cpu; language=pt, beam_size=5, vad_filter=True, condition_on_previous_text=False; carga 5 s.
 - **parakeet-tdt-0.6b-v3**: `nemo-parakeet-tdt-0.6b-v3` em cpu; language=pt, int8, Silero VAD no áudio longo; carga 20 s.
 - **canary-1b-v2**: `nemo-canary-1b-v2` em cpu; language=pt, int8, Silero VAD no áudio longo; carga 20 s.
+
+## Acelerar o modo Maior precisão (10/10/2026, `python -m bench.fast`)
+
+RTX 3060 12 GB, large-v3, aula longa (6,3 min) com as opções do app (beam 5, VAD, condition_on_previous_text).
+
+**Causa principal da lentidão (bug):** a checagem de VRAM media a memória livre com o próprio large-v3 já
+carregado (pela medição de velocidade). Em float32 ele ocupa ~7,4 GB, sobravam 1,4 GB, e o app concluía que o
+modelo “não cabia”: transcrevia na CPU (339 s) ou trocava por um modelo menor. Corrigido em `_free_for`.
+
+| Variante | Tempo | WER aula longa | Omissões | Timestamp (mediana) |
+|---|---|---|---|---|
+| sequencial float32 (antes, quando ficava na GPU) | 44,0 s | 12,1% | 21 | 0,87 s |
+| sequencial float16 | 25,1 s | 12,6% | 27 | 0,89 s |
+| **sequencial int8_float16 (adotado)** | **25,9 s** | **11,3%** | 26 | **0,23 s** |
+| lote 16 float16 | 8,2 s | 14,6% | 48 | 0,53 s |
+| lote 16 int8_float16 | 8,8 s | 13,9% | 47 | 0,54 s |
+
+Duas rodadas por variante deram números idênticos. Nas 200 falas do manifest (leitura, palestra, conversa):
+float32 10,57%, float16 10,51%, int8_float16 10,62% — empate (diferenças < 0,2 ponto); float32 levou 360 s,
+os outros ~203 s.
+
+Testado e **não adotado** (perde precisão ou não acelera):
+- Lotes com corte por palavra: melhor configuração (blocos de 20 s) 12,9% x 11,3% sequencial.
+- Segundo modelo em paralelo com o principal: 34,5 s x 35,6 s (a GPU já está saturada).
+- beam 2/3: até 12% mais rápido, sem ganho claro; beam 1 piora (13,3%).
+- Reaproveitar os 120 s da medição de velocidade: −9 s, mas 12,3% x 11,3%.
+
+Pipeline completo do app (carga + medir velocidade + transcrição + segundo modelo), aula de 6,3 min: **51,7 s**
+(7,2× o tempo real), pico de VRAM 2,7 GB.
+
+**Segunda causa (logs reais do app):** o modelo de texto do Ollama (qwen3:8b, ~6 GB) fica 5 min na GPU depois de
+cada aula. Os logs mostravam “Pouca memória livre (3,3 GB): usei large-v3-turbo em vez de large-v3” e “(0,9 GB): a
+transcrição foi feita na CPU”. Agora, se faltar VRAM, o Lumen pede ao Ollama para descarregar o modelo antes de
+transcrever (`transcribe.make_room`). Teste real com o qwen3:8b carregado (2 GB livres): large-v3 na GPU, 56 s,
+sem troca de modelo. O código antigo, na mesma aula, trocou o large-v3 pelo **small** (aviso “2,3 GB livres”).

@@ -144,6 +144,24 @@ def _stream(path, body, check, timeout=900):
                        "Tente de novo ou escolha um modelo menor em Configurações.") from None
 
 
+def release_vram():
+    """Pede ao Ollama para descarregar da GPU os modelos de texto carregados (keep_alive=0). Ele recarrega sozinho
+    no próximo pedido. True se havia algo para liberar."""
+    try:
+        with urllib.request.urlopen(OLLAMA + "/api/ps", timeout=3) as r:
+            names = [m["name"] for m in json.load(r).get("models", [])]
+    except (OSError, ValueError, KeyError):
+        return False
+    for name in names:
+        req = urllib.request.Request(OLLAMA + "/api/generate", json.dumps({"model": name, "keep_alive": 0}).encode(),
+                                     {"Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(req, timeout=15).close()
+        except OSError:
+            pass
+    return bool(names)
+
+
 def pull(model, progress, check):
     for d in _stream("/api/pull", {"model": model, "stream": True}, check, timeout=3600):
         if d.get("total"):

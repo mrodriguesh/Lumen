@@ -96,13 +96,34 @@ class Vram(unittest.TestCase):
             with mock.patch.object(transcribe, "gpu_free_gb", return_value=None):  # sem medição: tenta, com recuo p/ CPU
                 self.assertEqual(transcribe.fit_gpu("large-v3"), ("large-v3", None))
 
-    def test_max_precision_uses_fp32_only_if_it_fits(self):
-        with mock.patch.object(transcribe, "gpu_free_gb", return_value=10.5):
-            self.assertEqual(transcribe._compute("large-v3", "cuda"), "float32")
-            self.assertEqual(transcribe._compute("large-v3-turbo", "cuda"), "float16")
-        with mock.patch.object(transcribe, "gpu_free_gb", return_value=6.0):
-            self.assertEqual(transcribe._compute("large-v3", "cuda"), "float16")
-        self.assertEqual(transcribe._compute("large-v3", "cpu"), "int8")
+    def test_max_precision_uses_int8_float16_on_gpu(self):  # bench/fast: mesma precisão, 1,7× mais rápido que float32
+        with mock.patch.dict(transcribe._loaded, {}, clear=True):
+            self.assertEqual(transcribe._loaded_compute("large-v3", "cuda"), "int8_float16")
+            self.assertEqual(transcribe._loaded_compute("large-v3-turbo", "cuda"), "float16")
+            self.assertEqual(transcribe._loaded_compute("large-v3", "cpu"), "int8")
+
+    def test_loaded_model_counts_as_fitting(self):
+        """Bug real: com o large-v3 já carregado (1,4 GB livres), o app achava que ele não cabia e ia para a CPU."""
+        with mock.patch.object(transcribe, "has_gpu", return_value=True), \
+                mock.patch.object(transcribe, "gpu_free_gb", return_value=1.4), \
+                mock.patch.dict(transcribe._loaded, {("large-v3", "cuda"): object()}, clear=True):
+            self.assertEqual(transcribe.fit_gpu("large-v3"), ("large-v3", None))
+            self.assertEqual(transcribe._free_for("large-v3"), float("inf"))
+        with mock.patch.object(transcribe, "gpu_free_gb", return_value=7.0), \
+                mock.patch.dict(transcribe._loaded, {("small", "cuda"): object()}, clear=True):
+            self.assertEqual(transcribe._free_for("large-v3"), 7.0)
+            self.assertEqual(transcribe._loaded, {})  # outro modelo do Lumen é liberado antes de medir
+
+    def test_make_room_releases_ollama_only_when_needed(self):
+        release = mock.Mock(return_value=True)
+        with mock.patch.object(transcribe, "has_gpu", return_value=True), mock.patch.dict(transcribe._loaded, {}, clear=True):
+            with mock.patch.object(transcribe, "gpu_free_gb", return_value=8.0):
+                transcribe.make_room("large-v3", release)
+                release.assert_not_called()                          # cabe: não mexe no Ollama
+            with mock.patch.object(transcribe, "gpu_free_gb", side_effect=[2.0, 2.0, 9.0]), \
+                    mock.patch.object(transcribe.time, "sleep"):
+                transcribe.make_room("large-v3", release)
+                release.assert_called_once()                         # não cabia: libera e espera a VRAM voltar
 
     def test_no_change_without_gpu(self):
         with mock.patch.object(transcribe, "has_gpu", return_value=False):

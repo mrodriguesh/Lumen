@@ -173,6 +173,7 @@ def process(spec):
             if not Path(src["path"]).exists():
                 raise AppError("A gravação ou o arquivo não está mais disponível.", "Escolha o arquivo ou grave de novo.")
             quality, m = transcribe.pick(cfg["quality"])
+            transcribe.make_room(m["name"], llm.release_vram)
             detail = f"Transcrevendo no seu PC (modelo {m['label']})…"
             requested = str(spec.get("speed") or "auto")
             speed, estimate = (float(requested), None) if requested in ("1", "2", "4") else (None, None)
