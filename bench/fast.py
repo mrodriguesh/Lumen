@@ -1,6 +1,6 @@
 """Acelerar o modo “Maior precisão” (large-v3 na GPU) sem perder precisão.
 
-    python -m bench.fast phases            # quanto custa cada etapa do pipeline atual (carga, taxa, transcrição, 2º modelo)
+    python -m bench.fast phases            # quanto custa cada etapa do pipeline atual (carga, transcrição, 2º modelo)
     python -m bench.fast variant NOME      # uma variante na aula longa (1 processo por variante: VRAM limpa)
     python -m bench.fast all               # todas as variantes, 2 rodadas cada (o Whisper varia entre execuções)
 
@@ -75,11 +75,9 @@ def phases():
     tr._model("large-v3", "cuda")
     out["carregar_modelo"] = time.perf_counter() - t
     t = time.perf_counter()
-    out["wps"] = tr.speech_rate(path, "large-v3", lambda: None)
-    out["medir_velocidade_120s"] = time.perf_counter() - t
-    t = time.perf_counter()
     with mock_second() as calls:
         res = tr.transcribe(path, "large-v3", lambda *a: None, lambda: None, speed=1.0)
+    out["wps"] = tr.rate(res["segments"])  # Automático no large-v3: medido na própria transcrição (sem passada extra)
     out["transcricao_total"] = time.perf_counter() - t
     out["segundo_modelo"] = calls["secs"]
     out["compute"] = res["compute"]

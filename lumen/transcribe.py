@@ -22,7 +22,7 @@ except ImportError:
     pass
 
 import ctranslate2  # noqa: E402
-from faster_whisper import WhisperModel, download_model  # noqa: E402
+from faster_whisper import BatchedInferencePipeline, WhisperModel, download_model  # noqa: E402
 
 from . import AppError, audio  # noqa: E402
 
@@ -53,7 +53,7 @@ def has_gpu():
 
 
 # Pico de VRAM medido no benchmark (GB, float16) + folga; usado para não carregar modelo que não cabe.
-VRAM_NEED_GB = {"small": 1.0, "large-v3-turbo": 2.6, "large-v3": 3.2}  # large-v3 int8_float16: pico 2,7 GB com o small (bench/fast)
+VRAM_NEED_GB = {"small": 1.0, "large-v3-turbo": 2.6, "large-v3": 3.2}  # large-v3 int8_float16: pico 2,9 GB (bench/fast)
 # Com o modelo já carregado, a inferência ainda precisa desta memória de trabalho (medido: large-v3 0,74 GB,
 # turbo e small 0,24 GB; aula de 6 min, RTX 3060) + folga.
 WORK_GB = {"small": 0.5, "large-v3-turbo": 0.5, "large-v3": 1.0}
@@ -133,6 +133,12 @@ def for_speed(name, speed):
         return name, ("O modelo deste modo erra bem mais em fala acelerada. Para melhorar, baixe o modo "
                       "“Maior precisão” em Ajustes e transcreva de novo.")
     return name, None
+
+
+def same_at_2x(name):
+    """1× e 2× são transcritos igual (mesmo modelo, sem preparar o áudio): é o caso do large-v3. A velocidade da fala
+    pode então ser medida na própria transcrição, sem a passada extra nos primeiros 120 s (11,8 s numa aula de 6 min)."""
+    return for_speed(name, 2) == (name, None) and (name, 2) not in PREP and 2 not in SPEED_OPTIONS
 
 
 def models():
@@ -336,7 +342,11 @@ def second_opinion(samples, scale, segs, main_name, check):
         return False
     model = WhisperModel(other, device="cuda", compute_type="float16", local_files_only=True)
     words = []
-    it, _ = model.transcribe(samples, word_timestamps=True, **OPTIONS)
+    # Em lote: 3,4 s x 10,8 s (aula de 6 min) e marcação equivalente — pega 40% x 42% dos erros reais marcando 19% x
+    # 21% das palavras (bench/RESULTADOS.md). Só muda a conferência; o texto vem do modelo principal, sequencial.
+    # Lote 8 usa +1,2 GB de VRAM; com pouca memória, lote 1 (+0,65 GB, como o sequencial; 5,5 s).
+    batch = 8 if free is None or free >= 1.6 else 1
+    it, _ = BatchedInferencePipeline(model=model).transcribe(samples, batch_size=batch, word_timestamps=True, **OPTIONS)
     for s in it:
         check()
         words += [((w.start + w.end) / 2 / scale, w.word) for w in s.words or []]
@@ -362,14 +372,18 @@ def speech_rate(path, name, check, seconds=120):
     """Palavras por segundo de fala nos primeiros minutos (estimativa para o modo Automático)."""
     x = audio.load(path)[:audio.SR * seconds]
     device = "cuda" if has_gpu() and name != PARAKEET else "cpu"
-    words = speech = 0.0
     try:
-        for s, _ in _segments(_model(name, device), x, check):
-            words += len(s.text.split())
-            speech += max(s.end - s.start, 0.0)
+        segs = [{"start": s.start, "end": s.end, "text": s.text} for s, _ in _segments(_model(name, device), x, check)]
     except RuntimeError:
         return None
-    return words / speech if speech >= 5 else None
+    return rate(segs, seconds)
+
+
+def rate(segments, seconds=120):
+    """Palavras por segundo de fala nos trechos que começam nos primeiros `seconds` segundos."""
+    first = [s for s in segments if s["start"] < seconds]
+    speech = sum(max(s["end"] - s["start"], 0.0) for s in first)
+    return sum(len(s["text"].split()) for s in first) / speech if speech >= 5 else None
 
 
 def transcribe(path, name, progress, check, speed=1.0, second=True, release=None):

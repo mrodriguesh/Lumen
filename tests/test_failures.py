@@ -100,3 +100,36 @@ class CudaFallback(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AutoSpeed(unittest.TestCase):
+    """Automático no large-v3: 1× e 2× dão a mesma transcrição, então a velocidade da fala sai dela (sem a passada extra
+    de 120 s). Se faltar VRAM e o modelo for trocado por um sensível à velocidade, mede antes, como nos outros modos."""
+    setUp, tearDown = Failures.setUp, Failures.tearDown
+
+    def run_auto(self, fitted):
+        store.save_config({**store.DEFAULTS, "root_page_id": "x", "quality": "maximo"})
+        tr = {"segments": [{"start": 0.0, "end": 10.0, "text": " ".join(["palavra"] * 45)}], "language": "pt",
+              "duration": 10.0, "device": "cuda", "second_opinion": False, "prep": 1.0, "compute": "int8_float16"}
+        with mock.patch.object(transcribe, "has_gpu", return_value=True), \
+                mock.patch.object(transcribe, "make_room"), \
+                mock.patch.object(transcribe, "fit_gpu", side_effect=lambda n: (n, None) if n == fitted else (fitted, "Pouca VRAM.")), \
+                mock.patch.object(transcribe, "transcribe", return_value=tr) as t:
+            jobs.start("process", jobs.process, {"kind": "file", "path": self.path, "speed": "auto"})
+            return wait(), t
+
+    def test_large_v3_measures_speech_in_its_own_transcript(self):
+        j, t = self.run_auto("large-v3")
+        transcribe.speech_rate.assert_not_called()
+        self.assertEqual(t.call_args.args[1], "large-v3")
+        self.assertEqual(t.call_args.kwargs["speed"], 1.0)
+        self.assertEqual(j["result"]["speed"]["words_per_s"], 4.5)  # 45 palavras em 10 s de fala
+        self.assertEqual(j["result"]["speed"]["used"], 2.0)         # sugere 2×; no large-v3 o resultado é o mesmo
+
+    def test_swapped_model_measures_before(self):
+        j, t = self.run_auto("large-v3-turbo")
+        transcribe.speech_rate.assert_called_once()
+        self.assertEqual(transcribe.speech_rate.call_args.args[1], "large-v3-turbo")
+        self.assertEqual(t.call_args.args[1], "large-v3-turbo")
+        self.assertEqual(j["result"]["speed"]["used"], 1.0)         # 2,2 palavras/s medidas antes
+        self.assertIn("Pouca VRAM.", j["result"]["speed"]["warning"])

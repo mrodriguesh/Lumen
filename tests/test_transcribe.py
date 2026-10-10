@@ -32,7 +32,8 @@ class SecondOpinion(unittest.TestCase):
         segs = self.segs()
         with mock.patch.object(transcribe, "has_gpu", return_value=True), \
                 mock.patch.object(transcribe, "downloaded", return_value=True), \
-                mock.patch.object(transcribe, "WhisperModel", FakeSmall):
+                mock.patch.object(transcribe, "WhisperModel", FakeSmall), \
+                mock.patch.object(transcribe, "BatchedInferencePipeline", lambda model: model):
             self.assertTrue(transcribe.second_opinion(np.zeros(16000 * 4, dtype=np.float32), 1.0, segs, "large-v3-turbo", lambda: None))
         self.assertNotIn("diverges", segs[0])
         self.assertTrue(segs[1]["diverges"])
@@ -43,9 +44,22 @@ class SecondOpinion(unittest.TestCase):
         segs = [{"start": 0.0, "end": 1.0, "text": "A aula começa."}]  # no arquivo 2x, o trecho 0–2 s vira 0–1 s
         with mock.patch.object(transcribe, "has_gpu", return_value=True), \
                 mock.patch.object(transcribe, "downloaded", return_value=True), \
-                mock.patch.object(transcribe, "WhisperModel", FakeSmall):
+                mock.patch.object(transcribe, "WhisperModel", FakeSmall), \
+                mock.patch.object(transcribe, "BatchedInferencePipeline", lambda model: model):
             transcribe.second_opinion(np.zeros(16000 * 4, dtype=np.float32), 2.0, segs, "large-v3-turbo", lambda: None)
         self.assertNotIn("diverges", segs[0])
+
+    def test_batch_fits_free_vram(self):  # lote 8: +1,2 GB; com pouca VRAM, lote 1 (+0,65 GB)
+        for free, batch in ((9.0, 8), (1.2, 1)):
+            seen = {}
+            fake = lambda model: types.SimpleNamespace(transcribe=lambda x, **kw: (seen.update(kw), (iter([]), None))[1])
+            with mock.patch.object(transcribe, "has_gpu", return_value=True), \
+                    mock.patch.object(transcribe, "downloaded", return_value=True), \
+                    mock.patch.object(transcribe, "gpu_free_gb", return_value=free), \
+                    mock.patch.object(transcribe, "WhisperModel", FakeSmall), \
+                    mock.patch.object(transcribe, "BatchedInferencePipeline", fake):
+                transcribe.second_opinion(np.zeros(10, dtype=np.float32), 1.0, self.segs(), "large-v3", lambda: None)
+            self.assertEqual(seen["batch_size"], batch)
 
     def test_skipped_without_gpu_or_model(self):
         for gpu, have in ((False, True), (True, False)):

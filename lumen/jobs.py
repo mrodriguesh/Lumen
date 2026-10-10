@@ -176,19 +176,29 @@ def process(spec):
             transcribe.make_room(m["name"], llm.release_vram)
             detail = f"Transcrevendo no seu PC (modelo {m['label']})…"
             requested = str(spec.get("speed") or "auto")
-            speed, estimate = (float(requested), None) if requested in ("1", "2", "4") else (None, None)
-            if speed is None:
-                _set(stage="transcribe", detail="Medindo a velocidade da fala…", progress=None)
-                estimate = transcribe.speech_rate(src["path"], m["name"], check)
-            speed, unsure, auto_note = (transcribe.suggest_speed(estimate) if speed is None
-                                        else (speed, False, None))
-            name, warning = transcribe.for_speed(m["name"], speed)
-            transcribe.make_room(name, llm.release_vram)  # antes de decidir trocar de modelo por falta de VRAM
-            name, vram_warning = transcribe.fit_gpu(name)
-            warning = " ".join(w for w in (auto_note, warning, vram_warning) if w) or None
+            speed = float(requested) if requested in ("1", "2", "4") else None
+            estimate, unsure, auto_note, vram_warning = None, False, None, None
+            name = m["name"]
+            # Automático: mede a fala antes só se a velocidade mudar a transcrição. No large-v3 não muda, e a medida
+            # sai da própria transcrição. Se faltar VRAM e ele for trocado por outro modelo, mede antes como os demais.
+            while True:
+                if speed is None and not transcribe.same_at_2x(name):
+                    _set(stage="transcribe", detail="Medindo a velocidade da fala…", progress=None)
+                    estimate = transcribe.speech_rate(src["path"], name, check)
+                    speed, unsure, auto_note = transcribe.suggest_speed(estimate)
+                name, warning = transcribe.for_speed(name, speed or 1.0)
+                transcribe.make_room(name, llm.release_vram)  # antes de decidir trocar de modelo por falta de VRAM
+                name, w = transcribe.fit_gpu(name)
+                vram_warning = w or vram_warning
+                if speed is not None or transcribe.same_at_2x(name):
+                    break
             _set(stage="transcribe", detail=detail, progress=0)
-            tr = transcribe.transcribe(src["path"], name, _progress("transcribe", detail), check, speed=speed,
+            tr = transcribe.transcribe(src["path"], name, _progress("transcribe", detail), check, speed=speed or 1.0,
                                        release=llm.release_vram)
+            if speed is None:
+                estimate = transcribe.rate(tr["segments"])
+                speed, unsure, auto_note = transcribe.suggest_speed(estimate)
+            warning = " ".join(w for w in (auto_note, warning, vram_warning) if w) or None
             if not tr["segments"]:
                 raise AppError("Não foi detectada fala neste arquivo.", "Confira se o vídeo tem narração audível.")
             tr["model"] = name

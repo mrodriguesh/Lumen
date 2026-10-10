@@ -306,3 +306,23 @@ trecho (o cenário da revisão do Codex). Comparado com a transcrição contínu
 
 Com o texto anterior como `initial_prompt`, numa das falhas o Whisper repetiu 165 palavras. Recomeçar do início
 custa refazer o que já tinha sido feito (na GPU, 15× o tempo real), em troca de um resultado idêntico ao sem falha.
+
+### Segunda rodada: o que ainda custava tempo (10/10/2026)
+
+Pipeline do app, aula longa (6,3 min), large-v3 na GPU, modo Automático: carga 7,4 s + medir a velocidade da fala nos
+primeiros 120 s 11,8 s + transcrição 25,7 s + segundo modelo 10,7 s = **55,6 s**.
+
+| Mudança | Antes | Depois | Efeito na precisão |
+|---|---|---|---|
+| Velocidade da fala medida na própria transcrição (no large-v3, 1× e 2× são transcritos igual) | 11,8 s | 0 s | nenhum: mesmo texto; 2,65 x 2,71 palavras/s, mesma sugestão em 1× e 2× |
+| Segundo modelo (small) em lote 8 em vez de sequencial | 10,8 s | 3,4 s | só muda a marcação para revisão: pega 40% x 42% dos erros reais marcando 19% x 21% das palavras (2×: 61% x 59%) |
+
+Lote 8 usa +1,2 GB de VRAM (sequencial: +0,65 GB); com menos de 1,6 GB livres a conferência usa lote 1 (+0,65 GB, 5,5 s).
+
+Testado e **não adotado**:
+- Flash attention: não suportado pelo CTranslate2 instalado.
+- Duas ou três partes do áudio em paralelo com o mesmo modelo (`num_workers`): 27,7 s e 28,9 s x 28,0 s — a GPU
+  processa uma de cada vez.
+
+Resultado (`jobs.process` real, qwen3:8b do Ollama ocupando 6 GB da placa): **40,8 s** na primeira aula da sessão
+(com a carga do modelo) e **29,7 s** nas seguintes (antes: 55,6 s e ~48 s). WER da aula longa igual: 11,35%.
