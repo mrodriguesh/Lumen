@@ -40,6 +40,7 @@ SIMILAR = 0.25      # parecida com uma tela de “pessoa falando” já lida: n�
 GAP_S = 20          # numa tela que vai ganhando conteúdo, guarda o estado mais recente a cada 20 s
 STILL_S = 1.5       # a tela precisa ficar parada este tempo (descarta transições)
 INTERVAL_S = 1.0
+STOP_S = 5.0        # ao parar, espera a captura guardar a última tela; depois a pasta fecha mesmo assim
 MAX_SHOTS = 300     # telas guardadas por aula (≈ 60–150 KB cada)
 CTX = 4096          # pedido + imagem ≈ 1300 tokens; resposta < 600
 
@@ -252,7 +253,7 @@ class Shots:
     """<pasta>/NNNN.jpg + index.json: tempo, estado (pending | done) e anotação de cada tela."""
 
     def __init__(self, folder):
-        self.dir, self.lock = Path(folder), threading.Lock()
+        self.dir, self.lock, self.closed = Path(folder), threading.Lock(), False
         try:
             self.items = json.loads((self.dir / "index.json").read_text("utf-8"))["shots"]
         except (OSError, ValueError, KeyError):
@@ -265,7 +266,7 @@ class Shots:
 
     def add(self, t, jpeg, window=None):
         with self.lock:
-            if len(self.items) >= MAX_SHOTS:
+            if self.closed or len(self.items) >= MAX_SHOTS:
                 return None
             self.dir.mkdir(parents=True, exist_ok=True)
             i = len(self.items)
@@ -276,10 +277,21 @@ class Shots:
 
     def done(self, i, note):
         with self.lock:
+            if self.closed:
+                return
             self.items[i].update(state="done", note=note)
             if not note["keep"]:  # sem conteúdo da aula: a imagem não serve e pode ser algo pessoal
                 (self.dir / f"{i:04d}.jpg").unlink(missing_ok=True)
             self._save()
+
+    def close(self):
+        """Grava o índice final e marca a pasta como completa. Depois disso nada mais é gravado nela: uma captura
+        ou leitura que termine atrasada não recria a pasta descartada nem muda a que já foi para a aula."""
+        with self.lock:
+            self.closed = True
+            self.dir.mkdir(parents=True, exist_ok=True)
+            self._save()
+            (self.dir / "complete").touch()
 
     def image(self, i):
         return (self.dir / f"{int(i):04d}.jpg").read_bytes()
@@ -302,11 +314,12 @@ class Shots:
 
 
 def _lines(note):
-    """Linhas do texto da tela, na ordem e com todos os símbolos (“x > 0” e “x < 0” são telas diferentes); só
-    caixa, espaços, marcadores de tópico e formas Unicode equivalentes são igualados. Sem texto: título + figura."""
+    """Linhas do texto da tela, na ordem e com todos os símbolos (“x > 0” e “x < 0”, “x²” e “x2” são telas
+    diferentes); só caixa, espaços, marcadores de tópico e acentos compostos de jeitos diferentes são igualados
+    (NFC; o NFKC trocaria “²” por “2”). Sem texto: título + figura."""
     out = []
     for ln in (note["texto"] or note["titulo"] + "\n" + note["descricao"]).splitlines():
-        ln = " ".join(re.sub(r"^\s*[•◦▪‣\-–—*]\s+", "", unicodedata.normalize("NFKC", ln)).casefold().split())
+        ln = " ".join(re.sub(r"^\s*[•◦▪‣\-–—*]\s+", "", unicodedata.normalize("NFC", ln)).casefold().split())
         if ln:
             out.append(ln)
     return out
@@ -501,10 +514,6 @@ class Screen:
             self.k.CloseHandle(h)
         return f"{self._title(hwnd)[:150]} — {exe}".strip(" —")
 
-    def _cloaked(self, hwnd):  # janelas “visíveis” que o Windows esconde (apps da loja suspensos, outras áreas)
-        v = self.w.DWORD()
-        return bool(self.dwm and self.dwm.DwmGetWindowAttribute(hwnd, 14, self.c.byref(v), 4) == 0 and v.value)
-
     def _bitmap(self, width, height, draw):
         """draw(dc de memória, dc da tela) desenha num bitmap width×height; devolve BGRA (h×w×4) ou None."""
         c, g, u = self.c, self.g, self.u
@@ -538,21 +547,6 @@ class Screen:
             return None
         img = buf[max(box[1] - wr.top, 0):box[3] - wr.top, max(box[0] - wr.left, 0):box[2] - wr.left]
         return img if img.size and img[::8, ::8, :3].max() > 16 else None
-
-    def covering(self, hwnd):
-        """Retângulos das janelas visíveis acima de `hwnd` na pilha (avisos, outros programas, a barra do Lumen).
-        Camadas transparentes de sobreposição (as que deixam o clique passar, como a da NVIDIA) não contam."""
-        out, h = [], self.u.GetWindow(hwnd, 3)  # GW_HWNDPREV: a de cima
-        for _ in range(1000):
-            if not h:
-                break
-            if (self.u.IsWindowVisible(h) and not self.u.IsIconic(h) and not self._cloaked(h)
-                    and not self.u.GetWindowLongW(h, -20) & 0x20):  # GWL_EXSTYLE, WS_EX_TRANSPARENT
-                r = self.rect(h)
-                if r and r[2] > r[0] and r[3] > r[1]:
-                    out.append(r)
-            h = self.u.GetWindow(h, 3)
-        return out
 
     def grab(self):
         """(BGRA h×w×4 do monitor, barra do Lumen nele ou None, canto (x, y) do monitor na tela).
@@ -644,9 +638,10 @@ class Watch:
         """(JPEG da janela onde a tela mudou, rótulo dela) ou None para não guardar.
 
         A primeira tela, sem mudança para comparar, usa a janela que ocupa mais o monitor. Nunca guarda a tela
-        inteira nem pixels de outras janelas: a imagem vem da própria janela (window_image); se o programa não
-        deixar, é recortada da tela com o que estiver por cima coberto de cinza. Sem janela clara, programa do
-        estudante ou janela pequena (aviso, menu): não guarda."""
+        inteira nem pixels de outras janelas: a imagem vem só da própria janela (window_image). Se o programa não
+        se deixar desenhar assim, a tela não é guardada: recortar a cópia da tela levaria junto o que estivesse por
+        cima, e saber o que estava por cima no instante da cópia não é confiável. Sem janela clara, programa do
+        estudante ou janela pequena (aviso, menu): também não guarda."""
         h, w = bgra.shape[:2]
         keys = self.picker.scenes.keys  # a candidata já é a última; compara com a tela distinta anterior
         ref = keys[-2] if len(keys) >= 2 else None
@@ -664,14 +659,7 @@ class Watch:
         if student_app(label) or not box or box[2] - box[0] < 320 or box[3] - box[1] < 180:
             return None
         img = self.screen.window_image(hwnd)
-        if img is None:
-            x1, y1 = max(box[0] - origin[0], 0), max(box[1] - origin[1], 0)
-            x2, y2 = min(box[2] - origin[0], w), min(box[3] - origin[1], h)
-            img = bgra[y1:y2, x1:x2].copy()
-            for left, top, right, bottom in self.screen.covering(hwnd):  # coordenadas da tela → da janela recortada
-                img[max(top - origin[1] - y1, 0):max(bottom - origin[1] - y1, 0),
-                    max(left - origin[0] - x1, 0):max(right - origin[0] - x1, 0), :3] = 128
-        if not img.size:
+        if img is None or not img.size:
             return None
         return _encode(av.VideoFrame.from_ndarray(_trim(np.ascontiguousarray(img)), format="bgra")), label
 
@@ -705,15 +693,14 @@ class Watch:
                 self.picker.skip.append(self.smalls[i])
 
     def stop(self):
-        """Termina a captura (a tela mais recente, se ainda não guardada, entra) e marca as telas como completas."""
+        """Termina a captura (a tela mais recente, se ainda não guardada, entra) e fecha a pasta: o que estiver nela
+        é o que vale. Uma captura presa (PrintWindow num programa travado) ou uma leitura em andamento que terminem
+        depois não gravam mais nada."""
         self.stop_ev.set()
-        self.threads[0].join(timeout=5)  # captura: guarda a última tela
-        for t in self.threads[1:]:  # leitura em andamento: não grava nada depois de parar, não precisa esperar
+        self.threads[0].join(timeout=STOP_S)
+        for t in self.threads[1:]:
             t.join(timeout=0.5)
-        with self.shots.lock:
-            self.shots.dir.mkdir(parents=True, exist_ok=True)
-            self.shots._save()
-        (self.shots.dir / "complete").touch()
+        self.shots.close()
 
 
 def adopt(screens, work):

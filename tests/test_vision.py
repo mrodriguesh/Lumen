@@ -159,8 +159,12 @@ class Notes(unittest.TestCase):
                  note("Ordem", "primeiro A\ndepois B", t=30, i=2),
                  note("Ordem", "depois B\nprimeiro A", t=40, i=3),
                  note("Código", "x = a - b", t=50, i=4),
-                 note("Código", "x = a + b", t=60, i=5)]
-        self.assertEqual([s["id"] for s in vision.select(items)], [0, 1, 2, 3, 4, 5])
+                 note("Código", "x = a + b", t=60, i=5),
+                 note("Fórmula", "y = x² + 1", t=70, i=6),  # 2ª revisão: o NFKC trocava “²” por “2”
+                 note("Fórmula", "y = x2 + 1", t=80, i=7),
+                 note("Acento", "func\u0327a\u0303o", t=90, i=8),  # “ç” e “ã” escritos em duas partes
+                 note("Acento", "função", t=100, i=9)]
+        self.assertEqual([s["id"] for s in vision.select(items)], [0, 1, 2, 3, 4, 5, 6, 7, 8])
 
     def test_trim_removes_black_bars_only(self):
         img = np.zeros((540, 960, 3), np.uint8)
@@ -281,8 +285,6 @@ class FakeScreen:
         l, t, r, b = self.rect(hwnd)
         return bgra(self.frames[min(self.n, len(self.frames)) - 1])[t:b, l:r]
 
-    def covering(self, hwnd):
-        return []
 
 
 RED = np.array([0, 0, 255, 255], np.uint8)  # BGRA
@@ -332,7 +334,9 @@ class Private(unittest.TestCase):
             p = self.pixels(j)
             self.assertFalse(((p[..., 0] > 200) & (p[..., 1] < 80)).any(), "a conversa por cima foi parar na imagem")
 
-    def test_without_window_content_the_overlap_is_covered(self):
+    def test_window_that_cannot_be_drawn_alone_is_not_saved(self):
+        # 2ª revisão do Codex: cobrir na cópia da tela o que estava por cima usava as janelas de depois da cópia;
+        # uma conversa que fechasse ou mudasse de lugar nesse meio ficava na imagem
         class Popup(FakeScreen):
             def grab(self):
                 g, bar, origin = super().grab()
@@ -340,15 +344,7 @@ class Private(unittest.TestCase):
 
             def window_image(self, hwnd):  # programa que não se deixa desenhar
                 return None
-
-            def covering(self, hwnd):
-                return [(200, 200, 420, 320)]
-        jpegs = self.run_watch(Popup([slide("A")] * 5 + [slide("B")] * 10))
-        self.assertTrue(jpegs)
-        for j in jpegs:
-            p = self.pixels(j)
-            self.assertFalse(((p[..., 0] > 200) & (p[..., 1] < 80)).any())
-            self.assertTrue((abs(p[230:290, 230:390].astype(int) - 128) < 12).all())  # coberta de cinza
+        self.assertEqual(self.run_watch(Popup([slide("A")] * 5 + [slide("B")] * 10)), [])
 
     def test_no_clear_window_or_small_window_is_not_saved(self):
         class Nowhere(FakeScreen):
@@ -363,6 +359,39 @@ class Private(unittest.TestCase):
 
 
 class Watching(unittest.TestCase):
+    def test_capture_stuck_after_stop_writes_nothing(self):
+        # 2ª revisão do Codex: PrintWindow preso além da espera de stop() voltava depois e gravava na pasta já
+        # descartada (ou já movida para a aula)
+        entered, release = threading.Event(), threading.Event()
+
+        class Stuck(FakeScreen):
+            calls = 0
+
+            def window_image(self, hwnd):
+                self.calls += 1
+                if self.calls > 1:  # a 2ª tela: o programa trava enquanto é desenhado
+                    entered.set()
+                    release.wait(5)
+                return super().window_image(hwnd)
+        screen = Stuck([slide("A")] * 5 + [slide("B")] * 10)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(vision, "INTERVAL_S", 0.01), \
+                mock.patch.object(vision, "STOP_S", 0.1), \
+                mock.patch.object(vision, "read", side_effect=lambda *a, **k: note()["note"]):
+            folder = os.path.join(tmp, "g.screens")
+            w = vision.Watch(folder, lambda: float(screen.n), vision.MODEL, grabber=screen)
+            self.assertTrue(entered.wait(5))
+            w.stop()
+            self.assertTrue(w.threads[0].is_alive())  # ainda presa
+            self.assertTrue(os.path.exists(os.path.join(folder, "complete")))
+            self.assertEqual(len(w.shots.items), 1)
+            import shutil
+            shutil.rmtree(folder)  # a gravação foi descartada
+            release.set()
+            w.threads[0].join(5)
+            self.assertFalse(w.threads[0].is_alive())
+            self.assertFalse(os.path.exists(folder))  # não recriou a pasta
+            self.assertEqual(len(w.shots.items), 1)
+
     def test_live_capture_reads_between_slides(self):
         frames = [slide("A")] * 5 + [slide("B")] * 5 + [slide("C")] * 5
         screen = FakeScreen(frames)
