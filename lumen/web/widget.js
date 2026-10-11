@@ -108,6 +108,9 @@ function renderPreferences() {
   $("#position-caption").textContent = $("[data-position][aria-pressed=true]")?.getAttribute("aria-label") || "";
   $("#prefs-autostart").setAttribute("aria-checked", String(!!preferences?.autostart));
   $("#prefs-keep").setAttribute("aria-checked", String(!!preferences?.keep_temp));
+  $("#prefs-watch").setAttribute("aria-checked", String(!!preferences?.watch_screen));
+  document.querySelector(".prefs-watch").dataset.on = String(!!preferences?.watch_screen);
+  $("#watch-sub").textContent = preferences?.watch_screen ? (state?.recording.active ? "Vale na próxima gravação" : "Ativado · lido no seu PC") : "Lê slides e código e põe na página";
   $("#prefs-token-status").textContent = hasToken ? "Conectado · token no cofre do Windows" : "Conecte sua integração do Notion";
   $("#prefs-model").value = preferences?.ollama_model || "";
   $("#prefs-language").value = preferences?.page_language || "pt";
@@ -210,6 +213,7 @@ $("#prefs-autostart").addEventListener("click", () => savePreferences({ autostar
 $("#prefs-reset").addEventListener("click", () => { host?.postMessage("widget:reset"); settingsFeedback("Posição restaurada"); });
 $("#prefs-off").addEventListener("click", () => savePreferences({widget:"off"}));
 $("#prefs-exit").addEventListener("click", () => host?.postMessage("window:exit"));
+$("#prefs-watch").addEventListener("click", () => savePreferences({ watch_screen: !preferences.watch_screen }));
 $("#prefs-keep").addEventListener("click", () => savePreferences({keep_temp:!preferences.keep_temp}));
 $("#prefs-language").addEventListener("change", (e) => savePreferences({page_language:e.target.value}));
 $("#prefs-quality").addEventListener("change", (e) => savePreferences({quality:e.target.value}));
