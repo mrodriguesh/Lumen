@@ -342,6 +342,10 @@ certo” = a decisão final do app (modelo + filtro de texto mínimo + lista de 
 
 - 960 px deu o mesmo texto lido (100%), sem ganho de tempo; ficou 1280 px.
 - `presence_penalty` 0 em vez do padrão do modelo: mesmo resultado (só mudaram quebras de linha).
+- Com o campo `valores` (pares rótulo → valor de gráficos, para os gráficos da página): texto lido 100%, 18/18
+  guardadas certo, 2,3 s/tela nesta rodada. A/B na mesma sessão contra o pedido sem o campo (2,1 s/tela): mesma
+  velocidade por token; ≈ 0,1 s a mais por tela comum e ≈ 1,4 s nas de gráfico. O 1,5 s da tabela foi medido em
+  outra sessão do Ollama.
 - Captura real (aula de teste tocando no Edge, em 2×, com outros programas abertos): 5 telas guardadas, todas da
   janela do vídeo; código, tabela, gráfico e resumo lidos; professor falando descartado; 1,7% de um núcleo de CPU.
 - Ponta a ponta (arquivo de 91 s, large-v3 + qwen3.5:4b + qwen3:8b): processar 28,5 s (18 s de transcrição,

@@ -9,7 +9,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from . import AppError, Cancelled, llm, mindmap, notion, sources, store, transcribe, vision
+from . import AppError, Cancelled, charts, llm, mindmap, notion, sources, store, transcribe, vision
 
 log = logging.getLogger("lumen")
 _lock = threading.Lock()
@@ -300,13 +300,19 @@ def finish(spec):
     redo = spec.get("mode") == "redo"  # “Refazer página”: material novo, versão anterior removida
     saved = _load(work / "lesson.json")
     if saved and not redo and saved.get("model") == model and saved.get("language") == lang and saved.get("transcript") == digest:
-        lesson = saved["lesson"]
+        lesson, found = saved["lesson"], saved.get("charts")
     else:
         _set(stage="generate", detail="Escrevendo o material de estudo…", progress=None, eta=None)
         lesson = llm.generate(tr["segments"], tr.get("duration"), model, lang, check,
                               lambda d, p: _set(stage="generate", detail=d, progress=p),
                               redo=redo, note=spec.get("redo_note") or "", screens=lines)
-        _save(work / "lesson.json", {"model": model, "language": lang, "transcript": digest, "lesson": lesson})
+        saved, found = {"model": model, "language": lang, "transcript": digest, "lesson": lesson}, None
+        _save(work / "lesson.json", saved)
+    check()
+    if found is None:
+        found = _find_charts(tr, screens, lesson, model)
+        if found is not None:  # falha da IA não fica guardada: “Tentar novamente” procura de novo
+            _save(work / "lesson.json", {**saved, "charts": found})
     check()
 
     _set(stage="publish", detail="Desenhando o mapa mental…", progress=None)
@@ -326,6 +332,16 @@ def finish(spec):
             meta["mind_map_upload"] = notion.upload_image(token, mind_png, "mapa-mental.png")
         except AppError:
             pass  # o mapa vai em tópicos (notion._mind_map)
+    if found:
+        from concurrent.futures import ThreadPoolExecutor
+        _set(stage="publish", detail="Desenhando os gráficos da aula…", progress=None)
+
+        def draw(i, c):  # cada gráfico num Edge próprio, desenhado e enviado ao mesmo tempo que os outros
+            gif = charts.render(c)
+            return {**c, "upload": _send(token, gif, f"grafico-{i}.gif", "image/gif") if gif else None}
+        with ThreadPoolExecutor(3) as ex:
+            meta["charts"] = list(ex.map(draw, range(1, len(found) + 1), found))
+        check()
     if screens:
         step = -(-len(screens) // MAX_SCREENS)  # aula com muitas telas: no máximo 40, espalhadas pela aula
         screens = screens[::step]
@@ -367,21 +383,42 @@ def finish(spec):
 MAX_SCREENS = 40
 
 
-def _upload_screens(token, shots, screens):
-    """Envia as telas, 3 por vez. Uma falha (o Notion limita pedidos por segundo) tenta de novo; se insistir, a tela
-    entra só com o texto."""
+def _find_charts(tr, screens, lesson, model):
+    """Gráficos com os dados da aula (charts.extract), [] se a aula não tiver dados, None se a IA falhar. Nunca
+    impede a página: sem gráficos, ela sai como antes."""
+    _set(stage="generate", detail="Procurando dados da aula para gráficos…", progress=None)
+    try:
+        return charts.extract(tr["segments"], screens, lesson, model, check,
+                              lambda d: _set(stage="generate", detail=d, progress=None), tr.get("language"))
+    except Cancelled:
+        raise
+    except Exception:  # noqa: BLE001 — opcional: qualquer falha aqui só deixa a página sem gráficos
+        log.exception("gráficos: falha ao procurar dados")
+        return None
+
+
+def _send(token, data, name, content_type):
+    """Envia um arquivo ao Notion. Uma falha (o Notion limita pedidos por segundo) tenta de novo; se insistir, None
+    (a página sai sem a imagem)."""
     import time
+    for attempt in range(3):
+        try:
+            return notion.upload_image(token, data, name, content_type)
+        except AppError:
+            if attempt < 2:
+                time.sleep(2 * (attempt + 1))
+    return None
+
+
+def _upload_screens(token, shots, screens):
+    """Envia as telas, 3 por vez; a que não subir entra só com o texto."""
     from concurrent.futures import ThreadPoolExecutor
 
     def up(s):
-        for attempt in range(3):
-            try:
-                return notion.upload_image(token, shots.image(s["id"]), f"tela-{s['id'] + 1}.jpg", "image/jpeg")
-            except AppError:
-                time.sleep(2 * (attempt + 1))
-            except OSError:
-                return None
-        return None
+        try:
+            return _send(token, shots.image(s["id"]), f"tela-{s['id'] + 1}.jpg", "image/jpeg")
+        except OSError:
+            return None
     with ThreadPoolExecutor(3) as ex:
         ups = list(ex.map(up, screens))
     return [{**s["note"], "t": s["t"], "upload": u} for s, u in zip(screens, ups)]

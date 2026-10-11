@@ -210,6 +210,42 @@ lumen/
   pasta das telas: uma captura presa (programa travado ao ser desenhado) ou uma leitura em andamento que terminem
   depois não gravam mais nada nem recriam a pasta descartada.
 - **Tempo (aula de teste de 91 s, 6 telas, RTX 3060):** transcrição 18 s + leitura da tela 10 s; escrita e envio 42 s.
+- **Pares de gráficos (`valores`, no fim do esquema):** o texto solto de um gráfico de barras (“5.200 ms / Bubble
+  sort / 180 ms / Merge sort”) não diz de quem é cada valor, e a IA de texto o leu como Bubble = 180. Pedir no texto
+  “rótulo: valor na mesma linha” não foi seguido; um campo próprio foi (os 3 pares certos). No começo do esquema ele
+  esvaziava o texto do slide; no fim, não. A/B na mesma sessão: mesma velocidade por token, ≈ 8 tokens (0,1 s) a
+  mais por tela comum e ≈ 1,4 s nas telas de gráfico; texto lido 100% e 18/18 guardadas certo.
+
+## Gráficos da aula (10/10/2026; `lumen/charts.py`)
+
+- **Precisão antes de quantidade.** A IA (o mesmo modelo de texto, `qwen3:8b`, temperatura 0) recebe só os trechos
+  com números, datas ou fórmulas e propõe até 3 gráficos em JSON. Tudo é conferido no código:
+  - cada valor precisa aparecer **junto do seu rótulo**: no mesmo trecho da fala (com o seguinte) ou na mesma linha
+    da tela. Linhas vizinhas não valem: com elas, o par trocado da IA (Bubble = 180) passava. De quem é o valor
+    segue o jeito da frase: começando por valor (“78% de nitrogênio, 21% de oxigênio”), é do rótulo seguinte;
+    começando por rótulo (“o bubble sort levou 5.200 e o merge sort, 180”; “Quicksort | 150”), do anterior. Os
+    rótulos são comparados pelas palavras que só eles têm (“merge”, não “sort”);
+  - números lidos como a aula escreve (“5.200” = 5200 em português, 5,2 em inglês; “1 milhão”; “cinco”); arredondar
+    (10,7 → 11), inventar um ponto, uma série ou porcentagens que não fecham 100% derruba o gráfico inteiro;
+  - a frase da IA sob o título saiu errada no teste (“o merge sort é o mais rápido”); ela só entra se 75% das
+    palavras estiverem num mesmo trecho da aula. Senão, o subtítulo é tirado dos dados;
+  - fórmulas: parser com lista fechada (números, x/n/t, + − × ÷ ^, !, log, sqrt, sen…; nada de nomes, atributos ou
+    chamadas), calculadas com numpy; a expressão precisa estar na aula (“x² - 4x + 3” acha “f(x) = x² − 4x + 3”).
+- **Complexidades sem IA:** a IA desenhava uma curva por algoritmo e não comparava; as notações O(…) citadas viram
+  um gráfico só, com as curvas calculadas e em ordem de crescimento (log n, n, n log n, n²), n de 1 a 32. Uma curva
+  que dispara (2ⁿ perto de n²) sai pelo alto em vez de achatar as outras.
+- **Teste com a IA real** (aulas curtas de 7 matérias): história → linha do tempo; ciências → rosca 78/21/1;
+  matemática → parábola; economia → inflação ano a ano; algoritmos → barras 5.200/180/150 ms e as 4 complexidades;
+  filosofia e um número solto → nenhum gráfico (sem chamar a IA no primeiro). ≈ 3–10 s por aula.
+- **Desenho:** HTML/SVG no Edge headless (o mesmo do mapa mental); os 30 quadros da animação (1,2 s, depois 8 s
+  parado) saem num só print de 6000×4050 em grade, recortados e juntados em GIF pelo FFmpeg do PyAV (palettegen +
+  paletteuse, só a parte que muda em cada quadro): 40–160 KB, ≈ 2 s por gráfico, vários em paralelo. GIF porque o
+  Notion anima sem clique; vídeo pediria play. Sem Edge ou se o envio falhar, entram o título e a tabela.
+- **Notion real:** os GIFs foram aceitos pela File Upload API e voltaram iguais (GIF89a, 30 quadros); página de
+  teste apagada em seguida.
+- **Nunca impede a página:** falha da IA nos gráficos só deixa a página sem eles (fica no log), e não é guardada
+  (“Tentar novamente” procura de novo). Os gráficos conferidos ficam em `lesson.json`: atualizar a página não pergunta
+  de novo.
 
 ## YouTube: limitação real
 

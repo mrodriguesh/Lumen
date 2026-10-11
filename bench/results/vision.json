@@ -597,21 +597,21 @@
    "width": 1280,
    "recall": 1.0,
    "recall_min": 1.0,
-   "relevance": 17,
+   "relevance": 18,
    "keep": 18,
    "frames": 18,
    "noise": 0,
-   "s_mean": 1.5,
-   "s_max": 2.88,
-   "vram_gb_total": 5.47,
+   "s_mean": 2.31,
+   "s_max": 3.9,
+   "vram_gb_total": 4.59,
    "options": {}
   },
   "rows": [
    {
     "id": "fotossintese",
-    "s": 2.88,
-    "prompt_tokens": 1357,
-    "out_tokens": 167,
+    "s": 2.74,
+    "prompt_tokens": 1432,
+    "out_tokens": 145,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
@@ -619,33 +619,35 @@
     "answer": {
      "titulo": "Fotossíntese: fase clara e fase escura",
      "texto": "Fotossíntese: fase clara e fase escura\nOcorre nos cloroplastos das células vegetais\nFase clara: tilacoides, produz ATP e NADPH\nFase escura (Ciclo de Calvin): estroma, fixa CO2\n6 CO2 + 6 H2O → C6H12O6 + 6 O2",
-     "descricao": "Apresentação sobre a fotossíntese, dividindo-a em fase clara e fase escura, com localização celular e produtos químicos envolvidos.",
+     "descricao": "",
      "tipo": "slide",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": []
     }
    },
    {
     "id": "tabela",
-    "s": 2.1,
-    "prompt_tokens": 1357,
-    "out_tokens": 157,
+    "s": 3.17,
+    "prompt_tokens": 1432,
+    "out_tokens": 183,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
     "noise": [],
     "answer": {
      "titulo": "Complexidade dos algoritmos de ordenação",
-     "texto": "Complexidade dos algoritmos de ordenação\nAlgoritmo | Melhor caso | Pior caso | Estável\nQuicksort | O(n log n) | O(n²) | Não\nMerge sort | O(n log n) | O(n log n) | Sim\nInsertion sort | O(n) | O(n²) | Sim",
+     "texto": "Complexidade dos algoritmos de ordenação\n| Algoritmo | Melhor caso | Pior caso | Estável |\n|---|---|---|---|\n| Quicksort | O(n log n) | O(n²) | Não |\n| Merge sort | O(n log n) | O(n log n) | Sim |\n| Insertion sort | O(n) | O(n²) | Sim |",
      "descricao": "Tabela comparando a complexidade de três algoritmos de ordenação: Quicksort, Merge sort e Insertion sort, indicando melhor caso, pior caso e estabilidade.",
      "tipo": "tabela",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": []
     }
    },
    {
     "id": "codigo",
-    "s": 2.15,
-    "prompt_tokens": 1357,
-    "out_tokens": 159,
+    "s": 3.13,
+    "prompt_tokens": 1432,
+    "out_tokens": 181,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
@@ -653,33 +655,35 @@
     "answer": {
      "titulo": "Busca binária em Python",
      "texto": "def busca_binaria(lista, alvo):\n    inicio, fim = 0, len(lista) - 1\n    while inicio <= fim:\n        meio = (inicio + fim) // 2\n        if lista[meio] == alvo:\n            return meio\n        if lista[meio] < alvo:\n            inicio = meio + 1\n        else:\n            fim = meio - 1\n    return -1",
-     "descricao": "Mostra o código Python para implementar a busca binária em uma lista ordenada.",
+     "descricao": "O código Python implementa o algoritmo de busca binária, que busca um valor em uma lista ordenada dividindo repetidamente o intervalo de busca.",
      "tipo": "codigo",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": []
     }
    },
    {
     "id": "diagrama",
-    "s": 1.43,
-    "prompt_tokens": 1357,
-    "out_tokens": 101,
+    "s": 2.22,
+    "prompt_tokens": 1432,
+    "out_tokens": 106,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
     "noise": [],
     "answer": {
      "titulo": "Ciclo da água",
-     "texto": "Ciclo da água\nEvaporação → Condensação\n↓\nPrecipitação ← Infiltração",
+     "texto": "Ciclo da água\nEvaporação → Condensação ↓ Precipitação ← Infiltração",
      "descricao": "Diagrama do ciclo da água mostrando as etapas de evaporação, condensação, precipitação e infiltração com setas indicando o fluxo.",
      "tipo": "diagrama",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": []
     }
    },
    {
     "id": "formula",
-    "s": 1.79,
-    "prompt_tokens": 1357,
-    "out_tokens": 131,
+    "s": 2.76,
+    "prompt_tokens": 1432,
+    "out_tokens": 139,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
@@ -689,14 +693,15 @@
      "texto": "Teorema de Pitágoras\nVale apenas para triângulos retângulos\nExemplo: catetos 3 e 4 → hipotenusa 5\na² + b² = c²\nMatemática · Geometria\nProf. Lumen",
      "descricao": "Apresentação do Teorema de Pitágoras com a fórmula matemática e um exemplo numérico.",
      "tipo": "slide",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": []
     }
    },
    {
     "id": "denso",
-    "s": 1.68,
-    "prompt_tokens": 1357,
-    "out_tokens": 121,
+    "s": 2.58,
+    "prompt_tokens": 1432,
+    "out_tokens": 129,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
@@ -706,14 +711,15 @@
      "texto": "Latência: tempo que um pacote leva para ir e voltar\nLargura de banda: quantidade máxima de dados transmitidos por segundo\nDNS: traduz nomes de domínio em endereços IP\nTCP: entrega confiável e ordenada dos pacotes\nUDP: envio rápido, sem garantia de entrega\nRoteador: encaminha pacotes entre redes diferentes",
      "descricao": "",
      "tipo": "slide",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": []
     }
    },
    {
     "id": "rosto",
-    "s": 0.96,
-    "prompt_tokens": 1357,
-    "out_tokens": 60,
+    "s": 1.85,
+    "prompt_tokens": 1432,
+    "out_tokens": 68,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": null,
@@ -723,14 +729,15 @@
      "texto": "",
      "descricao": "Tela de introdução com avatar genérico e nome do professor.",
      "tipo": "tabela",
-     "conteudo_da_aula": false
+     "conteudo_da_aula": false,
+     "valores": []
     }
    },
    {
     "id": "youtube_aula",
-    "s": 1.86,
-    "prompt_tokens": 1357,
-    "out_tokens": 139,
+    "s": 2.71,
+    "prompt_tokens": 1432,
+    "out_tokens": 141,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
@@ -738,33 +745,35 @@
     "answer": {
      "titulo": "Revolução Francesa (1789)",
      "texto": "Revolução Francesa (1789)\n\n• Queda da Bastilha: 14 de julho de 1789\n\n• Lema: Liberdade, Igualdade, Fraternidade\n\n• Fim do Antigo Regime e dos privilégios do clero",
-     "descricao": "Slide de aula sobre a Revolução Francesa de 1789 com tópicos principais.",
+     "descricao": "Slide de aula sobre a Revolução Francesa apresentando datas e conceitos fundamentais.",
      "tipo": "slide",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": []
     }
    },
    {
     "id": "camera",
-    "s": 1.79,
-    "prompt_tokens": 1357,
-    "out_tokens": 129,
+    "s": 2.77,
+    "prompt_tokens": 1432,
+    "out_tokens": 142,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
     "noise": [],
     "answer": {
      "titulo": "Lei de Ohm",
-     "texto": "Lei de Ohm\nV = R · I\nV: tensão (volts)\nR: resistência (ohms, Ω)\nI: corrente (ampères)\nExemplo: R = 10 Ω e I = 2 A → V = 20 V",
-     "descricao": "Apresenta a fórmula da Lei de Ohm e suas definições com unidades, além de um exemplo prático.",
+     "texto": "Lei de Ohm\n• V = R · I\n• V: tensão (volts)\n• R: resistência (ohms, Ω)\n• I: corrente (ampères)\n• Exemplo: R = 10 Ω e I = 2 A → V = 20 V",
+     "descricao": "Apresenta a fórmula da Lei de Ohm e suas definições com unidades, além de um exemplo numérico.",
      "tipo": "slide",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": []
     }
    },
    {
     "id": "quadro",
-    "s": 1.5,
-    "prompt_tokens": 1357,
-    "out_tokens": 107,
+    "s": 2.46,
+    "prompt_tokens": 1432,
+    "out_tokens": 117,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
@@ -772,33 +781,35 @@
     "answer": {
      "titulo": "Derivada",
      "texto": "Derivada\nf(x) = x³ → f'(x) = 3x²\nregra do tombo: desce o expoente",
-     "descricao": "A tela mostra um exemplo de derivada usando a regra do tombo, onde o expoente é 'descido' ao derivar.",
+     "descricao": "A tela mostra um exemplo de derivada usando a regra do tombo, onde o expoente é 'descido' ao formar a derivada.",
      "tipo": "formula",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": []
     }
    },
    {
     "id": "ingles",
-    "s": 1.26,
-    "prompt_tokens": 1357,
-    "out_tokens": 88,
+    "s": 2.06,
+    "prompt_tokens": 1432,
+    "out_tokens": 91,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
     "noise": [],
     "answer": {
      "titulo": "Supply and Demand",
-     "texto": "Supply and Demand\n• When price rises, demand falls\n• When price rises, supply rises\n• Equilibrium: supply = demand\nEconomics 101 · Week 2\nProf. Lumen",
+     "texto": "- When price rises, demand falls\n- When price rises, supply rises\n- Equilibrium: supply = demand\nEconomics 101 · Week 2\nProf. Lumen",
      "descricao": "",
      "tipo": "slide",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": []
     }
    },
    {
     "id": "youtube_anuncio",
-    "s": 1.19,
-    "prompt_tokens": 1357,
-    "out_tokens": 78,
+    "s": 2.04,
+    "prompt_tokens": 1432,
+    "out_tokens": 86,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": null,
@@ -808,14 +819,15 @@
      "texto": "Curso de inglês\ncom 50% de desconto\nPatrocinado · Saiba mais\nPular anúncio",
      "descricao": "",
      "tipo": "anuncio",
-     "conteudo_da_aula": false
+     "conteudo_da_aula": false,
+     "valores": []
     }
    },
    {
     "id": "youtube_denso",
-    "s": 1.66,
-    "prompt_tokens": 1357,
-    "out_tokens": 121,
+    "s": 2.61,
+    "prompt_tokens": 1432,
+    "out_tokens": 129,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
@@ -825,24 +837,43 @@
      "texto": "Latência: tempo que um pacote leva para ir e voltar\nLargura de banda: quantidade máxima de dados transmitidos por segundo\nDNS: traduz nomes de domínio em endereços IP\nTCP: entrega confiável e ordenada dos pacotes\nUDP: envio rápido, sem garantia de entrega\nRoteador: encaminha pacotes entre redes diferentes",
      "descricao": "",
      "tipo": "slide",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": []
     }
    },
    {
     "id": "grafico",
-    "s": 1.57,
-    "prompt_tokens": 1357,
-    "out_tokens": 113,
+    "s": 3.9,
+    "prompt_tokens": 1432,
+    "out_tokens": 236,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
     "noise": [],
     "answer": {
      "titulo": "Vendas por trimestre (2025)",
-     "texto": "Vendas por trimestre (2025)\n120 mil\nT1\n150 mil\nT2\n90 mil\nT3\n200 mil\nT4",
-     "descricao": "Gráfico de barras mostrando as vendas estimadas para cada trimestre de 2025.",
+     "texto": "Vendas por trimestre (2025)\n\n120 mil | T1\n150 mil | T2\n90 mil | T3\n200 mil | T4",
+     "descricao": "Gráfico de barras mostrando as vendas por trimestre em 2025, com valores específicos para cada trimestre.",
      "tipo": "grafico",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": [
+      {
+       "rotulo": "T1",
+       "valor": "120 mil"
+      },
+      {
+       "rotulo": "T2",
+       "valor": "150 mil"
+      },
+      {
+       "rotulo": "T3",
+       "valor": "90 mil"
+      },
+      {
+       "rotulo": "T4",
+       "valor": "200 mil"
+      }
+     ]
     }
    },
    {
@@ -864,9 +895,9 @@
    },
    {
     "id": "editor_na_aula",
-    "s": 1.94,
-    "prompt_tokens": 1365,
-    "out_tokens": 141,
+    "s": 2.89,
+    "prompt_tokens": 1440,
+    "out_tokens": 149,
     "relevant_ok": true,
     "keep_ok": true,
     "recall": 1.0,
@@ -876,7 +907,8 @@
      "texto": "import requests\nfrom pathlib import Path\n\nAPI_KEY = \"sk-minha-chave-secreta\"\n\ndef baixar(url, destino):\n    r = requests.get(url, timeout=10)\n    Path(destino).write_bytes(r.content)\n    return len(r.content)\n\nif __name__ == \"__main__\":\n    print(baixar(\"https://exemplo.com/a.pdf\", \"a.pdf\"))",
      "descricao": "",
      "tipo": "codigo",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": true,
+     "valores": []
     }
    },
    {
@@ -898,19 +930,20 @@
    },
    {
     "id": "rosto_sem_nome",
-    "s": 1.17,
-    "prompt_tokens": 1357,
-    "out_tokens": 70,
-    "relevant_ok": false,
+    "s": 1.63,
+    "prompt_tokens": 1432,
+    "out_tokens": 50,
+    "relevant_ok": true,
     "keep_ok": true,
     "recall": null,
     "noise": [],
     "answer": {
-     "titulo": "Ícone de usuário genérico",
+     "titulo": "",
      "texto": "",
-     "descricao": "Mostra um ícone de perfil de usuário genérico, com fundo azul escuro e contorno branco.",
+     "descricao": "",
      "tipo": "slide",
-     "conteudo_da_aula": true
+     "conteudo_da_aula": false,
+     "valores": []
     }
    }
   ]

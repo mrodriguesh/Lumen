@@ -309,6 +309,47 @@ def _screens(screens, yt):
     return out
 
 
+def _chart_data(c):
+    """Os números do gráfico numa tabela do Notion (para conferir, buscar e copiar)."""
+    from .charts import fmt
+    row = lambda cells: {"object": "block", "type": "table_row", "table_row": {"cells": [_rt(x) for x in cells]}}  # noqa
+    if c["tipo"] == "linha_do_tempo":
+        rows = [["Ano", "Acontecimento"]] + [[e["data"], e["texto"]] for e in c["eventos"]]
+    elif c["tipo"] == "funcao":
+        rows = [["Curva", "Fórmula"]] + [[f["nome"], f["expressao"]] for f in c["funcoes"]]
+    else:
+        unit = f" ({c['unidade']})" if c["unidade"] else ""
+        rows = [[c["eixo_x"]] + [(s["nome"] or "Valor") + unit for s in c["series"]]]
+        rows += [[lab] + [fmt(s["valores"][i]) for s in c["series"]] for i, lab in enumerate(c["rotulos"])]
+    out = [_b("paragraph", _rt(c["mensagem"]))] if c["mensagem"] else []
+    out.append({"object": "block", "type": "table", "table": {
+        "table_width": len(rows[0]), "has_column_header": True, "has_row_header": False,
+        "children": [row(r) for r in rows]}})
+    if c["tipo"] == "funcao":
+        var = "n" if c.get("complexidade") else "x"
+        out.append(_b("paragraph", _rt(f"Curvas calculadas pelo Lumen para {var} de {fmt(c['x_min'])} a "
+                                       f"{fmt(c['x_max'])}.", italic=True, color="gray")))
+    return out
+
+
+def _charts(charts, yt):
+    """“Gráficos da aula”: GIF animado (clique para ampliar) e, recolhidos, os números de cada um."""
+    if not charts:
+        return []
+    out = [_h2("Gráficos da aula"),
+           _b("paragraph", _rt("Feitos só com os números, datas e fórmulas da própria aula; cada valor foi conferido "
+                               "na transcrição ou nas telas.", italic=True, color="gray"))]
+    for c in charts:
+        if c.get("upload"):
+            out += [{"object": "block", "type": "image", "image": {
+                "type": "file_upload", "file_upload": {"id": c["upload"]},
+                "caption": _rt(c["titulo"], color="gray") + _stamp(c.get("t"), yt)}},
+                _b("toggle", _rt("Ver os dados", color="gray"), children=_chart_data(c))]
+        else:  # sem Edge ou o envio falhou: os números, sem o desenho
+            out += [_b("heading_3", _rt(c["titulo"]) + _stamp(c.get("t"), yt)), *_chart_data(c)]
+    return out
+
+
 def build_page(lesson, meta):
     """Monta título e blocos. As respostas ficam dentro de toggles (recolhidos ao abrir a página)."""
     yt = meta.get("yt_id")
@@ -341,6 +382,7 @@ def build_page(lesson, meta):
               _h2("Tópicos principais")]
     blocks += [_b("bulleted_list_item", _rt(t["title"], bold=True) + _rt(" — " + t["explanation"])
                   + _stamp(t["timestamp"], yt)) for t in lesson["topics"]]
+    blocks += _charts(meta.get("charts"), yt)
     blocks += _screens(meta.get("screens"), yt)
     if lesson["glossary"]:
         blocks.append(_h2("Glossário"))
@@ -368,6 +410,9 @@ def build_page(lesson, meta):
              meta["transcript_origin"]]
     if meta.get("uncertain"):
         notes.append(f"{meta['uncertain']} trecho(s) da transcrição tiveram baixa confiança.")
+    if meta.get("charts"):
+        notes.append(f"{len(meta['charts'])} gráfico(s) feitos só com dados da aula: cada valor foi conferido na "
+                     "transcrição ou nas telas, e as curvas das fórmulas foram calculadas pelo Lumen.")
     if meta.get("screens"):
         notes.append(f"{len(meta['screens'])} tela(s) da aula lidas por um modelo de visão local ({meta['vision_model']}); "
                      "confira números e fórmulas nas imagens.")

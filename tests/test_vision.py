@@ -670,9 +670,10 @@ class Flow(unittest.TestCase):
         jobs.start("process", jobs.finish, {**spec, "screens_off": [code_id]})  # o usuário desmarcou o código
         j = wait()
         self.assertEqual(j["status"], "done", j.get("error"))
-        prompt = llm._chat.call_args.args[2]
+        prompts = [c.args[2] for c in llm._chat.call_args_list]
+        prompt = next(p for p in prompts if "Transcrição da aula" in p)  # o do material (o dos gráficos vem depois)
         self.assertIn("(na tela) Lei de Ohm: V = R · I / R: resistência", prompt)
-        self.assertNotIn("def f()", prompt)
+        self.assertFalse(any("def f()" in p for p in prompts))
         blocks = self.fake.pages[self.root]["blocks"]
         heads = [b["heading_2"]["rich_text"][0]["text"]["content"] for b in blocks if b["type"] == "heading_2"]
         self.assertEqual(heads[heads.index("Tópicos principais") + 1], "O que apareceu na tela")

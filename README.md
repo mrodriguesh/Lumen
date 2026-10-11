@@ -143,6 +143,17 @@ fica visível e a resposta dentro de um bloco *toggle*, que abre recolhido), **M
 para o tempo exato) e **Sobre esta página** (origem, modelo usado, trechos de baixa confiança, ressalvas). Com
 **Assistir a tela junto**, entra também **O que apareceu na tela** depois dos tópicos.
 
+**Gráficos da aula:** quando a aula traz números, datas ou fórmulas, a página ganha até 3 gráficos animados (GIF que
+o Notion anima sem clique) logo depois dos tópicos: barras (comparar valores), linha (evolução), rosca (partes de um
+todo), curvas de fórmulas e complexidades (O(n), O(n log n)…) e linha do tempo. Cada um vem com **Ver os dados**
+(a tabela dos números) e o link para o momento da aula de onde eles vêm.
+- **Precisão:** a IA local só propõe. O Lumen confere cada valor na transcrição e nas telas, junto do seu rótulo
+  (“o bubble sort levou 5.200 ms” vale para o bubble sort, não para o merge sort citado na mesma frase); um valor que
+  não se confirma derruba o gráfico inteiro. Fórmulas são calculadas pelo próprio Lumen, e só as escritas ou ditas
+  na aula. A frase sob o título só entra se for da aula; senão, vem dos dados (“Maior: Bubble sort (5.200 ms)”).
+- **Aula sem dados** (filosofia, conceitos): nenhum gráfico, sem gasto de tempo. Com dados: ≈ 10 s a mais de IA e
+  ≈ 2 s para desenhar (no Edge, no seu PC).
+
 **Capas com IA (opcional):** em Ajustes → *Capas com IA*, baixe o Z-Image-Turbo (≈ 6,7 GB, Apache 2.0; prefira um
 SSD). Ao criar uma página com “Enfeitar com IA”, a capa vira uma ilustração do tema gerada no seu PC (≈ 30–45 s
 numa RTX 3060). Sem ele, a capa é desenhada com emojis.

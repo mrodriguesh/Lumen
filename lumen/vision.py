@@ -60,7 +60,9 @@ Responda só com JSON:
   dela escrito), vinheta de abertura ou encerramento, anúncio, menu, área de trabalho ou tela sem relação com a aula.
   Se a mensagem disser a janela, use-a: o vídeo ou a transmissão da aula (navegador, player, reunião) conta; um
   programa do próprio estudante (editor de código, anotações, chat, e-mail, pastas) não conta, mesmo que o texto
-  seja sobre a matéria."""
+  seja sobre a matéria.
+- valores: em gráficos (barras, linhas, pizza) e tabelas com números, cada rótulo com o seu valor, como aparecem
+  na imagem (ex.: {"rotulo": "Bubble sort", "valor": "5.200 ms"}); olhe a barra ou a fatia de cada rótulo. Senão []."""
 
 KINDS = {"slide": "📑", "codigo": "💻", "tabela": "📊", "diagrama": "🧩", "grafico": "📈", "formula": "➗",
          "quadro": "✍️", "demonstracao": "🖱️", "pessoa": "🧑‍🏫", "anuncio": "📣", "outro": "🖥️"}
@@ -70,8 +72,10 @@ KINDS = {"slide": "📑", "codigo": "💻", "tabela": "📊", "diagrama": "🧩"
 SCHEMA = {"type": "object", "properties": {
     "titulo": {"type": "string"}, "texto": {"type": "string"}, "descricao": {"type": "string"},
     "tipo": {"type": "string", "enum": list(KINDS)},
-    "conteudo_da_aula": {"type": "boolean"}},
-    "required": ["titulo", "texto", "descricao", "tipo", "conteudo_da_aula"]}
+    "conteudo_da_aula": {"type": "boolean"},
+    "valores": {"type": "array", "items": {"type": "object", "properties": {
+        "rotulo": {"type": "string"}, "valor": {"type": "string"}}, "required": ["rotulo", "valor"]}}},
+    "required": ["titulo", "texto", "descricao", "tipo", "conteudo_da_aula", "valores"]}
 
 
 # --- imagens ------------------------------------------------------------------------------------------------------
@@ -205,6 +209,14 @@ def clean(d):
     s = lambda k, n: str(d.get(k) or "").strip()[:n] if isinstance(d.get(k), (str, int, float)) else ""
     note = {"titulo": " ".join(s("titulo", 200).split()), "texto": s("texto", 4000), "descricao": s("descricao", 600),
             "tipo": d.get("tipo") if d.get("tipo") in KINDS else "outro", "aula": d.get("conteudo_da_aula") is True}
+    # pares rótulo → valor de um gráfico, lidos na imagem (o texto solto "5.200 ms / Bubble sort / 180 ms" não diz
+    # de quem é cada valor); com o texto vazio (acontece em gráficos), viram o texto da tela
+    pairs = d.get("valores") if isinstance(d.get("valores"), list) else []
+    note["valores"] = [{"rotulo": " ".join(str(p["rotulo"]).split())[:80], "valor": " ".join(str(p["valor"]).split())[:40]}
+                       for p in pairs[:40] if isinstance(p, dict) and str(p.get("rotulo") or "").strip()
+                       and str(p.get("valor") or "").strip()]
+    if not note["texto"] and note["valores"]:
+        note["texto"] = "\n".join(f"{p['rotulo']}: {p['valor']}" for p in note["valores"])
     # rosto com o nome escrito, ícone, tela em branco: o modelo às vezes diz "conteúdo". Sem texto, só vale figura
     words = len(_words(note["texto"]))
     note["keep"] = (note["aula"] and note["tipo"] not in ("pessoa", "anuncio")
