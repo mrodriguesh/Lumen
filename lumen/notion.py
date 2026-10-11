@@ -419,17 +419,7 @@ def build_page(lesson, meta):
             rich += (_rt("\n") if rich else []) + _rt(f"{label}: ", bold=True) + _rt(
                 value, link=value if label == "Link original" else None)
     terms = [g["term"] for g in lesson["glossary"]]
-    many = lambda n, one, more: f"{n} {one if n == 1 else more}"  # noqa: E731
-    count = [many(len(lesson["topics"]), "tópico", "tópicos"),
-             many(len(lesson["review_questions"]), "pergunta", "perguntas")]
-    count += [many(len(terms), "termo", "termos")] if terms else []
-    count += [many(len(meta["charts"]), "gráfico", "gráficos")] if meta.get("charts") else []
-    todo = lambda text: {"object": "block", "type": "to_do", "to_do": {"rich_text": _rt(text), "checked": False}}  # noqa
-    plan = [_callout(_rt("Nesta aula", bold=True) + _rt("\n" + " · ".join(count), color="gray"), "📌", "blue_background"),
-            todo("Rever as capturas de tela" if meta.get("captures") else "Assistir à aula"),
-            todo("Ler o resumo e o mapa mental"),
-            todo("Responder às perguntas de revisão"), todo("Revisar de novo em 7 dias")]
-    blocks = [_columns([_callout(rich, "🎓")], plan)]
+    blocks = [_callout(rich, "🎓")]
     try:
         video_url = youtube_url(youtube_id(meta.get("link")))
     except AppError:

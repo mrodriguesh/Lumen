@@ -410,7 +410,9 @@ echo "isto nao e um video" > falso.mp4
   vez de virar uma tarefa, para não trocar o estado da revisão que a interface guarda; recusa se houver outra tarefa. Entram
   com `manual: true` e tempo depois do fim da aula (só para ordenar), sem horário e sem link de tempo na página.
 - **Página:** só capturas suas → seção “📸 Capturas de tela”; misturadas com telas da aula → “🖥️ O que apareceu na tela”,
-  com horário só nas telas da aula. A checklist troca “Assistir à aula” por “Rever as capturas de tela”.
+  com horário só nas telas da aula.
+- **Topo da página (a pedido do usuário, 11/10/2026):** só a ficha da aula (🎓). Saíram a coluna “Nesta aula” (contagem
+  de tópicos, perguntas, termos e gráficos) e o checklist de estudo; o resto da página não mudou.
 - **Arquivos:** as imagens escolhidas no diálogo são copiadas para `work/uploads` (as originais não são tocadas); a
   miniatura da aba só serve arquivos dessa pasta. Cópias são apagadas ao gerar a página (adicionadas na revisão: logo
   depois da leitura) e, se esquecidas, em 7 dias.

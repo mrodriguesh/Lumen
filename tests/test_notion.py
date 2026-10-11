@@ -59,10 +59,9 @@ class Build(unittest.TestCase):
 
     def test_rich_layout(self):
         kinds = [b["type"] for b in self.blocks]
-        self.assertEqual(kinds[0], "column_list")  # ficha da aula | “Nesta aula” e o checklist de estudo
-        head = list(flat(self.blocks[:1]))
-        self.assertEqual(len([b for b in head if b["type"] == "to_do"]), 4)
-        self.assertIn("2 tópicos · 1 pergunta · 1 termo", texts(head))
+        self.assertEqual(kinds[0], "callout")  # só a ficha da aula no topo: sem “Nesta aula” nem checklist
+        self.assertFalse([b for b in flat(self.blocks) if b["type"] == "to_do"])
+        self.assertNotIn("Nesta aula", texts(flat(self.blocks)))
         callouts = {b["callout"]["icon"]["emoji"]: texts([b]) for b in flat(self.blocks) if b["type"] == "callout"}
         self.assertEqual(callouts["💡"], "Ideia central\nPlantas produzem glicose.")
         self.assertIn("Fase clara\nDepende de luz.", callouts["1️⃣"])  # tópico em cartão

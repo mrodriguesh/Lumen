@@ -163,9 +163,7 @@ class Flow(unittest.TestCase):
         table = toggles["📊 Preços do plano"]["toggle"]["children"][0]
         self.assertEqual(table["type"], "table")
         self.assertNotIn("⏱", json.dumps(toggles["📊 Preços do plano"], ensure_ascii=False))
-        todo = [b["to_do"]["rich_text"][0]["text"]["content"] for b in flat(blocks) if b["type"] == "to_do"]
-        self.assertEqual(todo[0], "Rever as capturas de tela")
-        self.assertFalse(any("Assistir à aula" in t for t in todo))
+        self.assertFalse([b for b in flat(blocks) if b["type"] == "to_do"])  # sem checklist de estudo
         self.assertTrue(all(not p.exists() for p in map(__import__("pathlib").Path, self.files)))  # sem sobras
 
     def test_retry_after_the_images_were_removed_still_works(self):
