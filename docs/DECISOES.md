@@ -271,8 +271,15 @@ lumen/
 - **Durante a etapa:** tokens já escritos (a IA) e progresso (transcrição, telas) corrigem o que falta; passou da
   estimativa, ainda mostra um pouco (nunca “0 s” antes de terminar).
 - **Medido (vídeo de 91 s, ponta a ponta no Notion real):** com os valores iniciais genéricos, a página levou 83 s e
-  a estimativa errava até 21 s; depois de uma aula, 71 s e erro de no máximo 5 s. Os valores iniciais agora são os
-  medidos neste PC (RTX 3060, qwen3:8b).
+  a estimativa errava até 21 s; depois de uma aula, 71 s e erro de no máximo 5 s. Com os valores iniciais medidos
+  neste PC (RTX 3060, qwen3:8b), já na 1ª aula: página de 67 s com erro de até 6 s; transcrição + telas de 44 s com
+  erro de até 7 s. Aula longa (48 mil caracteres, lida em 3 partes, 208 s): erro de −51 a +24 s; o tamanho de cada
+  resposta da IA varia de uma vez para outra, e é isso que sobra de erro.
+- **Tamanho da resposta cresce com o pedido:** página ≈ 1.300 + 0,25 × tokens do pedido (aula curta ≈ 1.700, longa
+  ≈ 3.400); o que se aprende é a correção deste PC sobre essa forma.
+- **Teto em cada resposta da IA (`llm.MAX_OUT`, ~3× o normal):** medindo a aula longa, as notas de uma parte
+  passaram de 9 min: a IA repetia texto até encher o contexto e o Ollama seguia gerando. Com o teto, uma parte
+  leva no máximo ≈ 50 s, e as notas juntas sempre cabem numa leitura.
 
 ## YouTube: limitação real
 
