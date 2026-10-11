@@ -11,7 +11,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import AppError, cover, eta, imagegen, jobs, llm, notion, record, sources, store, transcribe, vision
+from . import AppError, brands, cover, eta, imagegen, jobs, llm, notion, record, sources, store, transcribe, vision
 
 log = logging.getLogger("lumen")
 WEB = Path(__file__).parent / "web"
@@ -67,6 +67,7 @@ def state():
         "formats": sources.MEDIA, "job": jobs.snapshot(), "recording": record.status(),
         "covers": {"ready": imagegen.ready(), "label": imagegen.ENGINES[imagegen.DEFAULT_ENGINE]["label"],
                    "size": imagegen.ENGINES[imagegen.DEFAULT_ENGINE]["size"]},
+        "brands": brands.info(),
         "vision": {"model": vision.MODEL, "size": vision.SIZE,
                    "installed": om is not None and any(x in (vision.MODEL, vision.MODEL + ":latest") for x in om)},
     }
@@ -194,6 +195,8 @@ def _apply_settings(body):
         cfg["keep_temp"] = bool(body["keep_temp"])
     if "watch_screen" in body:
         cfg["watch_screen"] = body["watch_screen"] is True
+    if "brand_cover" in body:
+        cfg["brand_cover"] = body["brand_cover"] is True
     if body.get("widget") in ("off", "left", "right", "top", "bottom", "free"):
         cfg["widget"] = body["widget"]
     if "autostart" in body:
@@ -258,8 +261,20 @@ def _courses(h):
 _previews = {}  # id → (enfeite, png); guarda só as últimas prévias
 
 
-def _cover_png(decor, title, seed):
-    """Capa: ilustração com IA (Z-Image, se instalado) ou o desenho com emojis (sempre disponível)."""
+def _logos(title, cfg, off=False):
+    """Logos das marcas citadas no título (acervo + pasta do usuário), se a opção estiver ligada."""
+    if off or not cfg.get("brand_cover", True):
+        return []
+    return [x for x in (brands.logo(b) for b in brands.find(title)) if x]
+
+
+def _cover_png(decor, title, seed, logos=()):
+    """Capa: com marca, o fundo na cor dela e a logo do acervo (nítida, rápida); senão ilustração com IA (Z-Image,
+    se instalado) ou o desenho com emojis (sempre disponível)."""
+    if logos:
+        png = cover.render(decor, seed=seed, brands=list(logos))
+        if png:
+            return png, "marca"
     if imagegen.ready():
         png = imagegen.generate(decor.get("image_prompt") or title, seed=seed)
         if png:
@@ -275,14 +290,17 @@ def _preview(h):
     if not title:
         raise AppError("Digite o nome da página.", "")
     variant = int(body.get("variant") or 0)
-    decor = llm.decorate(title, str(body.get("parent_path") or "")[:300], store.load_config()["ollama_model"],
-                         variant=variant)
-    png, kind = _cover_png(decor, title, seed=secrets.randbelow(2**31))
+    cfg = store.load_config()
+    decor = llm.decorate(title, str(body.get("parent_path") or "")[:300], cfg["ollama_model"], variant=variant)
+    avail = _logos(title, cfg)  # as marcas do título, mesmo que o usuário tenha tirado a logo desta capa
+    logos = [] if body.get("no_brand") is True else avail
+    png, kind = _cover_png(decor, title, seed=secrets.randbelow(2**31), logos=logos)
     pid = secrets.token_hex(6)
     _previews[pid] = (decor, png)
     for old in list(_previews)[:-6]:
         _previews.pop(old, None)
-    return {"preview_id": pid, "decor": decor, "kind": kind,
+    return {"preview_id": pid, "decor": decor, "kind": kind, "brands": [x["name"] for x in logos],
+            "brands_available": [x["name"] for x in avail],
             "image": "data:image/png;base64," + base64.b64encode(png).decode() if png else None}
 
 
@@ -301,7 +319,8 @@ def _new_course(h):
             try:
                 decor = llm.decorate(str(body["title"]).strip()[:200], str(body.get("parent_path") or "")[:300],
                                      cfg["ollama_model"])
-                png, _ = _cover_png(decor, str(body["title"]).strip(), seed=secrets.randbelow(2**31))
+                png, _ = _cover_png(decor, str(body["title"]).strip(), seed=secrets.randbelow(2**31),
+                                    logos=_logos(str(body["title"]).strip(), cfg, off=body.get("no_brand") is True))
             except AppError as e:  # IA fora do ar ou resposta ruim: cria sem enfeites e avisa
                 note = f"{e} A página foi criada sem enfeites."
     made = notion.create_course(tok, parent, body.get("title"), decor, png)
@@ -335,6 +354,9 @@ def _download(h):
     body = h._json()
     if body.get("what") == "covers":
         jobs.start("download", jobs.download_covers)
+        return jobs.snapshot()
+    if body.get("what") == "brands":
+        jobs.start("download", jobs.download_brands)
         return jobs.snapshot()
     if body.get("what") in ("ollama", "vision"):
         if llm.models() is None:

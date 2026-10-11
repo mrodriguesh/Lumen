@@ -180,6 +180,15 @@ transcrição, as telas, os desenhos e os envios ao Notion são cronometrados. C
 SSD). Ao criar uma página com “Enfeitar com IA”, a capa vira uma ilustração do tema gerada no seu PC (≈ 30–45 s
 numa RTX 3060). Sem ele, a capa é desenhada com emojis.
 
+**Logo da marca na capa (opcional):** se o título da página ou a aula falar de uma marca (Claude, Claude Code, Notion,
+Google Gemini, TikTok…), a capa leva a **logo e a cor oficial** dela, num cartão de vidro; a IA nunca desenha a logo.
+Na página de uma aula, a mesma imagem entra como **banner no topo da aula** (a capa da sua página não é alterada).
+Em Ajustes → *Capas com IA*, baixe as logos (Simple Icons, CC0, ≈ 6,5 MB, versão fixa e conferida). A marca só vale
+se o nome estiver escrito igual (“Claude”, não “Cláudia”); no texto da aula, com inicial maiúscula e 3 vezes ou mais.
+Na prévia da capa, o chip “Logo: Claude ✕” tira a logo daquela capa. Marcas que o acervo não tem (**Adobe, OpenAI,
+Microsoft, CapCut…**) entram se você colocar o arquivo na pasta `%LOCALAPPDATA%\Lumen\logos` (ex.:
+`adobe-premiere.svg` ou `.png`; o nome do arquivo é o nome da marca). O interruptor “Logo da marca na capa” desliga tudo.
+
 **Trocar o destino e refazer:** o cartão *Onde salvar* acompanha a tela: dá para mudar a página durante a
 transcrição e na revisão. Depois de publicar, **Refazer página** pede à IA uma versão nova (com um pedido opcional,
 como "mais exemplos") e remove a anterior; escolhendo outra página, a aula é movida para lá. Para isso o Lumen guarda

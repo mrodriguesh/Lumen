@@ -108,6 +108,7 @@ function renderPreferences() {
   $("#position-caption").textContent = $("[data-position][aria-pressed=true]")?.getAttribute("aria-label") || "";
   $("#prefs-autostart").setAttribute("aria-checked", String(!!preferences?.autostart));
   $("#prefs-keep").setAttribute("aria-checked", String(!!preferences?.keep_temp));
+  $("#prefs-brand").setAttribute("aria-checked", String(preferences?.brand_cover !== false));
   $("#prefs-watch").setAttribute("aria-checked", String(!!preferences?.watch_screen));
   document.querySelector(".prefs-watch").dataset.on = String(!!preferences?.watch_screen);
   $("#watch-sub").textContent = preferences?.watch_screen ? (state?.recording.active ? "Vale na próxima gravação" : "Ativado · lido no seu PC") : "Lê slides e código e põe na página";
@@ -151,6 +152,9 @@ function renderAdvanced() {
   $("#prefs-ollama-dl").hidden = !s.ollama.running || installed;
   $("#prefs-covers-status").textContent = `${s.covers.label} · ${s.covers.size}\n${s.covers.ready ? "Instalado · capas geradas no PC" : "Sem o gerador, as capas usam emojis."}`;
   $("#prefs-covers-dl").hidden = s.covers.ready;
+  $("#prefs-brands-status").textContent = s.brands.ready ? `Simple Icons ${s.brands.version} · ${s.brands.count} marcas${s.brands.mine ? ` + ${s.brands.mine} sua(s)` : ""}`
+    : `Sem o acervo, só valem as logos da sua pasta. Simple Icons ocupa ${s.brands.size}.`;
+  $("#prefs-brands-dl").hidden = s.brands.ready;
 }
 async function loadRoots() {
   const { pages } = await api("/api/notion/pages"), sel = $("#prefs-root");
@@ -214,6 +218,7 @@ $("#prefs-reset").addEventListener("click", () => { host?.postMessage("widget:re
 $("#prefs-off").addEventListener("click", () => savePreferences({widget:"off"}));
 $("#prefs-exit").addEventListener("click", () => host?.postMessage("window:exit"));
 $("#prefs-watch").addEventListener("click", () => savePreferences({ watch_screen: !preferences.watch_screen }));
+$("#prefs-brand").addEventListener("click", () => savePreferences({ brand_cover: preferences.brand_cover === false }));
 $("#prefs-keep").addEventListener("click", () => savePreferences({keep_temp:!preferences.keep_temp}));
 $("#prefs-language").addEventListener("change", (e) => savePreferences({page_language:e.target.value}));
 $("#prefs-quality").addEventListener("change", (e) => savePreferences({quality:e.target.value}));

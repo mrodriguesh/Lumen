@@ -595,7 +595,7 @@ async function createCourse() {
   try {
     const usePreview = deco && preview && preview.name === name ? preview.id : null;
     const c = await api("/api/courses", { title: name, parent_id: newParent.id, decorate: deco, parent_path: newParent.path,
-                                          preview_id: usePreview });
+                                          preview_id: usePreview, no_brand: noBrand });
     pages.push({ id: c.id, title: c.title, path: `${newParent.path} › ${c.title}`, top: false, parent: newParent.id,
                  icon: c.decor?.emoji || null });
     pages.sort((a, b) => a.path.localeCompare(b.path, "pt-BR", { numeric: true }));
@@ -625,6 +625,14 @@ function showCoverIdle() {  // nome mudou: a prévia antiga não vale mais; espe
   $("#cover-emoji").textContent = ""; $("#cover-sub").textContent = "";
   $("#cover-again").textContent = "✨ Gerar capa"; $("#cover-again").disabled = false;
 }
+let noBrand = false;  // o usuário tirou a logo da marca desta capa
+function showBrandChip(r) {
+  const chip = $("#cover-brand"), on = r.brands || [], off = r.brands_available || [];
+  chip.hidden = !on.length && !(noBrand && off.length);
+  chip.textContent = on.length ? `Logo: ${on.join(" + ")}  ✕` : `Usar a logo de ${off.join(" + ")}`;
+  chip.title = on.length ? "Tirar a logo desta capa" : "Voltar a usar a logo da marca";
+}
+$("#cover-brand").addEventListener("click", () => { noBrand = !noBrand; loadPreview(false); });
 async function loadPreview(again = false) {
   const name = $("#new-course-name").value.trim();
   const box = $("#cover-preview");
@@ -636,15 +644,16 @@ async function loadPreview(again = false) {
   $("#cover-wait").hidden = false;
   $("#cover-wait").textContent = S?.covers?.ready ? "Criando a ilustração com IA no seu PC (≈ 30 s)…" : "Criando a capa…";
   $("#cover-emoji").textContent = ""; $("#cover-sub").textContent = "";
-  $("#cover-again").disabled = true;
+  $("#cover-again").disabled = true; $("#cover-brand").hidden = true;
   try {
-    const r = await api("/api/decor/preview", { title: name, parent_path: newParent?.path || "", variant });
+    const r = await api("/api/decor/preview", { title: name, parent_path: newParent?.path || "", variant, no_brand: noBrand });
     if (seq !== previewSeq) return;  // o usuário já digitou outra coisa
     preview = { id: r.preview_id, name };
     if (r.image) { $("#cover-img").style.backgroundImage = `url("${r.image}")`; $("#cover-wait").hidden = true; }
     else $("#cover-wait").textContent = "Não foi possível desenhar a capa; será usada uma capa do Notion.";
     $("#cover-emoji").textContent = r.decor.emoji;
     $("#cover-sub").textContent = r.decor.subtitle;
+    showBrandChip(r);
     $("#cover-again").textContent = "↻ Gerar outra";
   } catch (e) {
     if (seq !== previewSeq) return;
@@ -652,7 +661,7 @@ async function loadPreview(again = false) {
     $("#cover-wait").textContent = e.message + " A página será criada sem enfeites.";
   } finally { if (seq === previewSeq) $("#cover-again").disabled = false; }
 }
-$("#new-course-name").addEventListener("input", () => { clearTimeout(previewTimer); previewTimer = setTimeout(showCoverIdle, 300); });
+$("#new-course-name").addEventListener("input", () => { noBrand = false; clearTimeout(previewTimer); previewTimer = setTimeout(showCoverIdle, 300); });
 $("#cover-again").addEventListener("click", () => loadPreview(!!preview));
 try { $("#decorate").checked = localStorage.getItem("lumen.decorate") !== "0"; } catch { $("#decorate").checked = true; }
 $("#decorate").addEventListener("change", (e) => {
@@ -951,6 +960,14 @@ function renderSettings() {
     : `Sem o gerador, as capas são desenhadas com emojis. ${S.covers.label} (Apache 2.0) ocupa ${S.covers.size}; prefira um SSD.`;
   $("#covers-dl").hidden = S.covers.ready;
   $("#covers-dl").textContent = `Baixar ${S.covers.label} (${S.covers.size})`;
+  $("#brand-cover").checked = S.config.brand_cover;
+  const bd = S.brands;
+  $("#brands-status").textContent = bd.ready
+    ? `Acervo Simple Icons ${bd.version} instalado (${bd.count} marcas).` + (bd.mine ? ` Mais ${bd.mine} logo(s) sua(s).` : "")
+    : `Sem o acervo, só valem as logos da sua pasta. Simple Icons (CC0) ocupa ${bd.size}.`;
+  $("#brands-status").title = `Marcas que o acervo não tem (Adobe, OpenAI, Microsoft…): coloque o arquivo na pasta ${bd.folder} (ex.: adobe-premiere.svg ou .png).`;
+  $("#brands-dl").hidden = bd.ready;
+  $("#brands-dl").textContent = `Baixar logos de marcas (${bd.size})`;
   $("#lang").value = $("#lang").dataset.touched ? $("#lang").value : S.config.page_language;
   renderWatch();
 }
@@ -1023,18 +1040,20 @@ $("#lang").addEventListener("change", (e) => { e.target.dataset.touched = "1"; }
 $("#whisper-dl").addEventListener("click", () => download({ what: "whisper", quality: S.whisper.active }));
 $("#ollama-dl").addEventListener("click", () => download({ what: "ollama" }));
 $("#covers-dl").addEventListener("click", () => download({ what: "covers" }));
+$("#brands-dl").addEventListener("click", () => download({ what: "brands" }));
+$("#brand-cover").addEventListener("change", (e) => saveSettings({ brand_cover: e.target.checked }));
 async function download(body) {
   try { await api("/api/download", body); poll(); } catch (e) { fail(e); }
 }
 function renderDownload(j) {
-  const target = (j.detail || "").includes("capas") ? $("#covers-status")
+  const target = (j.detail || "").includes("logos") ? $("#brands-status") : (j.detail || "").includes("capas") ? $("#covers-status")
     : S && (j.detail || "").includes(S.vision.model) ? $("#vision-status")
     : $("#ollama-dl").hidden ? $("#whisper-status") : $("#ollama-status");
   if (target.id === "vision-status" && j.status === "running") $("#watch-status").textContent = j.detail + (j.progress ? ` ${Math.round(j.progress * 100)}%` : "");
   if (j.status === "running") target.textContent = j.detail + (j.progress ? ` ${Math.round(j.progress * 100)}%` : "");
   else if (j.status === "done") toast("Download concluído.");
   else if (j.status === "error") fail(Object.assign(new Error(j.error.message), { action: j.error.action }));
-  for (const b of [$("#whisper-dl"), $("#ollama-dl"), $("#covers-dl"), $("#vision-dl"), $("#vision-dl-set")]) b.disabled = j.status === "running";
+  for (const b of [$("#whisper-dl"), $("#ollama-dl"), $("#covers-dl"), $("#brands-dl"), $("#vision-dl"), $("#vision-dl-set")]) b.disabled = j.status === "running";
 }
 $("#clear").addEventListener("click", async () => {
   if (!confirm("Apagar o histórico de aulas, transcrições guardadas e arquivos temporários deste PC? As páginas no Notion não são afetadas.")) return;

@@ -424,6 +424,9 @@ def build_page(lesson, meta):
             todo("Assistir à aula"), todo("Ler o resumo e o mapa mental"),
             todo("Responder às perguntas de revisão"), todo("Revisar de novo em 7 dias")]
     blocks = [_columns([_callout(rich, "🎓")], plan)]
+    if meta.get("banner_upload"):  # a aula entra numa página existente: o banner vai no topo dela, a capa da página fica
+        blocks.insert(0, {"object": "block", "type": "image",
+                          "image": {"type": "file_upload", "file_upload": {"id": meta["banner_upload"]}}})
     try:
         video_url = youtube_url(youtube_id(meta.get("link")))
     except AppError:
