@@ -20,7 +20,6 @@ DEFAULTS = {
     "ollama_model": "qwen3:8b",
     "page_language": "pt",      # pt | original
     "keep_temp": False,
-    "brand_cover": True,        # logo da marca citada na capa e no banner da aula (lumen/brands.py)
     "watch_screen": False,      # “Assistir a tela junto”: lê slides/quadro da tela ou do vídeo (lumen/vision.py)
     "widget": "left",           # off | left | right | top | bottom | free
     "autostart": False,         # abrir com o Windows (chave Run do usuário)

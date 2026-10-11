@@ -9,7 +9,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from . import AppError, Cancelled, brands, charts, cover, eta, llm, mindmap, notion, sources, store, transcribe, vision
+from . import AppError, Cancelled, charts, eta, llm, mindmap, notion, sources, store, transcribe, vision
 
 log = logging.getLogger("lumen")
 _lock = threading.Lock()
@@ -405,9 +405,6 @@ def finish(spec):
         meta["screens"], meta["vision_model"] = _upload_screens(token, shots, screens), vision.MODEL
         eta.learn("upload_s", plan.elapsed() / -(-len(screens) // 3))
         check()
-    meta["banner_upload"] = _banner(token, cfg, f"{lesson.get('title') or ''} | {src['title']}",
-                                    [x["text"] for x in tr["segments"]] + [x for _, x in lines])
-    check()
     title, blocks = notion.build_page(lesson, meta)
     transcript = llm.transcript_text(tr["segments"]).split("\n") if spec.get("include_transcript") else None
     check()
@@ -520,27 +517,6 @@ def download_whisper(name):
     _set(stage="download", detail="Baixando o modelo de transcrição…")
     transcribe.download(name)
     return {"downloaded": name}
-
-
-def _banner(token, cfg, title, texts):
-    """Banner no topo da aula com a logo da marca de que ela trata (lumen/brands.py); None se não houver marca, a
-    opção estiver desligada ou algo falhar (a página sai sem banner)."""
-    if not cfg.get("brand_cover", True):
-        return None
-    logos = [x for x in (brands.logo(b) for b in brands.find(title, texts)) if x]
-    if not logos:
-        return None
-    decor = {"emoji": "📘", "motifs": ["📚", "💡", "✨", "🧠"], "palette": list(llm.DEFAULT_PALETTE)}
-    png = cover.render(decor, seed=sum(title.encode()), brands=logos)
-    logging.getLogger("lumen").info("banner da aula: %d marca(s), %s", len(logos), "ok" if png else "sem imagem")
-    return _send(token, png, "banner.png", "image/png") if png else None
-
-
-def download_brands():
-    detail = f"Baixando as logos de marcas ({brands.SIZE})…"
-    _set(stage="download", detail=detail, progress=0)
-    brands.download(_progress("download", detail), check)
-    return {"downloaded": "brands"}
 
 
 def download_covers():

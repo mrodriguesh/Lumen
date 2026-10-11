@@ -194,9 +194,6 @@ input.search {
 .new-page p { margin: 0 0 8px; }
 .new-page .ai-row { margin: 0 0 10px; font-size: .93rem; }
 .cover-preview { margin: 0 0 12px; position: relative; }
-.brand-chip { position: absolute; left: 10px; top: 10px; z-index: 2; padding: 5px 11px; border: 1px solid #ffffff55; border-radius: 99px;
-  background: #0b0b1480; color: #fff; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; backdrop-filter: blur(10px); }
-.brand-chip:hover { background: #0b0b14b0; }
 .cover-img { aspect-ratio: 5 / 2; border-radius: 10px; overflow: hidden; background: var(--fill) center / cover no-repeat;
   display: grid; place-items: center; box-shadow: 0 0 0 .5px var(--card-line); }
 .cover-wait { font-size: .88rem; color: var(--muted); animation: breathe-text 1.4s ease-in-out infinite; }

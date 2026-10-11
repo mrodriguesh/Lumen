@@ -395,25 +395,6 @@ echo "isto nao e um video" > falso.mp4
   o vermelho da gravação; âmbar quando o modo está ligado e nada é visto. Fica no rodapé do painel, que já tinha
   espaço nos quatro lados, sem mudar o tamanho da janela da barra; recolhida, um ponto na alça.
 
-## Logo da marca nas capas (11/10/2026; `lumen/brands.py`, `lumen/cover.py`)
-
-- **Por que não pela IA de imagem:** o Z-Image não desenha logo de marca com fidelidade (e o pedido a ele proíbe
-  texto e logotipos, de propósito). A logo vem de um acervo e é composta pelo Edge (SVG como máscara, nítida).
-- **Acervo:** Simple Icons 16.35.0 (CC0; 3.459 marcas com SVG e cor oficial), baixado do npm só com o clique do usuário,
-  com SHA-256 fixado no código; só arquivos `data/simple-icons.json` e `icons/<slug>.svg` são aceitos. **Lacuna
-  medida:** faltam OpenAI/ChatGPT, Microsoft/Excel/Windows, Amazon, Adobe/Photoshop/Premiere, LinkedIn, Canva, CapCut
-  e Midjourney (removidas a pedido das empresas). Por isso existe a pasta `logos` do usuário (vence o acervo).
-- **Escolha da marca, sem IA e sem busca aproximada:** nome escrito igual (“Next.js”, “Tik Tok”, “Gemini”), palavra
-  inteira; no texto da aula, inicial maiúscula e ≥ 3 menções; nomes comuns (“Meta”, “Linear”, “Zoom”…) e de menos de
-  4 letras só no meio do título (“Marketing com Meta Ads” sim, “Meta de vendas” não). Até 2 marcas, a 2ª se tiver ≥ 60%
-  das menções da 1ª. A IA não escolhe: menos um ponto de falha e nada de marca inventada.
-- **Capa:** fundo na cor oficial (marca preta → fundo escuro; sem cor ou quase branca → paleta do tema), logo branca ou
-  escura conforme o contraste. Com marca, a capa é só Edge (≈ 3 s) e não usa a ilustração de IA.
-- **Aula:** as aulas entram numa página existente, então não há capa de página para pôr: o banner (1500×600) vai
-  como bloco de imagem logo após o título da aula. Falha ao renderizar/enviar = página sai sem banner.
-- **Testado de verdade:** capas de Claude, Claude Code, Notion, Gemini e TikTok no Edge; subpágina de teste no Notion
-  real (capa idêntica byte a byte à enviada; banner como 2º bloco, lido de volta) e página mandada para a lixeira.
-
 ## Limitações conhecidas
 
 - O áudio inteiro é decodificado em memória: ≈ 230 MB por hora de aula (o dobro em 2× desacelerado).
