@@ -438,8 +438,8 @@ def build_page(lesson, meta):
                _b("paragraph", _rt("Escrita pela IA a partir da aula, para quem está começando.", italic=True,
                                    color="gray"))]
     simple = [p.strip() for p in re.split(r"\n\s*\n", lesson["simple_explanation"]) if p.strip()]
-    blocks += [_callout(_marked(simple[0], terms), "🌱", "green_background",
-                        children=_paras("\n\n".join(simple[1:]), terms))]
+    rest = _paras("\n\n".join(simple[1:]), terms)  # o Notion aceita 100 filhos por bloco; o resto vem logo depois
+    blocks += [_callout(_marked(simple[0], terms), "🌱", "green_background", children=rest[:100]), *rest[100:]]
     blocks += [_h2("🎯 Tópicos principais"), *_cards(lesson, yt, terms)]
     blocks += _charts(meta.get("charts"), yt)
     blocks += _screens(meta.get("screens"), yt)
@@ -534,12 +534,13 @@ def publish(token, parent, title, blocks, check, transcript=None):
             added.extend(b["id"] for b in res["results"])
         if transcript:
             head, paras = transcript_section(transcript)
+            first, *more = batches(paras) or [[]]  # o 1º lote vai junto do título, também dentro dos limites
             check()
             res = request("PATCH", f"/blocks/{parent}/children", token,
-                          {"children": [{**head, "heading_3": {**head["heading_3"], "children": paras[:100]}}]})
+                          {"children": [{**head, "heading_3": {**head["heading_3"], "children": first}}]})
             added.extend(b["id"] for b in res["results"])
             toggle_id = res["results"][-1]["id"]
-            for batch in batches(paras[100:]):
+            for batch in more:
                 check()
                 request("PATCH", f"/blocks/{toggle_id}/children", token, {"children": batch})
         check()

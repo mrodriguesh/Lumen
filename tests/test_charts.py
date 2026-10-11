@@ -184,6 +184,11 @@ class Formulas(unittest.TestCase):
         self.assertTrue(charts.validate(curve("abs(x-8)", x=(-10, 10)), us))
         root = charts.validate(curve("sqrt(x-10)", x=(10, 20)), say("A raiz é y = sqrt(x-10)."))
         self.assertEqual((root[0]["x_min"], root[0]["x_max"]), (10.0, 20.0))
+        # revisão do Codex: a fórmula da aula cortada em 80 caracteres (com “…”) não era mais lida e o gráfico sumia
+        source = "x" + "+0" * 38 + "+10-10"
+        ok = charts.validate(curve("x", x=(-5, 5)), say(f"A reta é y = {source}."))
+        self.assertEqual(ok[0]["funcoes"][0]["expressao"], source)
+        self.assertTrue(charts.curves(ok[0])[0])
         # a fórmula mostrada e desenhada é a da aula, não a da IA
         ok = charts.validate(curve("3 - 4x + x²"), say("Considere f(x) = x² - 4x + 3."))
         self.assertEqual(ok[0]["funcoes"][0]["expressao"], "x² - 4x + 3")

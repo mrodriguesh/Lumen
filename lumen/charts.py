@@ -534,7 +534,7 @@ def _formula(c, us):
         name = str(fn.get("nome") or "")
         if not name.strip() or re.search(r"[\d=]", name):  # um nome com fórmula poderia ser outra fórmula
             name = hit[1]
-        found.append({"nome": _clip(name, 40), "expressao": _clip(hit[1], 80)})
+        found.append({"nome": _clip(name, 40), "expressao": hit[1]})  # inteira: é ela que se calcula
         times.append(hit[0])
         cx = cx or parsed[2]
     if not found:

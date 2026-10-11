@@ -141,6 +141,24 @@ class Api(unittest.TestCase):
         self.assertEqual([p["path"] for p in notion.list_pages("secret_test")],
                          ["Estudos", "Estudos › claude", "Estudos › claude › Módulo 1"])
 
+    def test_largest_lesson_publishes(self):
+        # revisão do Codex: 102 parágrafos curtos na explicação davam 101 filhos num quadro (o Notion aceita 100)
+        terms = [f"termo{i}" for i in range(25)]
+        many = "\n\n".join(f"Parágrafo {i} com {terms[i % 25]}." for i in range(130))
+        long = (" ".join(terms) + " ") * 60  # 4000 caracteres com dezenas de termos
+        data = {"title": "T" * 300, "summary": many, "simple_explanation": many,
+                "topics": [{"title": f"Tópico {i}", "explanation": long, "timestamp": "00:10"} for i in range(20)],
+                "glossary": [{"term": t, "definition": long} for t in terms],
+                "examples": [{"text": long, "origin": "aula" if i % 2 else "didatico"} for i in range(15)],
+                "steps": [long] * 25, "review_questions": [{"question": long, "answer": long}] * 12,
+                "key_moments": [{"timestamp": f"00:{i:02d}", "label": long} for i in range(20)],
+                "caveats": [long] * 12, "mind_map": None}
+        lesson = llm.validate(data, 3600)
+        title, blocks = notion.build_page(lesson, {**META, "uncertain": 0})
+        notion.publish("secret_test", self.root, title, blocks, lambda: None, transcript=[long] * 300)
+        sent = self.fake.pages[self.root]["blocks"]
+        self.assertEqual(json.dumps(sent, ensure_ascii=False).count("Parágrafo 129 com "), 2)  # resumo e explicação inteiros
+
     def test_publish_many_blocks(self):
         blocks = [notion._b("paragraph", notion._rt(f"p{i}")) for i in range(230)]
         pid, url, ids = notion.publish("secret_test", self.root, "Aula", blocks, lambda: None)

@@ -20,8 +20,10 @@ def _check_blocks(blocks, depth=1):
     assert depth <= 3 or not blocks, "aninhamento acima do permitido"
     for b in blocks:
         body = b[b["type"]]
-        for rt in body.get("rich_text", []):
-            assert len(rt["text"]["content"]) <= 2000, "rich text acima de 2000 caracteres"
+        for rich in [body.get("rich_text", []), body.get("caption", []), *body.get("cells", [])]:
+            assert len(rich) <= 100, "mais de 100 pedaços de texto num bloco"
+            for rt in rich:
+                assert len(rt.get("text", {}).get("content", "")) <= 2000, "rich text acima de 2000 caracteres"
         _check_blocks(body.get("children", []), depth + 1)
 
 
