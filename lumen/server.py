@@ -234,7 +234,7 @@ def _widget(h):
     if h._query().get("view") == "settings":
         return {"config": store.load_config(), "has_token": bool(store.get_token())}
     j = jobs.snapshot()
-    job = {k: j.get(k) for k in ("status", "kind", "stage", "detail", "progress", "eta", "error")}
+    job = {k: j.get(k) for k in ("status", "kind", "stage", "detail", "progress", "eta", "eta_total", "error")}
     res = j.get("result") if isinstance(j.get("result"), dict) else {}
     job["title"] = res.get("title") or (j.get("spec") or {}).get("title") or ""
     job["url"] = res.get("url") or ""

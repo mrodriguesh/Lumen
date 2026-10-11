@@ -122,6 +122,12 @@ class Widget(unittest.TestCase):
             self.request("/api/widget", token="bad")
         self.assertEqual(e.exception.code, 403)
 
+    def test_widget_gets_the_time_left(self):
+        # revisão do Codex: a lista de campos do widget não tinha eta_total e o tempo restante nunca aparecia
+        running = {"status": "running", "kind": "process", "stage": "generate", "detail": "x", "eta_total": 95}
+        with mock.patch.object(server.jobs, "snapshot", return_value=running):
+            self.assertEqual(json.loads(self.request("/api/widget"))["job"]["eta_total"], 95)
+
     def test_widget_reports_download_error(self):
         error = {"message":"Download interrompido.","action":"Tente novamente."}
         with mock.patch.object(server.jobs,"snapshot",return_value={"status":"error","kind":"download","error":error}):

@@ -2,8 +2,11 @@
 import unittest
 from unittest import mock
 
+import json
+
 import tests  # noqa: F401  (isola LUMEN_DATA antes do lumen, mesmo sem -t .)
 from lumen import eta, llm, store
+from tests.test_llm import GOOD
 
 
 class Learn(unittest.TestCase):
@@ -51,6 +54,25 @@ class Learn(unittest.TestCase):
         self.assertEqual([b["options"].get("num_predict") for b in sent], [llm.MAX_OUT["notes"], None, 50])
         self.assertEqual(plan.name(), "notes")  # a resposta avançou a estimativa para a sua etapa
         self.assertEqual((round(eta.out_tokens("m", "notes", 100)), eta.value("llm_gen_tps", "m")), (300, 50))
+
+    def test_calls_predict_the_rounds_the_summary_will_need(self):
+        # revisão do Codex: o fator de correção virava “tokens”: 200 mil caracteres previam 11 chamadas, e eram 15
+        segs = [{"start": i, "text": "palavra " * 60} for i in range(420)]  # ~200 mil caracteres
+        eta.learn("chars_per_token", 3, "m")
+        made = []
+
+        def fake(model, system, user, check, tokens, schema=None, num_ctx=0, **kw):
+            if schema:
+                made.append("lesson")
+                return json.dumps(GOOD)
+            made.append("notes")
+            # notas do tamanho que a estimativa espera de cada parte (a IA escrevendo o que se prevê dela)
+            return "n" * int(eta.out_tokens("m", "notes", (len(user) + len(llm.NOTES)) / 3) * 3)
+        with mock.patch.object(llm, "_chat", side_effect=fake):
+            llm.generate(segs, 400, "m", "pt", lambda: None, lambda *a: None)
+        self.assertEqual([k for k, _ in llm.calls(segs, "m")], made)
+        self.assertGreater(made.count("notes"), 10)
+        self.assertEqual(len(llm.calls(segs[:40], "m")), 1)
 
     def test_long_lesson_is_read_in_parts(self):
         segs = [{"start": i, "text": "palavra " * 50} for i in range(200)]  # ~80 mil caracteres

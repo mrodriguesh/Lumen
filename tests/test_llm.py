@@ -83,6 +83,48 @@ class Generate(unittest.TestCase):
         self.assertGreater(calls.count(False), 1)  # partes resumidas
         self.assertEqual(calls[-1], True)          # passo final estruturado
 
+    def test_notes_cut_at_the_ceiling_are_read_again_in_smaller_pieces(self):
+        # revisão do Codex: uma resposta cortada no teto entrava como notas completas
+        segs = [{"start": i * 40, "end": i * 40 + 40, "text": "palavra " * 120} for i in range(100)]
+        sizes = []
+
+        def fake(model, system, user, check, tokens, schema=None, num_ctx=0, on_cut=None, **kw):
+            if schema:
+                return json.dumps(GOOD)
+            sizes.append(len(user))
+            if on_cut and len(sizes) == 1:  # a 1ª parte não coube no teto
+                on_cut()
+            return "[00:40] notas"
+        with mock.patch.object(llm, "_chat", side_effect=fake):
+            lesson = llm.generate(segs, 4000, "m", "pt", lambda: None, lambda *a: None)
+        self.assertEqual(lesson["caveats"], [])  # lida de novo em pedaços menores: nada ficou de fora
+        self.assertLess(sizes[1], sizes[0] * 0.6)  # a parte foi relida em pedaços menores
+
+        made = []
+
+        def always_cut(model, system, user, check, tokens, schema=None, num_ctx=0, on_cut=None, **kw):
+            if schema:
+                return json.dumps(GOOD)
+            made.append(1)
+            on_cut()
+            return "[00:40] notas pela metade"
+        with mock.patch.object(llm, "_chat", side_effect=always_cut):
+            lesson = llm.generate(segs, 4000, "m", "pt", lambda: None, lambda *a: None)
+        self.assertIn("lida de forma incompleta", lesson["caveats"][0])  # avisa na página, não em silêncio
+        # a IA se repetindo corta todas as partes: só MAX_SPLITS releituras (2 chamadas a mais cada), nunca 7× mais
+        parts = len(llm.chunks(llm.transcript_text(segs)))
+        self.assertLessEqual(len(made), parts + 2 * llm.MAX_SPLITS)
+
+    def test_chat_reports_a_stream_that_stopped_at_the_ceiling(self):
+        def stream(path, body, check):
+            self.assertEqual(body["options"]["num_predict"], llm.MAX_OUT["notes"])
+            yield {"message": {"content": "parte"}}
+            yield {"done": True, "done_reason": "length"}
+        cut = []
+        with mock.patch.object(llm, "_stream", stream):
+            llm._chat("m", "s", "u", lambda: None, lambda n: None, kind="notes", on_cut=lambda: cut.append(1))
+        self.assertEqual(cut, [1])
+
 
 if __name__ == "__main__":
     unittest.main()

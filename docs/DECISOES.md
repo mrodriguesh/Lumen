@@ -280,6 +280,13 @@ lumen/
 - **Teto em cada resposta da IA (`llm.MAX_OUT`, ~3× o normal):** medindo a aula longa, as notas de uma parte
   passaram de 9 min: a IA repetia texto até encher o contexto e o Ollama seguia gerando. Com o teto, uma parte
   leva no máximo ≈ 50 s, e as notas juntas sempre cabem numa leitura.
+- **Resposta cortada no teto (2ª revisão do Codex):** o Ollama avisa (`done_reason: length`); antes, as notas
+  cortadas entravam como completas. Agora a parte é relida em dois pedaços, no máximo 2 vezes na aula toda
+  (`llm.MAX_SPLITS`): sem esse limite, uma aula em que todas as partes cortam levou 27 min em vez de 3,5 (7× mais
+  chamadas). O que ainda cortar segue como veio e a página mostra em “Pontos de atenção” quais partes ficaram
+  incompletas. Aula longa de teste, toda densa: 10 min com o limite (pior caso); aulas normais não cortam.
+- **Previsão das chamadas** (`llm.calls`) usa o corte real em partes (por linha) em todas as rodadas de resumo, e
+  o tempo restante também chega ao widget (`eta_total` na lista de campos de `/api/widget`).
 
 ## YouTube: limitação real
 

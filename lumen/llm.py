@@ -180,12 +180,13 @@ def pull(model, progress, check):
 # Teto de cada resposta (tokens), ~3× o normal: sem ele, a IA às vezes repete texto até encher o contexto e o
 # Ollama segue gerando (notas de uma aula longa passaram de 9 min numa só parte). As notas cabem juntas numa leitura.
 MAX_OUT = {"notes": 2500, "lesson": 6000, "charts": 2048}
+MAX_SPLITS = 2  # partes que generate relê em dois pedaços quando as notas são cortadas no teto
 
 
 def _chat(model, system, user, check, tokens, schema=None, num_ctx=20480, temperature=0.2, keep_alive="5m",
-          images=None, kind=None, limit=None):
+          images=None, kind=None, limit=None, on_cut=None):
     """Uma resposta da IA. kind ("lesson", "notes", "charts"): etapa da estimativa de tempo (eta) que ela ocupa e
-    o seu teto (MAX_OUT); limit: outro teto."""
+    o seu teto (MAX_OUT); limit: outro teto. on_cut(): chamado se a resposta parou no teto, no meio (incompleta)."""
     from . import eta
     plan = eta.current
     if plan and kind:
@@ -194,6 +195,8 @@ def _chat(model, system, user, check, tokens, schema=None, num_ctx=20480, temper
     for d in _stream_chat(model, system, user, check, schema, num_ctx, temperature, keep_alive, images,
                           limit or MAX_OUT.get(kind)):
         if d.get("done"):
+            if d.get("done_reason") == "length" and on_cut:
+                on_cut()
             eta.learn_llm(model, kind, d, len(system) + len(user))
             continue
         out.append(d.get("message", {}).get("content", ""))
@@ -263,17 +266,20 @@ def validate(data, duration=None, has_times=True):
 
 def calls(segments, model, screens=()):
     """As respostas que generate vai pedir à IA, [(tipo, caracteres do pedido)], para estimar o tempo: aula longa
-    é lida por partes (notas) antes da página."""
+    é lida por partes (notas) antes da página. As partes são as de verdade (o corte é por linha); nas rodadas
+    seguintes, o texto das notas do tamanho que a IA costuma escrever (eta.out_tokens), cortado do mesmo jeito."""
     from . import eta
-    size, out, rnd = len(transcript_text(segments, screens)), [], 0
-    while size > SINGLE_PASS_CHARS:
+    text, out, rnd = transcript_text(segments, screens), [], 0
+    per = eta.value("chars_per_token", model)
+    while len(text) > SINGLE_PASS_CHARS:
         rnd += 1
-        parts = -(-size // CHUNK_CHARS)
-        out += [("notes", min(size, CHUNK_CHARS) + len(NOTES))] * parts
-        size = int(parts * eta.value("out_notes", model) * eta.value("chars_per_token", model))
+        parts = chunks(text)
+        out += [("notes", len(p) + len(NOTES)) for p in parts]
+        text = "\n\n".join("n" * int(eta.out_tokens(model, "notes", (len(p) + len(NOTES)) / per) * per)
+                           for p in parts)
         if rnd >= 3:
-            size = min(size, SINGLE_PASS_CHARS)
-    return out + [("lesson", size + len(SYSTEM) + len(json.dumps(SCHEMA, ensure_ascii=False)))]
+            text = text[:SINGLE_PASS_CHARS]
+    return out + [("lesson", len(text) + len(SYSTEM) + len(json.dumps(SCHEMA, ensure_ascii=False)))]
 
 
 def generate(segments, duration, model, language, check, status, redo=False, note="", screens=()):
@@ -285,15 +291,30 @@ def generate(segments, duration, model, language, check, status, redo=False, not
             else "Escreva no mesmo idioma em que a aula foi falada.")
     text = transcript_text(segments, screens)
     has_times = any(s.get("start") is not None for s in segments)
-    rnd = 0
+    rnd, lost, splits = 0, [], [MAX_SPLITS]
+
+    def read_part(part, i, n, again=True):
+        """Notas de uma parte. Resposta cortada no teto (a parte tem muito conteúdo): a parte é lida de novo em dois
+        pedaços, no máximo MAX_SPLITS vezes na aula toda (se a IA se repete, todas as partes cortam e reler cada uma
+        multiplicaria o tempo: já levou 27 min em vez de 3). O que ainda cortar segue como veio e a página avisa."""
+        cut = []
+        notes = _chat(model, NOTES.format(i=i, n=n, lang=lang), part, check, lambda k: None, num_ctx=12288,
+                      kind="notes" if again else None, limit=MAX_OUT["notes"], on_cut=lambda: cut.append(1))
+        if not cut:
+            return notes
+        if again and splits[0] > 0 and len(part) > 2000:
+            splits[0] -= 1
+            return "\n\n".join(read_part(p, i, n, False) for p in chunks(part, len(part) // 2 + 1))
+        lost.append(i)
+        return notes
+
     while len(text) > SINGLE_PASS_CHARS:  # aula longa: resume por partes e junta as notas
         rnd += 1
         parts = chunks(text)
         notes = []
         for i, part in enumerate(parts, 1):
             status(f"Lendo a aula por partes ({i} de {len(parts)})…", (i - 1) / len(parts))
-            notes.append(_chat(model, NOTES.format(i=i, n=len(parts), lang=lang), part, check,
-                               lambda n: None, num_ctx=12288, kind="notes"))
+            notes.append(read_part(part, i, len(parts)))
         text = "\n\n".join(notes)
         if rnd >= 3:
             text = text[:SINGLE_PASS_CHARS]
@@ -313,7 +334,12 @@ def generate(segments, duration, model, language, check, status, redo=False, not
                     lambda n: status(f"Escrevendo o material de estudo… ({n} trechos gerados)", None),
                     schema=SCHEMA, temperature=0.6 if redo else 0.2, kind="lesson")
         try:
-            return validate(json.loads(raw), duration, has_times)
+            lesson = validate(json.loads(raw), duration, has_times)
+            if lost:  # visível na página, em “Pontos de atenção”: nada se perde em silêncio
+                lesson["caveats"] = ["Parte da aula foi lida de forma incompleta (a IA não terminou o resumo da "
+                                     "parte " + ", ".join(map(str, sorted(set(lost)))) + "); confira a aula original "
+                                     "nesses trechos."] + lesson["caveats"][:9]
+            return lesson
         except (ValueError, AppError):
             if attempt == 2:
                 raise AppError("A IA devolveu um resultado malformado duas vezes.",
