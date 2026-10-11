@@ -809,7 +809,8 @@ function renderShots(r) {
   if (!sc) return;
   $("#shots-info").textContent = (items.length
     ? `${items.length} com conteúdo da aula${sc.seen > items.length ? `, de ${sc.seen} telas vistas` : ""}. Desmarque o que não deve ir para a página.`
-    : "Nenhuma tela com conteúdo da aula (slide, quadro, código) foi encontrada.") + (sc.warning ? " " + sc.warning : "");
+    : sc.seen ? "Nenhuma tela com conteúdo da aula (slide, quadro, código) foi encontrada." : "")
+    + (sc.warning ? " " + sc.warning : "");
   $("#shot-grid").replaceChildren(...items.map((s) => {
     const cb = el("input", { type: "checkbox", "aria-label": `Usar a tela de ${mmss(s.t)}: ${s.titulo}` });
     cb.checked = true;
@@ -876,6 +877,9 @@ $("#review-go").addEventListener("click", () => {
     lastSpec.link = $("#review-link").value.trim();
     $("#lesson-link").value = lastSpec.link;
   }
+  // a gravação é apagada ao gerar a página (sem “manter arquivos temporários”): deixa de ser a fonte escolhida, e
+  // “Nova aula” volta para gravar em vez de conferir um arquivo que não existe mais (“Arquivo não encontrado”)
+  if (lastSpec.kind === "recording" && !S.config.keep_temp) picked.recording = null;
   start(lastSpec, "/api/finish");
 });
 $("#review-cancel").addEventListener("click", () => { $("#review").hidden = true; backToCompose(); });
@@ -885,6 +889,9 @@ function backToCompose() {
   dockDest(null);
   found = null; renderSource();
   if (currentSpec()) inspect();
+  else if (kind === "recording" && recorder.dataset.state === "done") {  // a gravação já virou aula
+    setRecState("idle", "Iniciar gravação"); $("#rec-time").textContent = "00:00"; $("#rec-hint").textContent = "";
+  }
   loadCourses();
 }
 

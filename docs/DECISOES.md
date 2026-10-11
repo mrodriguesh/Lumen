@@ -362,6 +362,32 @@ echo "isto nao e um video" > falso.mp4
   todas da janela de teste, lidas como aula. Agora vence a janela que não é programa seu e tem ≥ 10% dos pontos
   (amostra de até 100); sem nenhuma, continua recusada (o programa seu nunca é fotografado). Ao parar, o log
   registra quantas telas e as recusas por motivo (só os motivos, nada da tela).
+## Assistir a tela junto: validação ponta a ponta (11/10/2026)
+
+- **Defeito principal (gravação real de 8 min 43 s: 0 telas, 0 recusas):** a área do vídeo que se mexe sai da
+  comparação e só voltava quando a **tela inteira** parava. Num vídeo editado (YouTube), a câmera redonda e a legenda
+  animada nunca param: depois de uma fala, nenhum slide voltava a contar. Simulação (falas com a imagem toda se
+  mexendo, 4 slides com câmera redonda e legenda): antes 1 de 4 (aos 67 s, slide de 57 s), agora 4 de 4 com ≤ 4 s.
+  Correção (`Scenes.feed`): toda área “viva” parada por `STILL_S` com as 8 vizinhas também paradas volta à
+  comparação, se somar ≥ `QUIET` (10%) da tela. A vizinhança evita que células soltas da legenda voltem e, ao mudar
+  de novo, façam a tela parecer “ainda mudando”. A câmera num canto que para um instante é pequena e continua fora.
+- **Lumen na frente:** com a janela principal do Lumen em primeiro plano (clicou em Gravar e não clicou no vídeo),
+  `grab` devolvia None e nada era assistido, sem recusa e com a gravação dizendo “Assistindo a tela junto”. Agora
+  a área do Lumen sai preta na cópia de comparação e o resto da tela segue. Limite: uma janela “sempre por cima”
+  (vídeo em picture-in-picture) sobre a área do Lumen fica fora da comparação enquanto o Lumen estiver na frente.
+- **Falhas visíveis:** sem acesso à tela ou cópia que falha viram recusas com motivo (antes: silêncio). As recusas por
+  motivo ficam no `index.json` das telas; a revisão diz “Nenhuma tela foi guardada durante a gravação (motivo)” em vez
+  de “nenhuma tela com conteúdo da aula”. Log: cópias da tela, telas guardadas e recusas ao parar; telas guardadas e
+  para a página ao processar; blocos e telas (no texto da IA, na página, sem imagem) ao publicar. Nada da tela.
+- **Nova aula depois de uma gravação:** a gravação é apagada ao gerar a página; “Nova aula” conferia de novo o
+  arquivo apagado e mostrava “Arquivo não encontrado”. Agora a gravação deixa de ser a fonte ao gerar a página.
+- **Validação real pelo Lumen.exe** (interface via CDP do WebView2, sem mouse/teclado; Opera GX de teste em perfil
+  isolado tocando aulas de teste com voz Maria, câmera redonda e legenda animada; Notion real, destino “Sem curso”):
+  aula 1: 4 de 4 slides guardados ao aparecer e lidos durante a gravação; “Exemplo visual: 7 × 8 = 56” (só na
+  tela, nunca falado) chegou ao material da IA (tópico, exemplo, resposta) e à seção “O que apareceu na tela”, lido
+  de volta pela API e pelo conector do Notion. Aula 2: 3 de 3 slides; a equação só da tela chegou à página; nenhuma
+  aula tem conteúdo da outra; os blocos anteriores da página continuam, na mesma ordem.
+
 ## Limitações conhecidas
 
 - O áudio inteiro é decodificado em memória: ≈ 230 MB por hora de aula (o dobro em 2× desacelerado).

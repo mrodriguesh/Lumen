@@ -6,6 +6,7 @@ import tempfile
 import threading
 import time
 import unittest
+from pathlib import Path
 from unittest import mock
 
 import numpy as np
@@ -71,6 +72,31 @@ class Scenes(unittest.TestCase):
                   + talking(10) + [youtube(slide("C"))] * 35)
         # cada slide, poucos segundos depois de aparecer (antes: só o C, aos 124 s)
         self.assertEqual(self.run_screen(frames), [41, 76, 98])
+
+    def test_screens_in_an_edited_video_with_a_round_camera_and_captions(self):
+        # gravação real: 8 min 43 s, 0 telas e nenhuma recusa. Vídeo editado em tela cheia: a imagem toda se mexe nas
+        # falas, e nas telas de conteúdo uma câmera redonda e a legenda animada nunca param; a área do vídeo só voltava
+        # à comparação quando a tela inteira parava (nunca)
+        rng = np.random.default_rng(3)
+        yy, xx = np.mgrid[0:540, 0:960]
+        bubble = (yy - 430) ** 2 + (xx - 850) ** 2 < 70 ** 2
+
+        def extras(g, t):
+            g[bubble] = rng.integers(0, 255, bubble.sum())
+            g[470:510, 250:710] = 20
+            g[480:500, 270 + (t * 3) % 7 * 40:430 + (t * 3) % 7 * 40] = 230  # palavras da legenda trocando
+            return g
+
+        frames = []
+        for kind, n in (("fala", 20), ("A", 15), ("fala", 10), ("B", 12), ("C", 18), ("fala", 15), ("D", 15)):
+            for _ in range(n):
+                t = len(frames)
+                frames.append(extras(rng.integers(0, 255, (540, 960), dtype=np.uint8) if kind == "fala"
+                                     else slide(kind), t))
+        times = self.run_screen(frames)  # os slides aparecem aos 20, 45, 57 e 90 s
+        self.assertEqual(len(times), 4, times)
+        for shown, kept in zip((20, 45, 57, 90), times):
+            self.assertLessEqual(kept - shown, 5)
 
     def test_a_screen_whose_image_failed_is_tried_again(self):
         # a captura da janela falhou uma vez (programa que ainda não desenhava, janela por cima…): a tela parada era dada
@@ -546,6 +572,24 @@ class Watching(unittest.TestCase):
                 time.sleep(0.01)
             w.stop()
         return [s["window"].split(" - ")[0] for s in w.shots.items]
+
+    def test_review_says_nothing_was_captured_and_why(self):
+        # gravação sem nenhuma tela: a revisão dizia “nenhuma tela com conteúdo da aula foi encontrada”, como se as
+        # telas tivessem sido lidas e descartadas
+        from lumen import jobs
+        screen = type("S", (FakeScreen,), {"window_image": lambda self, h: None})([slide("A")] * 12)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(vision, "INTERVAL_S", 0.01):
+            work = Path(tmp)
+            w = vision.Watch(work / "screens", lambda: float(screen.n), vision.MODEL, grabber=screen)
+            for _ in range(500):
+                if screen.n > 14:
+                    break
+                time.sleep(0.01)
+            w.stop()
+            with self.assertLogs("lumen", "INFO"):
+                out = jobs._screens({"kind": "recording"}, work, {"watch_screen": True})
+        self.assertEqual((out["items"], out["seen"]), ([], 0))
+        self.assertIn("Nenhuma tela foi guardada durante a gravação (o programa não deixou", out["warning"])
 
     def test_student_app_bigger_than_the_lesson_does_not_block_it(self):
         # gravação real: 0 telas. O VS Code atrás do navegador ocupava mais pontos do monitor que o vídeo; a primeira

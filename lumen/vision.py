@@ -41,6 +41,7 @@ SIMILAR = 0.25      # parecida com uma tela de “pessoa falando” já lida: n�
 GAP_S = 20          # numa tela que vai ganhando conteúdo, guarda o estado mais recente a cada 20 s
 STILL_S = 1.5       # a tela precisa ficar parada este tempo (descarta transições)
 CALM = 0.002        # fração das células que pode mudar com a tela “parada” (um cursor, uma letra digitada)
+QUIET = 0.1         # área “viva” que, parada por STILL_S, volta à comparação (o vídeo que cortou para um slide)
 INTERVAL_S = 1.0
 STOP_S = 5.0        # ao parar, espera a captura guardar a última tela; depois a pasta fecha mesmo assim
 MAX_SHOTS = 300     # telas guardadas por aula (≈ 60–150 KB cada)
@@ -123,6 +124,16 @@ def _diff(a, b, mask=None):
 
 # --- quais telas guardar -----------------------------------------------------------------------------------------
 
+def _inner(mask):
+    """Células de `mask` cujas 8 vizinhas também estão nela (a borda da tela conta como dentro)."""
+    m, (h, w) = np.pad(mask, 1, constant_values=True), mask.shape
+    out = mask.copy()
+    for dy in range(3):
+        for dx in range(3):
+            out &= m[dy:dy + h, dx:dx + w]
+    return out
+
+
 class Scenes:
     """Diz quando aparece uma tela nova. Alimentado em ordem com miniaturas (ver _small).
 
@@ -131,7 +142,8 @@ class Scenes:
     compara a imagem inteira."""
 
     def __init__(self, still_s=STILL_S):
-        self.still_s, self.keys, self.prev, self.since, self.calm = still_s, [], None, 0.0, 0.0
+        self.still_s, self.keys, self.prev, self.since = still_s, [], None, 0.0
+        self.changed_at = np.zeros(GRID, np.float32)  # quando cada célula mudou pela última vez
         self.motion, self.live = np.zeros(GRID, np.float32), np.zeros(GRID, bool)
 
     def feed(self, t, small):
@@ -148,14 +160,18 @@ class Scenes:
         # em ~4 capturas e não sai a cada instante parado; uma troca de slide (1 ou 2 mudanças) nunca entra.
         self.motion += 0.1 * (changed - self.motion)
         self.live = (self.live & (self.motion > LIVE_OFF)) | (self.motion > LIVE_ON)
-        # A tela inteira parou (o vídeo cortou da pessoa falando para um slide, ou foi pausado): o que se mexia não
-        # está mais vivo. Sem isso, a área do vídeo só voltava à comparação depois de ~28 s parada, e num vídeo do
-        # YouTube os slides de 10–20 s entre uma fala e outra nunca eram guardados (gravações de 10 min com 1 tela).
-        if changed.mean() > CALM:
-            self.calm = t
-        elif t - self.calm >= self.still_s:
-            self.motion[:] = 0
-            self.live[:] = False
+        # Uma área grande que se mexia parou (o vídeo cortou da pessoa falando para um slide, ou foi pausado): ela não
+        # está mais viva, mesmo que uma câmera redonda ou uma legenda animada continuem se mexendo. Sem isso, a área do
+        # vídeo só voltava à comparação depois de ~28 s parada, e os slides de 10–20 s entre uma fala e outra nunca
+        # eram guardados (gravação real de 8 min 43 s com 0 telas). Uma câmera num canto que para um instante é pequena
+        # (< QUIET) e continua fora da comparação.
+        # Só células paradas com as 8 vizinhas também paradas: na legenda, uma célula que por acaso não mudou num
+        # instante voltava à comparação e, ao mudar de novo, a tela parecia “ainda mudando” por vários segundos.
+        self.changed_at[changed] = t
+        quiet = self.live & _inner(t - self.changed_at >= self.still_s)
+        if quiet.mean() >= QUIET:
+            self.motion[quiet] = 0
+            self.live[quiet] = False
         static = ~self.live
         if static.mean() < 0.4 or (changed & static).mean() > CALM:  # quase tudo se mexe, ou ainda mudando
             self.since = t
@@ -277,18 +293,20 @@ def ready(model):
 # --- telas guardadas de uma aula ---------------------------------------------------------------------------------
 
 class Shots:
-    """<pasta>/NNNN.jpg + index.json: tempo, estado (pending | done) e anotação de cada tela."""
+    """<pasta>/NNNN.jpg + index.json: tempo, estado (pending | done) e anotação de cada tela, e as capturas
+    recusadas na gravação por motivo (para a revisão dizer por que nenhuma tela foi guardada)."""
 
     def __init__(self, folder):
         self.dir, self.lock, self.closed = Path(folder), threading.Lock(), False
         try:
-            self.items = json.loads((self.dir / "index.json").read_text("utf-8"))["shots"]
+            index = json.loads((self.dir / "index.json").read_text("utf-8"))
+            self.items, self.refused = index["shots"], index.get("refused") or {}
         except (OSError, ValueError, KeyError):
-            self.items = []
+            self.items, self.refused = [], {}
 
     def _save(self):
         tmp = self.dir / "index.json.tmp"
-        tmp.write_text(json.dumps({"shots": self.items}, ensure_ascii=False), "utf-8")
+        tmp.write_text(json.dumps({"shots": self.items, "refused": self.refused}, ensure_ascii=False), "utf-8")
         os.replace(tmp, self.dir / "index.json")
 
     def add(self, t, jpeg, window=None):
@@ -576,14 +594,17 @@ class Screen:
         return img if img.size and img[::8, ::8, :3].max() > 16 else None
 
     def grab(self):
-        """(BGRA h×w×4 do monitor, barra do Lumen nele ou None, canto (x, y) do monitor na tela).
+        """(BGRA h×w×4 do monitor, barra do Lumen nele ou None, canto (x, y) do monitor na tela), ou None se a
+        cópia falhar.
 
-        None se a janela principal do Lumen está na frente (você está mexendo nele, não assistindo). A barra
-        flutuante não conta: clicar em Gravar nela a deixa em primeiro plano, e a aula continua atrás."""
+        Com a janela principal do Lumen na frente (clicou em Gravar nela e a aula segue tocando atrás ou ao lado), a
+        área dela sai preta na cópia: o que muda nela não é a aula, e o resto da tela continua sendo assistido. Antes
+        a tela inteira era ignorada enquanto o Lumen estivesse na frente, e uma gravação assim não guardava nada. A
+        imagem guardada não depende disto: vem da própria janela da aula (window_image), sem o que está por cima."""
         c, w, u, g = self.c, self.w, self.u, self.g
         fg = u.GetForegroundWindow()
-        if fg and self._title(fg) == "Lumen":
-            return None
+        cover = w.RECT()
+        mine = bool(fg) and self._title(fg) == "Lumen" and u.GetWindowRect(fg, c.byref(cover))
 
         class MONITORINFO(c.Structure):
             _fields_ = [("cbSize", w.DWORD), ("rcMonitor", w.RECT), ("rcWork", w.RECT), ("dwFlags", w.DWORD)]
@@ -597,6 +618,8 @@ class Screen:
                                                                          0x00CC0020))  # SRCCOPY
         if buf is None:
             return None
+        if mine:
+            buf[max(cover.top - y, 0):max(cover.bottom - y, 0), max(cover.left - x, 0):max(cover.right - x, 0)] = 0
         bar = None
         hwnd = u.FindWindowW(None, "Lumen · barra flutuante")
         rect = w.RECT()
@@ -621,6 +644,7 @@ class Watch:
         self.smalls, self.mask, self.read_n, self.failed = {}, np.zeros(GRID, bool), 0, False
         self.refused, self.why = 0, ""  # capturas não guardadas e o último motivo (aparece durante a gravação)
         self.reasons = {}  # motivo → vezes (vai para o log ao parar; só os motivos, nada da tela)
+        self.frames = 0  # cópias da tela feitas (o log mostra se a captura chegou a ver a tela)
         self.screen = None
         self.threads = [threading.Thread(target=self._capture, daemon=True)]
         if live:
@@ -654,6 +678,7 @@ class Watch:
         try:
             self.screen = self.grabber or Screen()
         except (OSError, AttributeError):
+            self._refuse("este PC não deixou o Lumen ver a tela")
             return  # sem Windows/GDI: grava só o áudio
         while not self.stop_ev.is_set():
             start = time.monotonic()
@@ -661,7 +686,10 @@ class Watch:
                 got = self.screen.grab()
             except OSError:
                 got = None
-            if got:
+            if not got:
+                self._refuse("o Windows não deixou copiar a tela")
+            else:
+                self.frames += 1
                 bgra, bar, origin = got
                 small = self._small(bgra, bar)
                 try:  # um erro numa tela (imagem estranha, janela que sumiu) não pode parar a captura da aula toda
@@ -745,9 +773,10 @@ class Watch:
         self.threads[0].join(timeout=STOP_S)
         for t in self.threads[1:]:
             t.join(timeout=0.5)
+        self.shots.refused = dict(self.reasons)
         self.shots.close()
-        logging.getLogger("lumen").info("tela junto: %d tela(s) guardada(s); recusas: %s", len(self.shots.items),
-                                        self.reasons or "nenhuma")
+        logging.getLogger("lumen").info("tela junto: %d cópia(s) da tela, %d tela(s) guardada(s); recusas: %s",
+                                        self.frames, len(self.shots.items), self.reasons or "nenhuma")
 
 
 def adopt(screens, work):

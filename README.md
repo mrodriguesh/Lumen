@@ -108,12 +108,15 @@ visão local (`qwen3.5:4b`).
   Só fica a tela nova que parou de mudar (um slide novo, não a transição). A imagem é tirada da própria janela da
   aula, como o Windows a desenha: o que estiver por cima dela (avisos, uma conversa, outro programa) não entra.
   Ela é lida nos intervalos da aula (≈ 1,5–3 s de GPU por slide). Quando você para a gravação, quase
-  tudo já foi lido. A câmera do professor num canto e vídeo em movimento são ignorados na comparação.
+  tudo já foi lido. A câmera do professor num canto, uma câmera redonda, legendas animadas e vídeo em movimento
+  são ignorados na comparação; quando o vídeo corta da pessoa falando para um slide, o slide entra em 1 a 4 s.
 - **Arquivo de vídeo:** o Lumen lê os quadros-chave do próprio arquivo depois de transcrever (≈ 2 s por tela nova).
 - **O que entra:** o modelo transcreve o texto da tela e descreve figuras; rosto do professor, anúncios, menus,
   recomendações do YouTube e notificações ficam de fora. Seus próprios programas (editor de código, anotações,
-  Word, e-mail, WhatsApp, terminal, pastas) **nunca** são lidos, nem durante a aula, e a janela principal do Lumen
-  pausa a captura.
+  Word, e-mail, WhatsApp, terminal, pastas) **nunca** são lidos, nem durante a aula. A janela do Lumen também
+  não: se ela estiver na frente, a aula atrás ou ao lado continua sendo assistida.
+- **Se nenhuma tela entrar,** a gravação mostra o motivo (“Sem capturas ainda: …”) e a revisão diz “Nenhuma tela
+  foi guardada durante a gravação (motivo)”, em vez de parecer que as telas foram lidas e descartadas.
 - **Na revisão** aparecem as telas escolhidas; desmarque o que não quiser na página. A IA usa o texto delas para
   acertar termos, nomes, números e fórmulas que a fala transcreveu errado.
 - **Na página:** seção **O que apareceu na tela** com a galeria (2 por linha, clique para ampliar) e o texto de cada

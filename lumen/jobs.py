@@ -302,6 +302,10 @@ def _screens(src, work, cfg):
     shots = vision.Shots(folder)
     items = [{"id": s["id"], "t": s["t"], "titulo": s["note"]["titulo"], "tipo": s["note"]["tipo"]}
              for s in vision.select(shots.items)]
+    if watched and not shots.items and not warning:  # captura sem nenhuma tela: não é o mesmo que “sem conteúdo”
+        why = max(shots.refused, key=shots.refused.get) if shots.refused else None
+        warning = "Nenhuma tela foi guardada durante a gravação" + (f" ({why})" if why else "") + "."
+    logging.getLogger("lumen").info("telas da aula: %d guardada(s), %d para a página", len(shots.items), len(items))
     return {"items": items, "seen": len(shots.items), "warning": warning}
 
 
@@ -408,6 +412,10 @@ def finish(spec):
     plan.at("publish", requests * eta.value("request_s"))
     pid, url, block_ids = notion.publish(token, course_id, title, blocks, check, transcript=transcript)
     eta.learn("request_s", plan.elapsed() / requests)
+    shown = meta.get("screens") or []
+    logging.getLogger("lumen").info("página publicada: %d bloco(s); telas: %d no texto da IA, %d na página "
+                                    "(%d sem imagem)", len(block_ids), len(lines), len(shown),
+                                    sum(1 for s in shown if not s.get("upload")))
 
     old = store.history().get(src["key"]) or {}
     note = None
