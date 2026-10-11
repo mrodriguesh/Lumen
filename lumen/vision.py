@@ -177,7 +177,8 @@ class Picker:
                 return out
             img = image()
             if img is None:
-                return out
+                self.scenes.keys.pop()  # não foi guardada: tenta de novo no próximo instante parado, em vez de
+                return out              # dar a tela por vista (uma falha de uma vez perdia a tela parada para sempre)
             cand = (self.scenes.since, img, small)
             if self.last is None or _diff(small, self.last) >= SMALL or t - self.last_at >= GAP_S:
                 out += self.flush(t)
@@ -604,6 +605,7 @@ class Watch:
         self.shots, self.clock, self.model, self.paused, self.live = Shots(folder), clock, model, paused, live
         self.picker, self.grabber, self.stop_ev, self.q = Picker(), grabber, threading.Event(), queue.Queue()
         self.smalls, self.mask, self.read_n, self.failed = {}, np.zeros(GRID, bool), 0, False
+        self.refused, self.why = 0, ""  # capturas não guardadas e o último motivo (aparece durante a gravação)
         self.screen = None
         self.threads = [threading.Thread(target=self._capture, daemon=True)]
         if live:
@@ -614,7 +616,12 @@ class Watch:
     def counts(self):
         items = self.shots.items
         return {"seen": len(items), "read": self.read_n,
-                "kept": sum(1 for s in items if s["note"] and s["note"]["keep"])}
+                "kept": sum(1 for s in items if s["note"] and s["note"]["keep"]),
+                "refused": self.refused, "why": self.why}
+
+    def _refuse(self, why):
+        self.refused, self.why = self.refused + 1, why
+        return None
 
     def _small(self, bgra, bar):
         small = _small(bgra[::4, ::4, 1])  # canal verde ≈ brilho; 1 pixel a cada 4 basta para a miniatura
@@ -665,14 +672,16 @@ class Watch:
         hwnd = self.screen.window_at([(origin[0] + (c + .5) * w / GRID[1], origin[1] + (r + .5) * h / GRID[0])
                                       for r, c in cells]) if len(cells) else None
         if not hwnd:
-            return None
+            return self._refuse("não achei a janela da aula")
         label = self.screen.label(hwnd)
         box = self.screen.rect(hwnd)
-        if student_app(label) or not box or box[2] - box[0] < 320 or box[3] - box[1] < 180:
-            return None
+        if student_app(label):
+            return self._refuse("a janela em uso é de um programa seu (privacidade)")
+        if not box or box[2] - box[0] < 320 or box[3] - box[1] < 180:
+            return self._refuse("a janela em uso é pequena demais")
         img = self.screen.window_image(hwnd)
         if img is None or not img.size:
-            return None
+            return self._refuse("o programa não deixou o Lumen desenhar a janela (sai preta)")
         return _encode(av.VideoFrame.from_ndarray(_trim(np.ascontiguousarray(img)), format="bgra")), label
 
     def _keep(self, found):

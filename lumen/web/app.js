@@ -237,7 +237,8 @@ function renderRec(r) {
     recorder.style.setProperty("--lvl", Math.min(1, Math.sqrt(r.level || 0) * 1.4).toFixed(2));
     $("#rec-time").textContent = mmss(r.seconds);
     const sc = r.screens;
-    const eye = !sc ? "" : !sc.seen ? " · Assistindo a tela junto." : ` · ${sc.seen} tela${sc.seen === 1 ? " nova" : "s novas"}`
+    const eye = !sc ? "" : !sc.seen ? (sc.refused ? ` · Sem capturas ainda: ${sc.why}.` : " · Assistindo a tela junto.")
+      : ` · ${sc.seen} tela${sc.seen === 1 ? " nova" : "s novas"}`
       + (sc.read ? `, ${sc.kept} com conteúdo da aula.` : " (lidas ao processar).");
     $("#rec-hint").textContent = (r.level > 0.005 ? "Gravando o som da aula…"
       : r.heard ? "Silêncio no momento." : "Nenhum som ainda: dê play na aula (volume ligado).") + eye;

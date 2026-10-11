@@ -334,6 +334,18 @@ ffmpeg -f lavfi -i color=c=red:s=320x240:r=10 -t 3 -c:v libx264 -pix_fmt yuv420p
 echo "isto nao e um video" > falso.mp4
 ```
 
+## Assistir a tela junto: captura que falha tenta de novo (11/10/2026)
+
+- **Defeito:** quando a imagem da janela não podia ser guardada num instante (`window_image` recusou, janela de um
+  programa seu por cima…), a tela já tinha sido marcada como “vista”. Numa página quase parada (vídeo de aula), nada
+  mudava o bastante para ser uma tela nova e nenhuma outra captura acontecia: uma gravação de 9 min 48 s guardou
+  só 1 tela. Veio da correção de privacidade que deixou de recortar a cópia da tela (a captura passou a poder falhar).
+- **Correção:** `Picker.feed` desfaz o “visto” quando a imagem falha, e a mesma tela é tentada de novo no instante
+  parado seguinte (custo: uma tentativa por segundo, ≈ 15 ms). Durante a gravação, o app mostra o motivo se ainda não
+  houve nenhuma captura (“não achei a janela da aula”, “programa seu”, “janela pequena”, “o programa não deixou o
+  Lumen desenhar a janela”).
+- **Medido:** `PrintWindow` desenha o Opera GX (perfil e página de teste isolados) com texto e com vídeo tocando,
+  10/10 capturas, ≈ 16 ms. Vídeo de aula de teste por arquivo: 5 telas lidas e na página.
 ## Limitações conhecidas
 
 - O áudio inteiro é decodificado em memória: ≈ 230 MB por hora de aula (o dobro em 2× desacelerado).

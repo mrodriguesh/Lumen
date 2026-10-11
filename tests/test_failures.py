@@ -91,7 +91,9 @@ class CudaFallback(unittest.TestCase):
                     raise RuntimeError("CUDA failed with error out of memory")
                 return iter([types.SimpleNamespace(start=0, end=1, text="ok", avg_logprob=-0.1)]), \
                     types.SimpleNamespace(language="pt", duration=1)
+        # _vram: sem isso, a VRAM de verdade decide (com o Ollama ou um jogo usando a placa, ia direto para a CPU)
         with mock.patch.object(transcribe, "has_gpu", return_value=True), \
+                mock.patch.object(transcribe, "_vram", return_value=(12.0, 3.0)), \
                 mock.patch.object(transcribe, "_model", side_effect=lambda name, device: Model(device)):
             out = transcribe._run(np.zeros(16000, dtype=np.float32), "large-v3-turbo", lambda *a: None, lambda: None,
                                   1.0, 1.0, 1.0, False)

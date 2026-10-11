@@ -53,6 +53,20 @@ class Scenes(unittest.TestCase):
         out += [round(x[0]) for x in p.flush()]
         return out
 
+    def test_a_screen_whose_image_failed_is_tried_again(self):
+        # a captura da janela falhou uma vez (programa que ainda não desenhava, janela por cima…): a tela parada era dada
+        # por vista e nunca mais tentada; num vídeo de aula quase parado, não sobrava nenhuma captura
+        tries = []
+
+        def image():
+            tries.append(1)
+            return None if len(tries) < 3 else b"jpg"
+        p, out = vision.Picker(), []
+        for t in range(40):
+            out += p.feed(float(t), vision._small(slide("A")[::2, ::2]), image)
+        self.assertEqual(len(tries), 3)  # 2 recusas, 1 guardada, e a tela parada não é guardada de novo
+        self.assertEqual([round(x[0]) for x in out], [0])  # com o tempo em que apareceu
+
     def test_slides_bullets_and_revisit(self):
         a, b = slide("A"), slide("B")
         frames = [a] * 5 + [(a // 2 + b // 2)] + [b] * 5 + [slide("B", bullet=True)] * 5 + [slide("C")] * 5 + [a] * 5
@@ -347,6 +361,35 @@ class Private(unittest.TestCase):
                 return None
         self.assertEqual(self.run_watch(Popup([slide("A")] * 5 + [slide("B")] * 10)), [])
 
+    def test_a_window_that_refuses_at_first_is_saved_when_it_allows(self):
+        class Late(FakeScreen):
+            asked = 0
+
+            def window_image(self, hwnd):
+                Late.asked += 1
+                return None if Late.asked <= 3 else super().window_image(hwnd)
+        jpegs = self.run_watch(Late([slide("A")] * 30))
+        self.assertEqual(len(jpegs), 1)  # a mesma tela, parada o tempo todo, entra quando a janela deixa
+
+    def test_the_recording_says_why_nothing_was_captured(self):
+        reasons = {}
+        for name, patchw in (("sem janela", {"window_at": lambda self, pts: None}),
+                             ("privado", {"label": lambda self, h: "Meu código — Code.exe"}),
+                             ("pequena", {"rect": lambda self, h: (0, 0, 300, 100)}),
+                             ("preta", {"window_image": lambda self, h: None})):
+            screen = type("S", (FakeScreen,), patchw)([slide("A")] * 12)
+            with tempfile.TemporaryDirectory() as tmp, mock.patch.object(vision, "INTERVAL_S", 0.01):
+                w = vision.Watch(os.path.join(tmp, "g.screens"), lambda: float(screen.n), vision.MODEL, grabber=screen)
+                for _ in range(500):
+                    if screen.n > 14:
+                        break
+                    time.sleep(0.01)
+                w.stop()
+                reasons[name] = w.counts()
+        self.assertTrue(all(c["seen"] == 0 and c["refused"] > 0 for c in reasons.values()))
+        self.assertEqual([c["why"].split(" ")[0:3] for c in reasons.values()],
+                         [["não", "achei", "a"], ["a", "janela", "em"], ["a", "janela", "em"], ["o", "programa", "não"]])
+
     def test_no_clear_window_or_small_window_is_not_saved(self):
         class Nowhere(FakeScreen):
             def window_at(self, points):
@@ -405,7 +448,7 @@ class Watching(unittest.TestCase):
                     break
                 time.sleep(0.01)
             w.stop()
-            self.assertEqual(w.counts(), {"seen": 3, "read": 3, "kept": 2})
+            self.assertEqual(w.counts(), {"seen": 3, "read": 3, "kept": 2, "refused": 0, "why": ""})
             self.assertTrue((w.shots.dir / "complete").exists())
             self.assertFalse((w.shots.dir / "0001.jpg").exists())  # tela sem conteúdo: apagada na hora
             self.assertTrue(w.mask[:, -4:].all() and not w.mask[:, :80].any())  # barra do Lumen fora da comparação
