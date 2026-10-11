@@ -226,20 +226,24 @@ def _columns(values, labels, names, us, wins):
     com os valores na ordem de um cabeçalho que lista as séries nessa ordem. Na fala sem os nomes, não dá para
     saber: recusa."""
     cols = _distinct(names)
+    flat = [v for row in values for v in row]
 
     def row_ok(k, row, i):
         t, toks = wins[i]
-        if not any(_match(labels[k], w) for w, _ in toks):
+        rows = _spots(toks, labels)
+        if k not in rows.values():
             return False
         spots = _spots(toks, cols)
+        # o mesmo número é da linha k (não o da outra categoria no mesmo trecho) e da coluna j
+        mine = [p for p in range(len(toks)) if p not in spots and p not in rows and _owner(toks, rows, flat, p) == k]
         if len(set(spots.values())) == len(cols):
-            return all(any(_has(toks[p][1], v) and _owner(toks, spots, row, p) == j
-                           for p in range(len(toks)) if p not in spots) for j, v in enumerate(row))
+            return all(any(_has(toks[p][1], v) and _owner(toks, spots, row, p) == j for p in mine)
+                       for j, v in enumerate(row))
         if us[i][2]:
             return False
         at, pos = 0, []
         for v in row:  # na linha da tabela, os valores na ordem das colunas
-            p = next((p for p in range(at, len(toks)) if _has(toks[p][1], v)), None)
+            p = next((p for p in mine if p >= at and _has(toks[p][1], v)), None)
             if p is None:
                 return False
             pos.append(p)
@@ -477,8 +481,8 @@ _SPOKEN = ((" igual a ", " = "), ("ao quadrado", "^2"), ("ao cubo", "^3"), ("ele
 
 
 def written(us):
-    """[(segundos, f)] das fórmulas escritas ou ditas na aula: O(...), o lado direito de cada "=" e a linha da
-    tela inteira, cada uma lida pelo parser (o trecho mais longo que for fórmula)."""
+    """[(segundos, parse(), texto)] das fórmulas escritas ou ditas na aula: O(...), o lado direito de cada "=" e a
+    linha da tela inteira, cada uma lida pelo parser (o trecho mais longo que for fórmula)."""
     out = []
     for t, text, _ in us:
         s = str(text)
@@ -491,7 +495,7 @@ def written(us):
             for n in range(len(words), 0, -1):
                 p = parse(" ".join(words[:n]))
                 if p:
-                    out.append((t, p))
+                    out.append((t, p, " ".join(words[:n])))
                     break
     return out
 
@@ -499,39 +503,44 @@ def written(us):
 _PROBE = np.array([-2.9, -1.7, -.6, .37, .83, 1.3, 1.9, 2.6, 3.4, 4.7, 6.1, 7.9])
 
 
-def _same(f, g):
-    """Mesma função (não o mesmo texto): os mesmos valores nos pontos de prova. "(x+1)^2" ≠ "x+1^2"."""
-    a, b = f(_PROBE), g(_PROBE)
+def _same(f, g, x0, x1):
+    """Mesma função (não o mesmo texto): os mesmos valores nos pontos de prova e em todo o trecho desenhado.
+    "(x+1)^2" ≠ "x+1^2"; "abs(x-8)" ≠ "8-x" em [-10, 10]; "sqrt(x-10)" vale em [10, 20]."""
+    xs = np.concatenate([_PROBE, np.linspace(x0, x1, 97)])
+    a, b = f(xs), g(xs)
     ok = np.isfinite(a) & np.isfinite(b)
     return ok.sum() >= 5 and np.allclose(a[ok], b[ok], rtol=1e-7, atol=1e-9) and \
         (np.isfinite(a) == np.isfinite(b)).all()
 
 
 def _formula(c, us):
-    """Curvas das fórmulas da aula, calculadas aqui. Cada fórmula precisa ser a mesma função de uma escrita (ou
-    dita) na aula."""
+    """Curvas das fórmulas da aula, calculadas aqui. A IA só aponta qual: a fórmula precisa ser a mesma função
+    de uma escrita (ou dita) na aula, e o que se desenha e se mostra é a da aula, não a da IA."""
     source = written(us)
     found, times, cx = [], [], False
+    x0, x1 = _num(c.get("x_min")), _num(c.get("x_max"))
+    if x0 is None or x1 is None or not x1 > x0 or x1 - x0 > 1e6:
+        x0, x1 = -10.0, 10.0
     for fn in (c.get("funcoes") or [])[:5]:
         if not isinstance(fn, dict):
             continue
-        expr = _clip(fn.get("expressao"), 80)
-        parsed = parse(expr)
+        parsed = parse(_clip(fn.get("expressao"), 80))
         if not parsed:
             continue
-        hit = next((t for t, p in source if p[2] == parsed[2] and _same(p[0], parsed[0])), _NONE)
-        if hit is _NONE:
+        span = (1.0, 32.0) if parsed[2] else (x0, x1)
+        hit = next(((t, text) for t, p, text in source if p[2] == parsed[2] and _same(p[0], parsed[0], *span)), None)
+        if not hit:
             continue
-        found.append({"nome": _clip(fn.get("nome") or expr, 40), "expressao": expr})
-        times.append(hit)
+        name = str(fn.get("nome") or "")
+        if not name.strip() or re.search(r"[\d=]", name):  # um nome com fórmula poderia ser outra fórmula
+            name = hit[1]
+        found.append({"nome": _clip(name, 40), "expressao": _clip(hit[1], 80)})
+        times.append(hit[0])
         cx = cx or parsed[2]
     if not found:
         return None
-    x0, x1 = _num(c.get("x_min")), _num(c.get("x_max"))
     if cx:
         x0, x1 = 1.0, 32.0  # complexidade: o que importa é a forma do crescimento
-    elif x0 is None or x1 is None or not x1 > x0 or x1 - x0 > 1e6:
-        x0, x1 = -10.0, 10.0
     out = {"funcoes": found, "x_min": x0, "x_max": x1, "complexidade": cx,
            "t": min((t for t in times if t is not None), default=None)}
     return out if curves(out)[0] else None

@@ -228,7 +228,8 @@ lumen/
   - com várias séries, cada valor precisa ser também da sua coluna (revisão do Codex: “Alpha 2024 10 2025 20” com
     2024 = 20 passava): ou os nomes das séries estão no trecho, cada valor com o seu pela mesma regra, ou é uma
     linha de tabela na tela com os valores na ordem de um cabeçalho que lista as séries nessa ordem. Na fala sem
-    os nomes das séries, o gráfico é recusado;
+    os nomes das séries, o gráfico é recusado. E o mesmo número precisa ser da linha e da coluna: “Alpha 2024 10
+    2025 20; Beta 2024 20 2025 10” não deixa o Alpha usar os números do Beta (2ª revisão);
   - números lidos como a aula escreve (“5.200” = 5200 em português, 5,2 em inglês; “1 milhão”; “cinco”); arredondar
     (10,7 → 11), inventar um ponto, uma série ou porcentagens que não fecham 100% derruba o gráfico inteiro;
   - a frase da IA sob o título saiu errada no teste (“o merge sort é o mais rápido”); ela só entra se 75% das
@@ -237,7 +238,9 @@ lumen/
     chamadas), calculadas com numpy. A da IA precisa ser **a mesma função** de uma fórmula da aula (O(…), o lado
     direito de cada “=”, a linha da tela; “igual a”, “ao quadrado”, “mais” falados viram símbolos), comparada
     pelos valores em 12 pontos de prova, não pelo texto: comparar o texto sem parênteses aceitava “x+1^2” por
-    “(x+1)^2” (revisão do Codex). “3 - 4x + x²” vale por “x² − 4x + 3”.
+    “(x+1)^2” (revisão do Codex). “3 - 4x + x²” vale por “x² − 4x + 3”. Os pontos incluem todo o trecho
+    desenhado: só os fixos aceitavam “8-x” por “abs(x-8)” em [-10, 10] e recusavam “sqrt(x-10)” em [10, 20]
+    (2ª revisão). E a IA só aponta qual: o que se desenha e se mostra é a fórmula escrita na aula, nunca a da IA.
 - **Complexidades sem IA:** a IA desenhava uma curva por algoritmo e não comparava; as notações O(…) citadas viram
   um gráfico só, com as curvas calculadas e em ordem de crescimento (log n, n, n log n, n²), n de 1 a 32. Uma curva
   que dispara (2ⁿ perto de n²) sai pelo alto em vez de achatar as outras.

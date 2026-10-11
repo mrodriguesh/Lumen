@@ -1,5 +1,6 @@
 import unittest
 
+import tests  # noqa: F401  (isola LUMEN_DATA antes do lumen, mesmo sem -t .)
 from bench import metrics
 
 

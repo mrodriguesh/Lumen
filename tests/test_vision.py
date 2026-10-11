@@ -13,6 +13,7 @@ import numpy as np
 import sys
 import types
 
+import tests  # noqa: F401  (isola LUMEN_DATA antes do lumen, mesmo sem -t .)
 from lumen import jobs, llm, notion, record, server, sources, store, transcribe, vision
 from tests.fake_notion import Fake
 from tests.test_flow import wait

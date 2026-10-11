@@ -6,6 +6,7 @@ import time
 import unittest
 from unittest import mock
 
+import tests  # noqa: F401  (isola LUMEN_DATA antes do lumen, mesmo sem -t .)
 from lumen import jobs, llm, notion, server, sources, store
 from tests.fake_notion import Fake
 from tests.test_llm import GOOD

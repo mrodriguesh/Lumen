@@ -3,6 +3,7 @@ import unittest
 import urllib.error
 from unittest import mock
 
+import tests  # noqa: F401  (isola LUMEN_DATA antes do lumen, mesmo sem -t .)
 from lumen import AppError, Cancelled, llm, notion
 from tests.fake_notion import Fake
 from tests.test_llm import GOOD

@@ -6,6 +6,7 @@ from unittest import mock
 
 import numpy as np
 
+import tests  # noqa: F401  (isola LUMEN_DATA antes do lumen, mesmo sem -t .)
 from lumen import charts, jobs, llm, notion, sources, store, vision  # noqa: F401
 from tests.fake_notion import Fake
 from tests.test_flow import SPEC, full
@@ -84,6 +85,17 @@ class Grounding(unittest.TestCase):
         us = say("Em 2010 eram 30 alunos na turma A e 25 na turma B.")
         two = bars([("Turma A", 30, 1), ("Turma B", 25, 2)], series=("Alunos", "Professores"))
         self.assertEqual(charts.validate(two, us), [])  # série que a aula não citou
+
+    def test_a_row_cannot_borrow_values_from_another_row(self):
+        # revisão do Codex: Alpha usava os números do Beta no mesmo trecho
+        us = say("Alpha 2024 10 2025 20; Beta 2024 20 2025 10")
+        swapped = bars([("Alpha", 20, 10), ("Beta", 10, 20)], series=("2024", "2025"))
+        self.assertEqual(charts.validate(swapped, us), [])
+        right = bars([("Alpha", 10, 20), ("Beta", 20, 10)], series=("2024", "2025"))
+        self.assertTrue(charts.validate(right, us))
+        table = say(screens=[(5, "Vendas", "Produto 2024 2025\nAlpha 10 20\nBeta 20 10", [])])
+        self.assertEqual(charts.validate(swapped, table), [])
+        self.assertTrue(charts.validate(right, table))
 
     def test_each_value_must_be_in_its_own_column(self):
         # revisão do Codex: cada valor era conferido só com a sua linha; trocar as colunas passava
@@ -164,6 +176,17 @@ class Formulas(unittest.TestCase):
         big_o = say("A busca binária é O(log n).")
         self.assertTrue(charts.validate(curve("log n"), big_o))
         self.assertEqual(charts.validate(curve("n log n"), big_o), [])
+
+    def test_formula_is_checked_where_it_is_drawn(self):
+        # revisão do Codex: os pontos de prova fixos ficavam todos abaixo de 8 e abaixo de 10
+        us = say("O módulo é y = abs(x-8).")
+        self.assertEqual(charts.validate(curve("8-x", x=(-10, 10)), us), [])
+        self.assertTrue(charts.validate(curve("abs(x-8)", x=(-10, 10)), us))
+        root = charts.validate(curve("sqrt(x-10)", x=(10, 20)), say("A raiz é y = sqrt(x-10)."))
+        self.assertEqual((root[0]["x_min"], root[0]["x_max"]), (10.0, 20.0))
+        # a fórmula mostrada e desenhada é a da aula, não a da IA
+        ok = charts.validate(curve("3 - 4x + x²"), say("Considere f(x) = x² - 4x + 3."))
+        self.assertEqual(ok[0]["funcoes"][0]["expressao"], "x² - 4x + 3")
 
     def test_complexities_are_charted_without_ai(self):
         us = say(screens=[(37, "Complexidade", "Quicksort | O(n log n) | O(n²)\nBubble sort | O(n) | O(n²)", []),

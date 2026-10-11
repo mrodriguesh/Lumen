@@ -6,6 +6,7 @@ import unittest
 import wave
 from unittest import mock
 
+import tests  # noqa: F401  (isola LUMEN_DATA antes do lumen, mesmo sem -t .)
 from lumen import AppError, sources
 
 
