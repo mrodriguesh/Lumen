@@ -375,6 +375,10 @@ def _chart_data(c):
         var = "n" if c.get("complexidade") else "x"
         out.append(_b("paragraph", _rt(f"Curvas calculadas pelo Lumen para {var} de {fmt(c['x_min'])} a "
                                        f"{fmt(c['x_max'])}.", italic=True, color="gray")))
+    if c.get("estrutura"):
+        how = ("do início de cada tópico ao início do seguinte, pelos tempos da aula" if c["unidade"] in ("min", "s")
+               else "quantas vezes cada termo aparece na transcrição")
+        out.append(_b("paragraph", _rt(f"Calculado pelo Lumen: {how}.", italic=True, color="gray")))
     return out
 
 
@@ -382,9 +386,11 @@ def _charts(charts, yt):
     """“Gráficos da aula”: GIF animado (clique para ampliar) e, recolhidos, os números de cada um."""
     if not charts:
         return []
+    said = ["os números, datas e fórmulas da aula, cada valor conferido na transcrição ou nas telas"
+            ] if any(not c.get("estrutura") for c in charts) else []
+    said += ["o tempo e os termos da própria aula, contados pelo Lumen"] if any(c.get("estrutura") for c in charts) else []
     out = [_h2("📊 Gráficos da aula"),
-           _b("paragraph", _rt("Feitos só com os números, datas e fórmulas da própria aula; cada valor foi conferido "
-                               "na transcrição ou nas telas.", italic=True, color="gray"))]
+           _b("paragraph", _rt("Feitos só com " + " e com ".join(said) + ".", italic=True, color="gray"))]
     for c in charts:
         if c.get("upload"):
             out += [{"object": "block", "type": "image", "image": {
@@ -474,7 +480,7 @@ def build_page(lesson, meta):
         notes.append(f"{meta['uncertain']} trecho(s) da transcrição tiveram baixa confiança.")
     if meta.get("charts"):
         notes.append(f"{len(meta['charts'])} gráfico(s) feitos só com dados da aula: cada valor foi conferido na "
-                     "transcrição ou nas telas, e as curvas das fórmulas foram calculadas pelo Lumen.")
+                     "transcrição ou nas telas; curvas, tempos e contagens foram calculados pelo Lumen.")
     if meta.get("screens"):
         notes.append(f"{len(meta['screens'])} tela(s) da aula lidas por um modelo de visão local ({meta['vision_model']}); "
                      "confira números e fórmulas nas imagens.")

@@ -9,7 +9,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from . import AppError, Cancelled, charts, llm, mindmap, notion, sources, store, transcribe, vision
+from . import AppError, Cancelled, charts, eta, llm, mindmap, notion, sources, store, transcribe, vision
 
 log = logging.getLogger("lumen")
 _lock = threading.Lock()
@@ -19,7 +19,11 @@ _cancel = threading.Event()
 
 def snapshot():
     with _lock:
-        return json.loads(json.dumps(_job))
+        out = json.loads(json.dumps(_job))
+    plan = eta.current
+    if plan and out.get("status") == "running":
+        out["eta_total"] = round(plan.left())  # até a revisão (transcrição) ou até a página pronta
+    return out
 
 
 def _set(**kw):
@@ -47,6 +51,7 @@ def start(kind, fn, *args, spec=None):
         _cancel.clear()
         _job.clear()
         _job.update(status="running", kind=kind, stage="prepare", detail="Preparando…", progress=None, eta=None, spec=spec)
+        eta.current = None
 
     def run():
         try:
@@ -71,13 +76,17 @@ def start(kind, fn, *args, spec=None):
             log.error("%s erro inesperado: %s", kind, type(e).__name__)
             _set(status="error", eta=None, error={"message": f"Erro inesperado ({type(e).__name__}).",
                                                   "action": "Tente de novo. O progresso já feito foi guardado."})
+        finally:
+            eta.current = None
 
     threading.Thread(target=run, daemon=True).start()
 
 
 def _progress(stage, detail):
-    def cb(p, eta=None):
-        _set(stage=stage, detail=detail, progress=p, eta=eta)
+    def cb(p, left=None):
+        _set(stage=stage, detail=detail, progress=p, eta=left)
+        if eta.current and left is not None:
+            eta.current.update(left)
     return cb
 
 
@@ -167,6 +176,14 @@ def process(spec):
             tr = None
     if tr or src.get("captions"):
         _set(skipped=["transcribe"])
+    dur = src.get("duration") or 0
+    steps = []
+    if not tr and not src.get("captions") and src.get("path"):
+        steps.append(("transcribe", eta.transcribe_seconds(dur, transcribe.pick(cfg["quality"])[1]["name"])))
+    screen_s = _screens_estimate(src, work, cfg)
+    if screen_s is not None:
+        steps.append(("screens", screen_s))
+    eta.current = eta.Plan(steps) if steps else None
     if not tr:
         if src.get("captions"):
             tr = {"segments": src["captions"], "language": None, "duration": src["duration"], "speed": None,
@@ -181,6 +198,8 @@ def process(spec):
             speed = float(requested) if requested in ("1", "2", "4") else None
             estimate, unsure, auto_note, vram_warning = None, False, None, None
             name = m["name"]
+            if eta.current:
+                eta.current.at("transcribe")
             # Automático: mede a fala antes só se a velocidade mudar a transcrição. No large-v3 não muda, e a medida
             # sai da própria transcrição. Se faltar VRAM e ele for trocado por outro modelo, mede antes como os demais.
             while True:
@@ -197,6 +216,8 @@ def process(spec):
             _set(stage="transcribe", detail=detail, progress=0)
             tr = transcribe.transcribe(src["path"], name, _progress("transcribe", detail), check, speed=speed or 1.0,
                                        release=llm.release_vram)
+            if eta.current and dur > 20:
+                eta.learn("transcribe_rtf", eta.current.elapsed() / dur, m["name"])
             if speed is None:
                 estimate = transcribe.rate(tr["segments"])
                 speed, unsure, auto_note = transcribe.suggest_speed(estimate)
@@ -229,6 +250,16 @@ def process(spec):
             "can_retranscribe": bool(src.get("path")), "screens": screens}
 
 
+def _screens_estimate(src, work, cfg):
+    """Segundos para ler as telas (as mesmas condições de _screens), ou None se a opção não for usada."""
+    folder = work / "screens"
+    if (folder / "index.json").exists() and (folder / "complete").exists():
+        return len(vision.Shots(folder).pending()) * eta.value("screen_s")
+    if cfg["watch_screen"] and src["kind"] != "recording" and src.get("path") and Path(src["path"]).exists():
+        return (src.get("duration") or 0) * eta.value("scan_rtf")
+    return None
+
+
 def _screens(src, work, cfg):
     """“Assistir a tela junto”: lê as telas da gravação que ainda faltam, ou assiste o vídeo do arquivo.
 
@@ -240,7 +271,15 @@ def _screens(src, work, cfg):
     if not (watched or video):
         return None
     _set(screen=True, stage="screen", detail="Preparando a leitura da tela…", progress=None)
-    status = lambda d, p: _set(stage="screen", detail=d, progress=p)  # noqa: E731
+    plan = eta.current
+    if plan:
+        plan.at("screens")
+
+    def status(d, p):
+        _set(stage="screen", detail=d, progress=p)
+        if plan:
+            plan.progress(p)
+    todo = len(vision.Shots(folder).pending()) if watched else 0
     warning = None
     try:
         if (not watched or vision.Shots(folder).pending()) and not vision.ready(vision.MODEL):
@@ -253,6 +292,10 @@ def _screens(src, work, cfg):
                 return {"items": [], "seen": 0, "warning": "Este arquivo não tem imagem de vídeo: só a fala foi usada."}
             (folder / "complete").touch()
         vision.analyze(vision.Shots(folder), vision.MODEL, check, status)
+        if plan and not watched and src.get("duration"):
+            eta.learn("scan_rtf", plan.elapsed() / src["duration"])
+        elif plan and todo:
+            eta.learn("screen_s", plan.elapsed() / todo)
     except AppError as e:
         left = len(vision.Shots(folder).pending())
         warning = (f"{left} tela(s) ficaram sem leitura" if left else "A tela não foi lida") + f": {str(e).rstrip('.')}."
@@ -299,7 +342,10 @@ def finish(spec):
                                        ensure_ascii=False).encode()).hexdigest()
     redo = spec.get("mode") == "redo"  # “Refazer página”: material novo, versão anterior removida
     saved = _load(work / "lesson.json")
-    if saved and not redo and saved.get("model") == model and saved.get("language") == lang and saved.get("transcript") == digest:
+    cached = saved and not redo and saved.get("model") == model and saved.get("language") == lang \
+        and saved.get("transcript") == digest
+    plan = eta.current = eta.Plan(_page_steps(tr, screens, lines, model, cached, saved, spec))
+    if cached:
         lesson, found = saved["lesson"], saved.get("charts")
     else:
         _set(stage="generate", detail="Escrevendo o material de estudo…", progress=None, eta=None)
@@ -310,11 +356,13 @@ def finish(spec):
         _save(work / "lesson.json", saved)
     check()
     if found is None:
-        found = _find_charts(tr, screens, lesson, model)
-        if found is not None:  # falha da IA não fica guardada: “Tentar novamente” procura de novo
+        found, ok = _find_charts(tr, screens, lesson, model)
+        if ok:  # falha da IA não fica guardada: “Tentar novamente” procura de novo
             _save(work / "lesson.json", {**saved, "charts": found})
     check()
 
+    plan.set("draw", eta.value("chart_s") if found else 0)
+    plan.at("mindmap")
     _set(stage="publish", detail="Desenhando o mapa mental…", progress=None)
     mind_png = mindmap.render(mindmap.data(lesson))
     check()
@@ -332,6 +380,8 @@ def finish(spec):
             meta["mind_map_upload"] = notion.upload_image(token, mind_png, "mapa-mental.png")
         except AppError:
             pass  # o mapa vai em tópicos (notion._mind_map)
+    eta.learn("mindmap_s", plan.elapsed())
+    plan.at("draw")
     if found:
         from concurrent.futures import ThreadPoolExecutor
         _set(stage="publish", detail="Desenhando os gráficos da aula…", progress=None)
@@ -341,17 +391,23 @@ def finish(spec):
             return {**c, "upload": _send(token, gif, f"grafico-{i}.gif", "image/gif") if gif else None}
         with ThreadPoolExecutor(3) as ex:
             meta["charts"] = list(ex.map(draw, range(1, len(found) + 1), found))
+        eta.learn("chart_s", plan.elapsed() / -(-len(found) // 3))
         check()
+    plan.at("screens")
     if screens:
         step = -(-len(screens) // MAX_SCREENS)  # aula com muitas telas: no máximo 40, espalhadas pela aula
         screens = screens[::step]
         _set(stage="publish", detail=f"Enviando as {len(screens)} telas da aula ao Notion…", progress=None)
         meta["screens"], meta["vision_model"] = _upload_screens(token, shots, screens), vision.MODEL
+        eta.learn("upload_s", plan.elapsed() / -(-len(screens) // 3))
         check()
     title, blocks = notion.build_page(lesson, meta)
     transcript = llm.transcript_text(tr["segments"]).split("\n") if spec.get("include_transcript") else None
     check()
+    requests = _requests(blocks, transcript)
+    plan.at("publish", requests * eta.value("request_s"))
     pid, url, block_ids = notion.publish(token, course_id, title, blocks, check, transcript=transcript)
+    eta.learn("request_s", plan.elapsed() / requests)
 
     old = store.history().get(src["key"]) or {}
     note = None
@@ -383,18 +439,43 @@ def finish(spec):
 MAX_SCREENS = 40
 
 
+def _requests(blocks, transcript):
+    """Pedidos ao Notion para publicar: os lotes da página, os da transcrição e o da página escolhida."""
+    lines = len(transcript or [])
+    return 1 + len(notion.batches(blocks)) + (len(notion.batches([notion._b("paragraph", notion._rt(x))
+                                                                 for x in transcript])) if lines else 0)
+
+
+def _page_steps(tr, screens, lines, model, cached, saved, spec):
+    """As etapas de “gerar a página” com a estimativa de cada uma, antes de começar."""
+    steps = [] if cached else [(k, eta.llm_seconds(model, n, k)) for k, n in llm.calls(tr["segments"], model, lines)]
+    if not (cached and saved.get("charts") is not None):
+        ctx = len(charts.context(charts.units(tr["segments"], screens)))
+        steps.append(("charts", eta.llm_seconds(model, ctx + len(charts.SYSTEM) + 700, "charts") if ctx else 0.3))
+    shown = min(len(screens), MAX_SCREENS)
+    lines_out = len(llm.transcript_text(tr["segments"]).split("\n")) if spec.get("include_transcript") else 0
+    return steps + [("mindmap", eta.value("mindmap_s")), ("draw", eta.value("chart_s")),
+                    ("screens", -(-shown // 3) * eta.value("upload_s")),
+                    ("publish", (3 + -(-lines_out // 100)) * eta.value("request_s"))]
+
+
 def _find_charts(tr, screens, lesson, model):
-    """Gráficos com os dados da aula (charts.extract), [] se a aula não tiver dados, None se a IA falhar. Nunca
-    impede a página: sem gráficos, ela sai como antes."""
+    """(gráficos, guardar?): os da aula (charts.extract). Se a IA falhar, só o da estrutura da aula, que não depende
+    dela, e nada guardado (“Tentar novamente” procura de novo). Nunca impede a página."""
     _set(stage="generate", detail="Procurando dados da aula para gráficos…", progress=None)
     try:
         return charts.extract(tr["segments"], screens, lesson, model, check,
-                              lambda d: _set(stage="generate", detail=d, progress=None), tr.get("language"))
+                              lambda d: _set(stage="generate", detail=d, progress=None), tr.get("language")), True
     except Cancelled:
         raise
-    except Exception:  # noqa: BLE001 — opcional: qualquer falha aqui só deixa a página sem gráficos
+    except Exception:  # noqa: BLE001 — opcional: qualquer falha aqui só deixa a página sem os gráficos da IA
         log.exception("gráficos: falha ao procurar dados")
-        return None
+        try:
+            extra = charts.structure(tr["segments"], lesson)
+        except Exception:  # noqa: BLE001
+            log.exception("gráficos: falha no gráfico da estrutura")
+            extra = None
+        return [extra] if extra else [], False
 
 
 def _send(token, data, name, content_type):

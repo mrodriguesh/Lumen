@@ -25,7 +25,8 @@ function render(d) {
   $("#time").textContent = clock(r.active ? r.seconds : 0);
   $("#status").textContent = r.error ? "Gravação interrompida" : r.active ? "Gravando o som do PC" : j.status === "running" ? "Preparando material…" : j.review ? "Pronto para revisar" : "Pronto para gravar";
   $("#detail").textContent = r.error || (r.active && !r.heard ? "Dê play com o volume ligado." : "");
-  $("#job").textContent = j.status === "running" ? `${j.detail || j.stage || "Processando"}${Number.isFinite(j.progress) ? ` · ${Math.round(j.progress * 100)}%` : ""}` : j.review ? "Abra o Lumen para revisar" : "";
+  const left = Number.isFinite(j.eta_total) ? ` · faltam ~${j.eta_total < 90 ? `${Math.max(5, Math.round(j.eta_total / 5) * 5)} s` : `${Math.round(j.eta_total / 60)} min`}` : "";
+  $("#job").textContent = j.status === "running" ? `${j.detail || j.stage || "Processando"}${Number.isFinite(j.progress) ? ` · ${Math.round(j.progress * 100)}%` : ""}${left}` : j.review ? "Abra o Lumen para revisar" : "";
   $("#job").hidden = !$("#job").textContent;
   const level = r.active && !r.error ? Math.min(1, Math.sqrt(Math.max(0, Number(r.level) || 0)) * 2) : 0;
   $("#action").style.setProperty("--lvl", level);

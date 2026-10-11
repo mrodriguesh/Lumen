@@ -11,7 +11,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import AppError, cover, imagegen, jobs, llm, notion, record, sources, store, transcribe, vision
+from . import AppError, cover, eta, imagegen, jobs, llm, notion, record, sources, store, transcribe, vision
 
 log = logging.getLogger("lumen")
 WEB = Path(__file__).parent / "web"
@@ -87,7 +87,7 @@ def inspect(spec):
         "has_captions": bool(src.get("captions")), "segments": len(src.get("captions") or []),
         "needs_transcript": not src.get("captions") and not src.get("path"),
         "needs_transcription": needs_tr, "whisper_model": m["label"], "whisper_ready": transcribe.downloaded(m["name"]),
-        "estimate": (src["duration"] / transcribe.speed_factor(m["name"])) if needs_tr and src["duration"] else None,
+        "estimate": eta.transcribe_seconds(src["duration"], m["name"]) if needs_tr and src["duration"] else None,
     }
 
 

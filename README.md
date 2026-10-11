@@ -158,8 +158,16 @@ todo), curvas de fórmulas e complexidades (O(n), O(n log n)…) e linha do temp
   (“o bubble sort levou 5.200 ms” vale para o bubble sort, não para o merge sort citado na mesma frase); um valor que
   não se confirma derruba o gráfico inteiro. Fórmulas são calculadas pelo próprio Lumen, e só as escritas ou ditas
   na aula. A frase sob o título só entra se for da aula; senão, vem dos dados (“Maior: Bubble sort (5.200 ms)”).
-- **Aula sem dados** (filosofia, conceitos): nenhum gráfico, sem gasto de tempo. Com dados: ≈ 10 s a mais de IA e
-  ≈ 2 s para desenhar (no Edge, no seu PC).
+- **Toda página tem gráfico**, mesmo a aula sem dados (filosofia, conceitos), sem nada inventado: **quanto tempo a
+  aula dedicou a cada tópico** (do início de um tópico ao do seguinte, pelos tempos da aula) ou, sem os tempos,
+  **os termos mais citados** (contados na transcrição). Ele entra depois dos gráficos com dados, sem chamar a IA.
+  Com dados: ≈ 10 s a mais de IA e ≈ 2–6 s para desenhar (no Edge, no seu PC).
+
+**Tempo restante:** enquanto transcreve e enquanto gera a página, o Lumen mostra quanto falta para a tarefa toda e o
+horário previsto (“Faltam cerca de 1 min 15 s · Página pronta por volta de 14:32”; também no widget). A conta usa a
+velocidade medida **no seu PC**: o próprio Ollama informa quantos tokens a IA lê e escreve por segundo; a
+transcrição, as telas, os desenhos e os envios ao Notion são cronometrados. Cada aula afina a próxima (mediana das
+últimas 15, em `tempos.json`), e durante cada etapa a conta se corrige (tokens já escritos, progresso).
 
 **Capas com IA (opcional):** em Ajustes → *Capas com IA*, baixe o Z-Image-Turbo (≈ 6,7 GB, Apache 2.0; prefira um
 SSD). Ao criar uma página com “Enfeitar com IA”, a capa vira uma ilustração do tema gerada no seu PC (≈ 30–45 s

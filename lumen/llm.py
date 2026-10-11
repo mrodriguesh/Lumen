@@ -177,19 +177,40 @@ def pull(model, progress, check):
             progress(d.get("completed", 0) / d["total"], None)
 
 
+# Teto de cada resposta (tokens), ~3× o normal: sem ele, a IA às vezes repete texto até encher o contexto e o
+# Ollama segue gerando (notas de uma aula longa passaram de 9 min numa só parte). As notas cabem juntas numa leitura.
+MAX_OUT = {"notes": 2500, "lesson": 6000, "charts": 2048}
+
+
 def _chat(model, system, user, check, tokens, schema=None, num_ctx=20480, temperature=0.2, keep_alive="5m",
-          images=None):
+          images=None, kind=None, limit=None):
+    """Uma resposta da IA. kind ("lesson", "notes", "charts"): etapa da estimativa de tempo (eta) que ela ocupa e
+    o seu teto (MAX_OUT); limit: outro teto."""
+    from . import eta
+    plan = eta.current
+    if plan and kind:
+        plan.at(kind)
+    out = []
+    for d in _stream_chat(model, system, user, check, schema, num_ctx, temperature, keep_alive, images,
+                          limit or MAX_OUT.get(kind)):
+        if d.get("done"):
+            eta.learn_llm(model, kind, d, len(system) + len(user))
+            continue
+        out.append(d.get("message", {}).get("content", ""))
+        tokens(len(out))
+        if plan and kind:
+            plan.writing(model, kind, len(out), len(system) + len(user))
+    return "".join(out)
+
+
+def _stream_chat(model, system, user, check, schema, num_ctx, temperature, keep_alive, images, limit):
     body = {"model": model, "stream": True, "think": False, "keep_alive": keep_alive,
-            "options": {"num_ctx": num_ctx, "temperature": temperature},
+            "options": {"num_ctx": num_ctx, "temperature": temperature, **({"num_predict": limit} if limit else {})},
             "messages": [{"role": "system", "content": system},
                          {"role": "user", "content": user, **({"images": images} if images else {})}]}
     if schema:
         body["format"] = schema
-    out = []
-    for d in _stream("/api/chat", body, check):
-        out.append(d.get("message", {}).get("content", ""))
-        tokens(len(out))
-    return "".join(out)
+    yield from _stream("/api/chat", body, check)
 
 
 # --- Validação ---------------------------------------------------------------
@@ -240,6 +261,21 @@ def validate(data, duration=None, has_times=True):
     return lesson
 
 
+def calls(segments, model, screens=()):
+    """As respostas que generate vai pedir à IA, [(tipo, caracteres do pedido)], para estimar o tempo: aula longa
+    é lida por partes (notas) antes da página."""
+    from . import eta
+    size, out, rnd = len(transcript_text(segments, screens)), [], 0
+    while size > SINGLE_PASS_CHARS:
+        rnd += 1
+        parts = -(-size // CHUNK_CHARS)
+        out += [("notes", min(size, CHUNK_CHARS) + len(NOTES))] * parts
+        size = int(parts * eta.value("out_notes", model) * eta.value("chars_per_token", model))
+        if rnd >= 3:
+            size = min(size, SINGLE_PASS_CHARS)
+    return out + [("lesson", size + len(SYSTEM) + len(json.dumps(SCHEMA, ensure_ascii=False)))]
+
+
 def generate(segments, duration, model, language, check, status, redo=False, note="", screens=()):
     """Transcrição → material de estudo validado. status(detail, progress).
 
@@ -257,7 +293,7 @@ def generate(segments, duration, model, language, check, status, redo=False, not
         for i, part in enumerate(parts, 1):
             status(f"Lendo a aula por partes ({i} de {len(parts)})…", (i - 1) / len(parts))
             notes.append(_chat(model, NOTES.format(i=i, n=len(parts), lang=lang), part, check,
-                               lambda n: None, num_ctx=12288))
+                               lambda n: None, num_ctx=12288, kind="notes"))
         text = "\n\n".join(notes)
         if rnd >= 3:
             text = text[:SINGLE_PASS_CHARS]
@@ -275,7 +311,7 @@ def generate(segments, duration, model, language, check, status, redo=False, not
         head = "Transcrição da aula, com o que apareceu na tela:" if screens else "Transcrição da aula:"
         raw = _chat(model, system, ask + head + "\n\n" + text, check,
                     lambda n: status(f"Escrevendo o material de estudo… ({n} trechos gerados)", None),
-                    schema=SCHEMA, temperature=0.6 if redo else 0.2)
+                    schema=SCHEMA, temperature=0.6 if redo else 0.2, kind="lesson")
         try:
             return validate(json.loads(raw), duration, has_times)
         except (ValueError, AppError):
@@ -363,7 +399,7 @@ def decorate(title, parent_path, model, check=lambda: None, variant=0):
                                  palettes="; ".join(f"{k} ({d})" for k, (_, d) in PALETTES.items()))
     extra = f"\nVariação {variant}: escolha uma paleta e emojis diferentes das óbvias." if variant else ""
     raw = _chat(model, system, f"Título: {title}\nDentro de: {parent_path or 'raiz'}{extra}", check, lambda n: None,
-                schema=DECOR_SCHEMA, num_ctx=2048, temperature=0.2 if not variant else 0.9,
+                schema=DECOR_SCHEMA, num_ctx=2048, limit=1024, temperature=0.2 if not variant else 0.9,
                 keep_alive="0")  # libera a VRAM para o gerador de imagens logo em seguida
     try:
         d = json.loads(raw)

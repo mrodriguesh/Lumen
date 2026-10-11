@@ -50,6 +50,19 @@ const fmtDur = (s) => {
   return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min` : `${Math.max(m, 1)} min`;
 };
 
+// Tempo que falta para a tarefa toda (medido neste PC; ver lumen/eta.py): segundos quando é pouco, e o horário.
+function etaText(s, what) {
+  s = Math.max(1, Math.round(s));
+  let left;
+  if (s < 90) left = `${Math.max(5, Math.round(s / 5) * 5)} s`;
+  else if (s < 3600) {
+    const q = Math.round(s / 15) * 15, m = Math.floor(q / 60), r = q % 60;  // de 15 em 15 s
+    left = `${m} min${r ? ` ${r} s` : ""}`;
+  } else left = fmtDur(s);
+  const at = new Date(Date.now() + s * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return `Faltam cerca de ${left} · ${what} por volta de ${at}`;
+}
+
 // ---------- estado geral ----------
 async function refresh() {
   S = await api("/api/state");
@@ -730,7 +743,9 @@ function renderJob(j) {
   bar.querySelector("span").style.width = det ? "" : pct + "%";
   if (det) bar.removeAttribute("aria-valuenow"); else bar.setAttribute("aria-valuenow", pct);
   $("#detail").textContent = j.status === "running" ? j.detail || "" : "";
-  $("#eta").textContent = j.status === "running" && j.eta ? `Faltam cerca de ${fmtDur(j.eta)} nesta etapa.` : "";
+  $("#eta").textContent = j.status !== "running" ? ""
+    : Number.isFinite(j.eta_total) ? etaText(j.eta_total, lastUrl === "/api/start" ? "Transcrição pronta" : "Página pronta")
+    : j.eta ? `Faltam cerca de ${fmtDur(j.eta)} nesta etapa.` : "";
 
   // enquanto transcreve, o destino ainda pode mudar (ele só é usado ao gerar a página)
   const transcribing = j.status === "running" && lastUrl === "/api/start" && ["prepare", "transcribe"].includes(j.stage);

@@ -256,6 +256,23 @@ lumen/
 - **Nunca impede a página:** falha da IA nos gráficos só deixa a página sem eles (fica no log), e não é guardada
   (“Tentar novamente” procura de novo). Os gráficos conferidos ficam em `lesson.json`: atualizar a página não pergunta
   de novo.
+- **Toda página tem gráfico (11/10/2026):** pedido do usuário. Para não inventar dados, o gráfico de uma aula sem
+  números vem da estrutura da própria aula (`charts.structure`, sem IA): o tempo de cada tópico (do início de um ao
+  do seguinte, pelos tempos que a IA deu e que a validação já confere contra a duração) ou, sem tempos, quantas vezes
+  cada termo do glossário foi dito. Entra por último, só se sobrar vaga entre os 3; se a IA dos gráficos falhar, ele
+  entra sozinho (e nada é guardado). O rodapé do desenho diz “Calculado pelo Lumen a partir da aula”.
+
+## Tempo restante (11/10/2026; `lumen/eta.py`)
+
+- **Por etapa, com a velocidade deste PC:** a IA pelo que o Ollama mede em cada resposta (tokens lidos e escritos
+  por segundo, carga do modelo) × o tamanho do pedido e o tamanho típico de cada resposta (página, notas de uma aula
+  longa, gráficos); transcrição e telas por segundo de áudio/vídeo; mapa mental, gráficos, envio das telas e pedidos
+  ao Notion cronometrados. Mediana das últimas 15 medidas (uma aula fora do comum não puxa a conta).
+- **Durante a etapa:** tokens já escritos (a IA) e progresso (transcrição, telas) corrigem o que falta; passou da
+  estimativa, ainda mostra um pouco (nunca “0 s” antes de terminar).
+- **Medido (vídeo de 91 s, ponta a ponta no Notion real):** com os valores iniciais genéricos, a página levou 83 s e
+  a estimativa errava até 21 s; depois de uma aula, 71 s e erro de no máximo 5 s. Os valores iniciais agora são os
+  medidos neste PC (RTX 3060, qwen3:8b).
 
 ## YouTube: limitação real
 

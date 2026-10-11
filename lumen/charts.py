@@ -678,19 +678,60 @@ def complexities(us):
     return chart if curves(chart)[0] else None
 
 
+def structure(segments, lesson):
+    """Gráfico tirado da própria aula, para toda página ter um, sem nada inventado: quanto tempo a aula dedicou a
+    cada tópico (do início de um ao início do seguinte) ou, sem os tempos, quantas vezes cada termo do glossário
+    foi dito. None se a aula não tiver nem uma coisa nem outra."""
+    end = max((s.get("end") or s.get("start") or 0 for s in segments), default=0)
+    starts = {}
+    for t in lesson.get("topics", []):
+        if t.get("timestamp") is not None and 0 <= t["timestamp"] < end:
+            starts.setdefault(t["timestamp"], _clip(t["title"], 40))
+    tops = sorted(starts.items())
+    if len(tops) >= 2 and len({lab.casefold() for _, lab in tops}) == len(tops):
+        secs = [b - a for (a, _), (b, _) in zip(tops, tops[1:] + [(end, "")])]
+        long = sorted(range(len(tops)), key=lambda i: -secs[i])[:12]  # no máximo 12 barras: os mais longos
+        keep = sorted(long)
+        minutes = end >= 180
+        vals = [round(secs[i] / 60, 1) if minutes else round(secs[i]) for i in keep]
+        if min(vals) > 0:
+            c = {"tipo": "barras", "titulo": "Quanto tempo a aula dedicou a cada tópico"
+                 + (f" (os {len(keep)} mais longos)" if len(keep) < len(tops) else ""),
+                 "unidade": "min" if minutes else "s", "eixo_x": "Tópico", "eixo_y": "",
+                 "rotulos": [tops[i][1] for i in keep], "series": [{"nome": "Tempo", "valores": vals}],
+                 "t": tops[0][0], "estrutura": True}
+            return {**c, "mensagem": _subtitle(c)}
+    text = _fold(" ".join(str(s.get("text") or "") for s in segments))
+    counts = []
+    for g in lesson.get("glossary", []):
+        term = _clip(g["term"], 40)
+        n = len(re.findall(rf"(?<![a-z0-9]){re.escape(_fold(term))}(?![a-z0-9])", text)) if _fold(term).strip() else 0
+        if n and term.casefold() not in {x.casefold() for x, _ in counts}:
+            counts.append((term, n))
+    counts = sorted(counts, key=lambda x: -x[1])[:8]
+    if len(counts) < 2:
+        return None
+    first = next((s.get("start") for s in segments if _fold(counts[0][0]) in _fold(str(s.get("text") or ""))), None)
+    c = {"tipo": "barras", "titulo": "Termos mais citados na aula", "unidade": "vezes", "eixo_x": "Termo",
+         "eixo_y": "", "rotulos": [x for x, _ in counts], "series": [{"nome": "Citações", "valores": [n for _, n in counts]}],
+         "t": first, "estrutura": True}
+    return {**c, "mensagem": _subtitle(c)}
+
+
 def extract(segments, screens, lesson, model, check, status=lambda d: None, language=None):
-    """Gráficos da aula conferidos, ou [] (aula sem números, datas ou fórmulas). Erro da IA → AppError/ValueError."""
+    """Gráficos da aula conferidos. Sem números, datas ou fórmulas, só o da estrutura da aula (structure), sem
+    chamar a IA. Erro da IA → AppError/ValueError."""
     from .llm import _chat
     us = units(segments, screens)
     cx = complexities(us)
     text = context(us)
     if not text:
-        return [cx] if cx else []
+        return [c for c in (cx, structure(segments, lesson)) if c]
     topics = "; ".join(t["title"] for t in lesson.get("topics", []))[:600]
     user = f"Aula: {lesson.get('title', '')}\nTópicos: {topics}\n\nTrechos com números, datas ou fórmulas:\n{text}"
     raw = json.loads(_chat(model, SYSTEM, user, check,
                            lambda n: status(f"Procurando dados para gráficos… ({n} trechos)"),
-                           schema=SCHEMA, num_ctx=16384, temperature=0))
+                           schema=SCHEMA, num_ctx=16384, temperature=0, kind="charts"))
     found = validate(raw, us, comma=language not in DOT_DECIMAL)
     log.info("gráficos: %d proposto(s), %d conferido(s)%s",
              len(raw.get("graficos") or []) if isinstance(raw, dict) else 0, len(found), " + complexidades" if cx else "")
@@ -699,7 +740,9 @@ def extract(segments, screens, lesson, model, check, status=lambda d: None, lang
     when = lambda c: c["t"] if c["t"] is not None else math.inf  # noqa: E731
     # até MAX_CHARTS: primeiro os que comparam algo (uma curva sozinha diz pouco), na ordem da aula
     found.sort(key=lambda c: (c["tipo"] == "funcao" and len(c["funcoes"]) < 2, when(c)))
-    return sorted(found[:MAX_CHARTS], key=when)
+    found = sorted(found[:MAX_CHARTS], key=when)
+    extra = structure(segments, lesson) if len(found) < MAX_CHARTS else None
+    return found + [extra] if extra else found  # o da estrutura por último: os dados da aula vêm antes
 
 
 # --- desenho -------------------------------------------------------------------------------------------------------
@@ -726,7 +769,7 @@ def _view(c):
         xs = [sorted(_readings(x.strip())) for x in c["rotulos"]]
         v["xnum"] = [r[0] for r in xs] if all(len(r) == 1 for r in xs) and \
             all(a[0] < b[0] for a, b in zip(xs, xs[1:])) else None
-        v["fonte"] = "Dados citados na aula" + when
+        v["fonte"] = ("Calculado pelo Lumen a partir da aula" if c.get("estrutura") else "Dados citados na aula") + when
     return v
 
 

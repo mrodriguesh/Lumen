@@ -247,7 +247,7 @@ def ask(window=None):
 def read(jpeg, model, check=lambda: None, keep_alive="3m", window=None):
     import base64
     raw = llm._chat(model, SYSTEM, ask(window), check, lambda n: None, schema=SCHEMA, num_ctx=CTX,
-                    temperature=0, keep_alive=keep_alive, images=[base64.b64encode(jpeg).decode()])
+                    temperature=0, keep_alive=keep_alive, images=[base64.b64encode(jpeg).decode()], limit=3000)
     try:
         return clean(json.loads(raw))
     except ValueError:

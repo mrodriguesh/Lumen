@@ -217,6 +217,30 @@ class Extract(unittest.TestCase):
                                             lambda: None), [])
         chat.assert_not_called()
 
+    def test_every_page_gets_a_chart_from_the_lesson_itself(self):
+        # aula sem números: o tempo de cada tópico, pelos tempos da própria aula (nada inventado)
+        segs = [{"start": t, "end": t + 30.0, "text": "A virtude é um meio-termo."} for t in range(0, 600, 30)]
+        lesson = {"topics": [{"title": "Virtude", "timestamp": 0}, {"title": "Meio-termo", "timestamp": 240},
+                             {"title": "Prudência", "timestamp": 420}, {"title": "Sem tempo", "timestamp": None}],
+                  "glossary": []}
+        with mock.patch.object(llm, "_chat") as chat:
+            found = charts.extract(segs, [], lesson, "m", lambda: None)
+        chat.assert_not_called()
+        self.assertEqual(len(found), 1)
+        c = found[0]
+        self.assertEqual((c["tipo"], c["unidade"], c["rotulos"]), ("barras", "min", ["Virtude", "Meio-termo", "Prudência"]))
+        self.assertEqual(c["series"][0]["valores"], [4.0, 3.0, 3.0])  # 0→240 s, 240→420 s, 420→600 s
+        self.assertEqual(c["mensagem"], "Maior: Virtude (4 min) · menor: Meio-termo (3 min)")
+        self.assertTrue(charts.render(c))  # desenha como os outros
+        # sem os tempos: quantas vezes cada termo do glossário foi dito
+        text = [{"start": None, "text": "A ética de Aristóteles: virtude, virtude e prudência. Ética de novo, ética."}]
+        c = charts.structure(text, {"topics": [{"title": "x", "timestamp": None}],
+                                    "glossary": [{"term": "Ética"}, {"term": "Virtude"}, {"term": "Prudência"},
+                                                 {"term": "Coragem"}]})
+        self.assertEqual(list(zip(c["rotulos"], c["series"][0]["valores"])),
+                         [("Ética", 3), ("Virtude", 2), ("Prudência", 1)])  # “Coragem” não foi dita: fica de fora
+        self.assertIsNone(charts.structure(text, {"topics": [], "glossary": [{"term": "Ética"}]}))  # um só: não compara
+
     def test_ai_proposals_are_checked_and_complexities_added(self):
         segs = [{"start": 0.0, "text": "O bubble sort levou 5.200 ms e o merge sort, 180."},
                 {"start": 9.0, "text": "O bubble sort é O(n²) e o merge sort é O(n log n)."}]
