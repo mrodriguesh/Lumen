@@ -676,9 +676,10 @@ class Flow(unittest.TestCase):
         self.assertIn("(na tela) Lei de Ohm: V = R · I / R: resistência", prompt)
         self.assertFalse(any("def f()" in p for p in prompts))
         blocks = self.fake.pages[self.root]["blocks"]
-        heads = [b["heading_2"]["rich_text"][0]["text"]["content"] for b in blocks if b["type"] == "heading_2"]
+        heads = [b["heading_2"]["rich_text"][0]["text"]["content"].split(" ", 1)[-1] for b in blocks if b["type"] == "heading_2"]  # sem o emoji
         self.assertEqual(heads[heads.index("Tópicos principais") + 1], "O que apareceu na tela")
-        gallery = [b for b in blocks if b["type"] == "column_list"]
+        gallery = [b for b in blocks if b["type"] == "column_list"
+                   and b["column_list"]["children"][0]["column"]["children"][0]["type"] == "image"]
         self.assertEqual(len(gallery), 1)
         imgs = [c["column"]["children"][0] for c in gallery[0]["column_list"]["children"]]
         self.assertEqual([i["type"] for i in imgs], ["image", "image"])

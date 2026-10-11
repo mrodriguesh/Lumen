@@ -13,8 +13,26 @@ META = {"course": "Biologia", "yt_id": "dQw4w9WgXcQ", "link": "https://www.youtu
         "transcript_origin": "Transcrição importada.", "uncertain": 2}
 
 
+def flat(blocks):
+    """Todos os blocos, com os de dentro (colunas, tabelas, toggles, callouts)."""
+    for b in blocks:
+        yield b
+        yield from flat(b[b["type"]].get("children", []))
+
+
+def rich(blocks):
+    for b in blocks:
+        yield from b[b["type"]].get("rich_text", [])
+        for cell in b[b["type"]].get("cells", []):
+            yield from cell
+
+
 def texts(blocks):
-    return "".join(rt["text"]["content"] for b in blocks for rt in b[b["type"]].get("rich_text", []))
+    return "".join(rt["text"]["content"] for rt in rich(blocks))
+
+
+def heads(blocks, kind="heading_2"):
+    return [texts([b]).split(" ", 1)[-1] for b in blocks if b["type"] == kind]  # sem o emoji
 
 
 class Build(unittest.TestCase):
@@ -27,15 +45,39 @@ class Build(unittest.TestCase):
         self.assertEqual(len(toggles), 1)
         self.assertEqual(texts(toggles), "Onde ocorre?")  # pergunta visível
         self.assertEqual(texts(toggles[0]["toggle"]["children"]), "Nos cloroplastos.")
-        self.assertNotIn("Nos cloroplastos.", texts(self.blocks))  # resposta só dentro do toggle
+        outside = [b for b in flat(self.blocks) if b not in list(flat(toggles))]
+        self.assertNotIn("Nos cloroplastos.", texts(outside))  # resposta só dentro do toggle
 
     def test_sections_and_links(self):
-        headings = [texts([b]) for b in self.blocks if b["type"] == "heading_2"]
+        headings = heads(self.blocks)
         for h in ["Resumo", "Explicação simples", "Tópicos principais", "Perguntas de revisão", "Momentos da aula"]:
             self.assertIn(h, headings)
-        links = [rt["text"].get("link", {}).get("url") for b in self.blocks for rt in b[b["type"]].get("rich_text", [])]
-        self.assertIn("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=40s", links)
-        self.assertIn("2 trecho(s)", texts(self.blocks))
+        links = [(rt["text"].get("link") or {}).get("url") for rt in rich(flat(self.blocks))]
+        self.assertIn("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=40s", links)  # tópico
+        self.assertIn("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=65s", links)  # momento, na tabela
+        self.assertIn("2 trecho(s)", texts(flat(self.blocks)))
+
+    def test_rich_layout(self):
+        kinds = [b["type"] for b in self.blocks]
+        self.assertEqual(kinds[0], "column_list")  # ficha da aula | “Nesta aula” e o checklist de estudo
+        head = list(flat(self.blocks[:1]))
+        self.assertEqual(len([b for b in head if b["type"] == "to_do"]), 4)
+        self.assertIn("2 tópicos · 1 pergunta · 1 termo", texts(head))
+        callouts = {b["callout"]["icon"]["emoji"]: texts([b]) for b in flat(self.blocks) if b["type"] == "callout"}
+        self.assertEqual(callouts["💡"], "Ideia central\nPlantas produzem glicose.")
+        self.assertIn("Fase clara\nDepende de luz.", callouts["1️⃣"])  # tópico em cartão
+        self.assertEqual(callouts["✅"], "Nos cloroplastos.")  # resposta em destaque, dentro do toggle
+        tables = [b for b in self.blocks if b["type"] == "table"]
+        self.assertEqual(texts(tables[0]["table"]["children"]), "TermoSignificadoClorofilaPigmento verde.")
+        self.assertEqual(texts(tables[1]["table"]["children"]), "TempoMomento01:05Exemplo")
+        # termos do glossário em negrito no texto; aula com ressalvas: “Pontos de atenção” à vista
+        lesson = {**self.lesson, "summary": "A clorofila capta luz.\n\nSem clorofila, nada.", "caveats": ["Trecho confuso"]}
+        _, blocks = notion.build_page(lesson, META)
+        bold = [rt["text"]["content"] for rt in rich(flat(blocks)) if rt["annotations"]["bold"]]
+        self.assertIn("clorofila", bold)
+        self.assertIn("Clorofila", bold)
+        warn = next(b for b in flat(blocks) if b["type"] == "callout" and b["callout"]["icon"]["emoji"] == "⚠️")
+        self.assertEqual(texts(warn["callout"]["children"]), "Trecho confuso")
 
     def test_long_text_split(self):
         _, blocks = notion.build_page({**self.lesson, "summary": "a" * 4500}, META)
@@ -51,16 +93,16 @@ class Build(unittest.TestCase):
             self.assertEqual(videos[0]["video"]["external"]["url"], META["link"])
             self.assertEqual(videos[0]["video"]["caption"][0]["text"]["content"], "Aula original · YouTube")
             index = blocks.index(videos[0])
-            self.assertEqual(texts([blocks[index - 1]]), "Assistir à aula")
+            self.assertEqual(heads([blocks[index - 1]]), ["Assistir à aula"])
             self.assertEqual(blocks[index + 1]["type"], "divider")
-            self.assertLess(index, next(i for i, b in enumerate(blocks) if texts([b]) == "Resumo"))
+            self.assertLess(index, next(i for i, b in enumerate(blocks) if heads([b]) == ["Resumo"]))
 
     def test_non_youtube_reference_has_no_player(self):
         for link in (None, "https://example.com/aula", "https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ"):
             _, blocks = notion.build_page(self.lesson, {**META, "link": link, "yt_id": None})
             self.assertFalse(any(b["type"] == "video" for b in blocks))
             if link:
-                self.assertIn(link, texts(blocks))
+                self.assertIn(link, texts(flat(blocks)))
 
     def test_long_transcript_line_is_not_truncated(self):
         line = "[00:00] " + "texto corrigido " * 300

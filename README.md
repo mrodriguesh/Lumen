@@ -143,6 +143,13 @@ fica visível e a resposta dentro de um bloco *toggle*, que abre recolhido), **M
 para o tempo exato) e **Sobre esta página** (origem, modelo usado, trechos de baixa confiança, ressalvas). Com
 **Assistir a tela junto**, entra também **O que apareceu na tela** depois dos tópicos.
 
+**Visual da página:** no topo, duas colunas: a ficha da aula e “Nesta aula” (quantos tópicos, perguntas e
+termos) com um checklist de estudo (assistir, ler o resumo, responder às perguntas, revisar em 7 dias). Cada seção tem
+seu emoji; o resumo abre com a **ideia central** em destaque; a explicação simples vem num quadro verde; os tópicos
+viram **cartões numerados** em duas colunas; glossário e momentos da aula são **tabelas**; a resposta de cada
+pergunta fica num quadro verde dentro do toggle; ressalvas da aula aparecem em **Pontos de atenção** (laranja). Os
+termos do glossário ficam em **negrito** onde aparecem no texto.
+
 **Gráficos da aula:** quando a aula traz números, datas ou fórmulas, a página ganha até 3 gráficos animados (GIF que
 o Notion anima sem clique) logo depois dos tópicos: barras (comparar valores), linha (evolução), rosca (partes de um
 todo), curvas de fórmulas e complexidades (O(n), O(n log n)…) e linha do tempo. Cada um vem com **Ver os dados**

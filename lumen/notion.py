@@ -218,12 +218,58 @@ def _b(kind, rich, **extra):
     return {"object": "block", "type": kind, kind: {"rich_text": rich, **extra}}
 
 
-def _paras(text):
-    return [_b("paragraph", _rt(p.strip())) for p in re.split(r"\n\s*\n", text) if p.strip()]
+def _paras(text, terms=()):
+    return [_b("paragraph", _marked(p.strip(), terms)) for p in re.split(r"\n\s*\n", text) if p.strip()]
+
+
+def _marked(text, terms=()):
+    """Texto com os termos do glossário em negrito onde a aula os usa (até 40 marcas: o Notion aceita 100 pedaços
+    de texto por bloco)."""
+    words = sorted({t for t in terms if len(t) >= 3}, key=len, reverse=True)
+    hits = list(re.finditer(r"(?<!\w)(" + "|".join(map(re.escape, words)) + r")(?!\w)", text, re.I)) if words else []
+    if not hits or len(hits) > 40:
+        return _rt(text)
+    out, at = [], 0
+    for m in hits:
+        out += (_rt(text[at:m.start()]) if m.start() > at else []) + _rt(m.group(), bold=True)
+        at = m.end()
+    return out + (_rt(text[at:]) if at < len(text) else [])
 
 
 def _h2(text):
     return _b("heading_2", _rt(text))
+
+
+def _callout(rich, emoji, color="gray_background", children=None):
+    return _b("callout", rich, icon={"type": "emoji", "emoji": emoji}, color=color,
+              **({"children": children} if children else {}))
+
+
+def _table(rows, row_header=False):
+    """Tabela do Notion; a 1ª linha é o cabeçalho. Células: texto ou rich text pronto."""
+    cell = lambda c: c if isinstance(c, list) else (_rt(c) if str(c) else [])  # noqa: E731
+    return {"object": "block", "type": "table", "table": {
+        "table_width": len(rows[0]), "has_column_header": True, "has_row_header": row_header,
+        "children": [{"object": "block", "type": "table_row", "table_row": {"cells": [cell(c) for c in r]}}
+                     for r in rows]}}
+
+
+def _columns(*cols):
+    return {"object": "block", "type": "column_list", "column_list": {"children": [_column(c) for c in cols]}}
+
+
+_KEYCAPS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+
+
+def _cards(lesson, yt, terms):
+    """Tópicos em cartões numerados, em duas colunas (no celular, uma embaixo da outra)."""
+    cards = [_callout(_rt(t["title"], bold=True) + _rt("\n") + _marked(t["explanation"], terms)
+                      + _stamp(t["timestamp"], yt), _KEYCAPS[i] if i < len(_KEYCAPS) else "🔹")
+             for i, t in enumerate(lesson["topics"])]
+    if len(cards) < 2:
+        return cards
+    half = (len(cards) + 1) // 2
+    return [_columns(cards[:half], cards[half:])]
 
 
 def _stamp(seconds, yt_id):
@@ -246,11 +292,11 @@ def _mind_map(lesson, upload_id):
     if not m["branches"]:
         return []
     if upload_id:
-        return [_h2("Mapa mental"), {"object": "block", "type": "image", "image": {
+        return [_h2("🧠 Mapa mental"), {"object": "block", "type": "image", "image": {
             "type": "file_upload", "file_upload": {"id": upload_id},
             "caption": _rt("Gerado pela IA a partir da aula · clique para ampliar", color="gray")}}]
-    return [_h2("Mapa mental"), _b("callout", _rt(m["center"], bold=True), icon={"type": "emoji", "emoji": "🧠"},
-                                    color="purple_background"),
+    return [_h2("🧠 Mapa mental"), _b("callout", _rt(m["center"], bold=True), icon={"type": "emoji", "emoji": "🧠"},
+                                       color="purple_background"),
             *[_b("bulleted_list_item", _rt(f"{b['emoji']} {b['label']}".strip(), bold=True),
                  children=[_b("bulleted_list_item", _rt(k)) for k in b["children"]]) for b in m["branches"]]]
 
@@ -293,7 +339,7 @@ def _screens(screens, yt):
     if not screens:
         return []
     label = lambda s: f"{KINDS.get(s['tipo'], '🖥️')} {s['titulo'] or 'Tela'}"  # noqa: E731
-    out = [_h2("O que apareceu na tela"),
+    out = [_h2("🖥️ O que apareceu na tela"),
            _b("paragraph", _rt("Slides, quadro e código lidos pelo Lumen enquanto assistia com você. "
                                "Clique numa imagem para ampliar.", italic=True, color="gray"))]
     imgs = [s for s in screens if s.get("upload")]
@@ -336,7 +382,7 @@ def _charts(charts, yt):
     """“Gráficos da aula”: GIF animado (clique para ampliar) e, recolhidos, os números de cada um."""
     if not charts:
         return []
-    out = [_h2("Gráficos da aula"),
+    out = [_h2("📊 Gráficos da aula"),
            _b("paragraph", _rt("Feitos só com os números, datas e fórmulas da própria aula; cada valor foi conferido "
                                "na transcrição ou nas telas.", italic=True, color="gray"))]
     for c in charts:
@@ -361,50 +407,66 @@ def build_page(lesson, meta):
         if value:
             rich += (_rt("\n") if rich else []) + _rt(f"{label}: ", bold=True) + _rt(
                 value, link=value if label == "Link original" else None)
-    blocks = [_b("callout", rich, icon={"type": "emoji", "emoji": "🎓"}, color="gray_background")]
+    terms = [g["term"] for g in lesson["glossary"]]
+    many = lambda n, one, more: f"{n} {one if n == 1 else more}"  # noqa: E731
+    count = [many(len(lesson["topics"]), "tópico", "tópicos"),
+             many(len(lesson["review_questions"]), "pergunta", "perguntas")]
+    count += [many(len(terms), "termo", "termos")] if terms else []
+    count += [many(len(meta["charts"]), "gráfico", "gráficos")] if meta.get("charts") else []
+    todo = lambda text: {"object": "block", "type": "to_do", "to_do": {"rich_text": _rt(text), "checked": False}}  # noqa
+    plan = [_callout(_rt("Nesta aula", bold=True) + _rt("\n" + " · ".join(count), color="gray"), "📌", "blue_background"),
+            todo("Assistir à aula"), todo("Ler o resumo e o mapa mental"),
+            todo("Responder às perguntas de revisão"), todo("Revisar de novo em 7 dias")]
+    blocks = [_columns([_callout(rich, "🎓")], plan)]
     try:
         video_url = youtube_url(youtube_id(meta.get("link")))
     except AppError:
         video_url = None
     if video_url:
-        blocks += [_h2("Assistir à aula"),
+        blocks += [_h2("▶️ Assistir à aula"),
                    {"object": "block", "type": "video", "video": {
                        "type": "external", "external": {"url": video_url},
                        "caption": _rt("Aula original · YouTube", color="gray")}},
                    {"object": "block", "type": "divider", "divider": {}}]
+    summary = [p.strip() for p in re.split(r"\n\s*\n", lesson["summary"]) if p.strip()]
     blocks += [{"object": "block", "type": "table_of_contents", "table_of_contents": {"color": "gray"}},
-              _h2("Resumo"), *_paras(lesson["summary"]),
-              *_mind_map(lesson, meta.get("mind_map_upload")),
-              _h2("Explicação simples"),
-              _b("callout", _rt("Explicação didática escrita pela IA a partir da aula, para quem está começando."),
-                 icon={"type": "emoji", "emoji": "💡"}, color="blue_background"),
-              *_paras(lesson["simple_explanation"]),
-              _h2("Tópicos principais")]
-    blocks += [_b("bulleted_list_item", _rt(t["title"], bold=True) + _rt(" — " + t["explanation"])
-                  + _stamp(t["timestamp"], yt)) for t in lesson["topics"]]
+               _h2("📝 Resumo"),
+               _callout(_rt("Ideia central", bold=True) + _rt("\n") + _marked(summary[0], terms), "💡", "yellow_background"),
+               *_paras("\n\n".join(summary[1:]), terms),
+               *_mind_map(lesson, meta.get("mind_map_upload")),
+               _h2("🌱 Explicação simples"),
+               _b("paragraph", _rt("Escrita pela IA a partir da aula, para quem está começando.", italic=True,
+                                   color="gray"))]
+    simple = [p.strip() for p in re.split(r"\n\s*\n", lesson["simple_explanation"]) if p.strip()]
+    blocks += [_callout(_marked(simple[0], terms), "🌱", "green_background",
+                        children=_paras("\n\n".join(simple[1:]), terms))]
+    blocks += [_h2("🎯 Tópicos principais"), *_cards(lesson, yt, terms)]
     blocks += _charts(meta.get("charts"), yt)
     blocks += _screens(meta.get("screens"), yt)
     if lesson["glossary"]:
-        blocks.append(_h2("Glossário"))
-        blocks += [_b("bulleted_list_item", _rt(g["term"], bold=True) + _rt(": " + g["definition"]))
-                   for g in lesson["glossary"]]
+        blocks += [_h2("📖 Glossário"),
+                   _table([["Termo", "Significado"]] + [[_rt(g["term"], bold=True), g["definition"]]
+                                                        for g in lesson["glossary"]], row_header=True)]
     if lesson["examples"]:
-        blocks.append(_h2("Exemplos e analogias"))
-        blocks += [_b("bulleted_list_item",
-                      _rt("Da aula · " if e["origin"] == "aula" else "Analogia didática (IA) · ",
-                          italic=True, color="gray") + _rt(e["text"])) for e in lesson["examples"]]
+        blocks.append(_h2("🧩 Exemplos e analogias"))
+        blocks += [_callout(_rt("Da aula" if e["origin"] == "aula" else "Analogia didática (IA)", bold=True,
+                                color="gray") + _rt("\n") + _marked(e["text"], terms),
+                            "🎬" if e["origin"] == "aula" else "💭",
+                            "gray_background" if e["origin"] == "aula" else "purple_background")
+                   for e in lesson["examples"]]
     if lesson["steps"]:
-        blocks.append(_h2("Passo a passo"))
-        blocks += [_b("numbered_list_item", _rt(s)) for s in lesson["steps"]]
-    blocks += [_h2("Perguntas de revisão"),
+        blocks.append(_h2("🪜 Passo a passo"))
+        blocks += [_b("numbered_list_item", _marked(s, terms)) for s in lesson["steps"]]
+    blocks += [_h2("❓ Perguntas de revisão"),
                _b("paragraph", _rt("Tente responder antes de abrir cada pergunta.", italic=True, color="gray"))]
-    blocks += [_b("toggle", _rt(q["question"], bold=True), children=[_b("paragraph", _rt(q["answer"]))])
+    blocks += [_b("toggle", _rt(q["question"], bold=True),
+                  children=[_callout(_rt(q["answer"]), "✅", "green_background")])
                for q in lesson["review_questions"]]
     if lesson["key_moments"]:
-        blocks.append(_h2("Momentos da aula"))
-        blocks += [_b("bulleted_list_item", _rt(fmt_time(m["timestamp"]), bold=True,
-                                                 link=youtube_url(yt, m["timestamp"]) if yt else None)
-                      + _rt(" — " + m["label"])) for m in lesson["key_moments"]]
+        blocks += [_h2("⏱️ Momentos da aula"),
+                   _table([["Tempo", "Momento"]] + [[_rt(fmt_time(m["timestamp"]), bold=True,
+                                                        link=youtube_url(yt, m["timestamp"]) if yt else None),
+                                                    m["label"]] for m in lesson["key_moments"]])]
     notes = [f"Conteúdo gerado localmente por IA ({meta['model']}) a partir da transcrição. "
              "Confira informações importantes na aula original.",
              meta["transcript_origin"]]
@@ -416,9 +478,11 @@ def build_page(lesson, meta):
     if meta.get("screens"):
         notes.append(f"{len(meta['screens'])} tela(s) da aula lidas por um modelo de visão local ({meta['vision_model']}); "
                      "confira números e fórmulas nas imagens.")
-    blocks += [{"object": "block", "type": "divider", "divider": {}}, _b("heading_3", _rt("Sobre esta página")),
-               _b("callout", _rt("\n".join(notes)), icon={"type": "emoji", "emoji": "🔎"}, color="yellow_background")]
-    blocks += [_b("bulleted_list_item", _rt(c)) for c in lesson["caveats"]]
+    blocks += [{"object": "block", "type": "divider", "divider": {}}, _b("heading_3", _rt("Sobre esta página"))]
+    if lesson["caveats"]:  # o que a aula não deixou claro: à vista, em destaque
+        blocks.append(_callout(_rt("Pontos de atenção", bold=True), "⚠️", "orange_background",
+                               children=[_b("bulleted_list_item", _rt(c)) for c in lesson["caveats"]]))
+    blocks.append(_callout(_rt("\n".join(notes), color="gray"), "🔎"))
     return lesson["title"], blocks
 
 

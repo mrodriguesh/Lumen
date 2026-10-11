@@ -67,7 +67,7 @@ class Flow(unittest.TestCase):
         img = [b for b in blocks if b["type"] == "image"]
         self.assertEqual(len(img), 1)
         self.assertEqual(self.fake.uploads[img[0]["image"]["file_upload"]["id"]]["status"], "uploaded")
-        heads = [b["heading_2"]["rich_text"][0]["text"]["content"] for b in blocks if b["type"] == "heading_2"]
+        heads = [b["heading_2"]["rich_text"][0]["text"]["content"].split(" ", 1)[-1] for b in blocks if b["type"] == "heading_2"]  # sem o emoji
         self.assertEqual(heads[heads.index("Resumo") + 1], "Mapa mental")
         # envio da imagem falhou → o mesmo mapa entra em tópicos, e a aula é publicada
         self.fake.fail_upload = True

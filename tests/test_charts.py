@@ -256,7 +256,7 @@ class Page(unittest.TestCase):
         meta = {"course": "C", "source": "x", "model": "m", "transcript_origin": "x", "yt_id": "dQw4w9WgXcQ",
                 "charts": [{**c, "upload": "up1"}, {**c, "upload": None}]}
         _, blocks = notion.build_page(llm.validate(GOOD, 600), meta)
-        heads = [b["heading_2"]["rich_text"][0]["text"]["content"] for b in blocks if b["type"] == "heading_2"]
+        heads = [b["heading_2"]["rich_text"][0]["text"]["content"].split(" ", 1)[-1] for b in blocks if b["type"] == "heading_2"]  # sem o emoji
         self.assertEqual(heads[heads.index("Tópicos principais") + 1], "Gráficos da aula")
         img = next(b for b in blocks if b["type"] == "image" and b["image"]["file_upload"]["id"] == "up1")
         self.assertIn("youtube.com/watch?v=dQw4w9WgXcQ&t=0s", json.dumps(img))  # link para o momento da aula
