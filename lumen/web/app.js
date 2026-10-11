@@ -76,6 +76,7 @@ async function refresh() {
   return S;
 }
 
+let checkTimer = null;
 function renderChecks() {
   const w = S.whisper.models[S.whisper.active];
   const stat = (ok, on, off) => el("span", { class: "stat" }, el("span", { class: "dot" + (ok ? "" : " off"), "aria-hidden": "true" }), ok ? on : off);
@@ -96,6 +97,11 @@ function renderChecks() {
   // O modelo de transcrição só é exigido quando a fonte precisa ser transcrita (avisado na fonte).
   $("#setup").hidden = items.slice(0, 4).every(([, ok]) => ok);
   updateGo();
+  // O Lumen abre com o Windows, às vezes antes do Ollama: enquanto a IA não estiver pronta, pergunta de novo
+  // a cada 5 s (com as Configurações abertas, espera fechar para não mexer no que está sendo editado).
+  clearTimeout(checkTimer);
+  if (!(S.ollama.running && S.ollama.installed))
+    checkTimer = setTimeout(() => dlg.open ? renderChecks() : refresh().catch(() => renderChecks()), 5000);
 }
 
 // ---------- abas ----------
