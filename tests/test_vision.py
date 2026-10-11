@@ -297,6 +297,8 @@ class Extract(unittest.TestCase):
 class FakeScreen:
     """Monitor 960×540 com duas janelas: a aula no navegador à esquerda (x < 640) e as anotações à direita."""
 
+    SPLIT = 640  # onde a aula termina e as anotações começam
+
     def __init__(self, frames):
         self.frames, self.n = frames, 0
 
@@ -305,12 +307,14 @@ class FakeScreen:
         self.n += 1
         return bgra(g), (900, 0, 960, 540), (0, 0)  # barra do Lumen na borda direita
 
-    def window_at(self, points):
-        left = sum(x < 640 for x, _ in points)
-        return "aula" if left * 2 >= len(points) else "notas"
+    def window_at(self, points, allow=lambda h: True):  # como Screen.window_at
+        left = sum(x < self.SPLIT for x, _ in points)
+        votes = {"aula": left, "notas": len(points) - left}
+        ranked = ["aula", "notas"] if left * 2 >= len(points) else ["notas", "aula"]
+        return next((h for h in ranked if votes[h] * 10 >= len(points) and allow(h)), ranked[0])
 
     def rect(self, hwnd):
-        return (0, 0, 640, 540) if hwnd == "aula" else (640, 0, 960, 540)
+        return (0, 0, self.SPLIT, 540) if hwnd == "aula" else (self.SPLIT, 0, 960, 540)
 
     def label(self, hwnd):
         return "Aula 4 - YouTube — msedge.exe" if hwnd == "aula" else "Minhas anotações - Notion — Notion.exe"
@@ -406,7 +410,7 @@ class Private(unittest.TestCase):
 
     def test_the_recording_says_why_nothing_was_captured(self):
         reasons = {}
-        for name, patchw in (("sem janela", {"window_at": lambda self, pts: None}),
+        for name, patchw in (("sem janela", {"window_at": lambda self, pts, allow=None: None}),
                              ("privado", {"label": lambda self, h: "Meu código — Code.exe"}),
                              ("pequena", {"rect": lambda self, h: (0, 0, 300, 100)}),
                              ("preta", {"window_image": lambda self, h: None})):
@@ -425,7 +429,7 @@ class Private(unittest.TestCase):
 
     def test_no_clear_window_or_small_window_is_not_saved(self):
         class Nowhere(FakeScreen):
-            def window_at(self, points):
+            def window_at(self, points, allow=None):
                 return None
         self.assertEqual(self.run_watch(Nowhere([slide("A")] * 5 + [slide("B")] * 10)), [])  # nada da tela inteira
 
@@ -519,9 +523,9 @@ class Watching(unittest.TestCase):
         self.assertEqual(w.counts()["seen"], 3)
 
     def test_first_screen_in_student_app_does_not_block_the_lesson(self):
-        class Notes(FakeScreen):  # no começo, as anotações ocupam a maior parte da tela
-            def window_at(self, points):
-                return "notas" if self.n < 6 else super().window_at(points)
+        class Notes(FakeScreen):  # no começo, só as anotações aparecem
+            def window_at(self, points, allow=None):
+                return "notas" if self.n < 6 else super().window_at(points, allow)
         screen = Notes([slide("A")] * 5 + [slide("B")] * 5 + [slide("C")] * 5)
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(vision, "INTERVAL_S", 0.01),                 mock.patch.object(vision, "read", return_value=note()["note"]):
             w = vision.Watch(os.path.join(tmp, "g.screens"), lambda: float(screen.n), vision.MODEL, grabber=screen)
@@ -531,6 +535,34 @@ class Watching(unittest.TestCase):
                 time.sleep(0.01)
             w.stop()
         self.assertEqual([s["window"] for s in w.shots.items], ["Aula 4 - YouTube — msedge.exe"] * 2)  # B e C
+
+    def windows_kept(self, screen, frames):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(vision, "INTERVAL_S", 0.01), \
+                mock.patch.object(vision, "read", return_value=note()["note"]):
+            w = vision.Watch(os.path.join(tmp, "g.screens"), lambda: float(screen.n), vision.MODEL, grabber=screen)
+            for _ in range(500):
+                if screen.n > frames + 3 and w.q.empty():
+                    break
+                time.sleep(0.01)
+            w.stop()
+        return [s["window"].split(" - ")[0] for s in w.shots.items]
+
+    def test_student_app_bigger_than_the_lesson_does_not_block_it(self):
+        # gravação real: 0 telas. O VS Code atrás do navegador ocupava mais pontos do monitor que o vídeo; a primeira
+        # tela (sem mudança para comparar, vai a janela que mais ocupa a tela) era recusada e tentada de novo para sempre
+        screen = type("BigNotes", (FakeScreen,), {"SPLIT": 400})([slide("A")] * 5 + [slide("B")] * 5 + [slide("C")] * 5)
+        self.assertEqual(self.windows_kept(screen, 15), ["Aula 4"] * 3)
+
+    def test_writing_notes_beside_the_lesson_does_not_block_it(self):
+        # as anotações ficam diferentes da última tela guardada: em toda tela nova, a mudança maior era nelas, e a
+        # tela era recusada (privacidade) mesmo com o slide trocado
+        def frame(kind, notes=False):
+            g = slide(kind)
+            if notes:
+                g[:, 645:] = 60  # o que você escreveu nas anotações (mais células que a troca de slide)
+            return g
+        screen = FakeScreen([frame("A")] * 5 + [frame("A", True)] * 5 + [frame("B", True)] * 5 + [frame("C", True)] * 5)
+        self.assertEqual(self.windows_kept(screen, 20), ["Aula 4"] * 3)  # A, B e C; as anotações nunca
 
     def test_stop_does_not_wait_for_a_slow_read(self):
         screen = FakeScreen([slide("A")] * 5)

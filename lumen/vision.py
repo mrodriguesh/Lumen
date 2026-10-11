@@ -507,18 +507,18 @@ class Screen:
 
     SHELL = {"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd"}  # área de trabalho e barra de tarefas
 
-    def window_at(self, points):
-        """A janela (de nível superior) que contém a maioria dos pontos da tela, fora o Lumen e a área de trabalho."""
+    def window_at(self, points, allow=lambda hwnd: True):
+        """A janela (de nível superior) que contém a maioria dos pontos da tela, fora o Lumen e a área de trabalho.
+        Prefere uma janela que passe em `allow` (com ao menos 10% dos pontos); sem nenhuma, devolve a mais votada."""
         votes = {}
         for x, y in points:
             h = self.u.WindowFromPoint(self.w.POINT(int(x), int(y)))
             root = self.u.GetAncestor(h, 2) if h else None  # 2 = GA_ROOT
             if root:
                 votes[root] = votes.get(root, 0) + 1
-        for hwnd in sorted(votes, key=votes.get, reverse=True):
-            if self._class(hwnd) not in self.SHELL and not self._title(hwnd).startswith("Lumen"):
-                return hwnd
-        return None
+        ranked = [h for h in sorted(votes, key=votes.get, reverse=True)
+                  if self._class(h) not in self.SHELL and not self._title(h).startswith("Lumen")]
+        return next((h for h in ranked if votes[h] * 10 >= len(points) and allow(h)), ranked[0] if ranked else None)
 
     def rect(self, hwnd):
         """Borda visível da janela (sem a moldura invisível de redimensionar, que mostraria o que está atrás)."""
@@ -620,6 +620,7 @@ class Watch:
         self.picker, self.grabber, self.stop_ev, self.q = Picker(), grabber, threading.Event(), queue.Queue()
         self.smalls, self.mask, self.read_n, self.failed = {}, np.zeros(GRID, bool), 0, False
         self.refused, self.why = 0, ""  # capturas não guardadas e o último motivo (aparece durante a gravação)
+        self.reasons = {}  # motivo → vezes (vai para o log ao parar; só os motivos, nada da tela)
         self.screen = None
         self.threads = [threading.Thread(target=self._capture, daemon=True)]
         if live:
@@ -635,6 +636,7 @@ class Watch:
 
     def _refuse(self, why):
         self.refused, self.why = self.refused + 1, why
+        self.reasons[why] = self.reasons.get(why, 0) + 1
         return None
 
     def _small(self, bgra, bar):
@@ -686,9 +688,13 @@ class Watch:
             cells = [(r, c) for r in np.linspace(5, GRID[0] - 6, 5) for c in np.linspace(9, GRID[1] - 10, 5)]
         else:
             changed = np.argwhere((np.abs(small - ref) > DELTA) & ~self.picker.scenes.live)
-            cells = changed[np.linspace(0, len(changed) - 1, min(len(changed), 25)).astype(int)] if len(changed) else []
+            cells = changed[np.linspace(0, len(changed) - 1, min(len(changed), 100)).astype(int)] if len(changed) else []
+        # Um programa seu (editor, anotações) não vota: ele nunca é guardado e, se ganhasse, recusaria a tela para
+        # sempre (maior que o vídeo na primeira tela, ou com o que você escreveu nele diferente da última tela
+        # guardada em toda tela nova). Gravação real: 0 telas com o VS Code atrás do navegador.
+        mine = lambda hw: not student_app(self.screen.label(hw))  # noqa: E731
         hwnd = self.screen.window_at([(origin[0] + (c + .5) * w / GRID[1], origin[1] + (r + .5) * h / GRID[0])
-                                      for r, c in cells]) if len(cells) else None
+                                      for r, c in cells], mine) if len(cells) else None
         if not hwnd:
             return self._refuse("não achei a janela da aula")
         label = self.screen.label(hwnd)
@@ -740,6 +746,8 @@ class Watch:
         for t in self.threads[1:]:
             t.join(timeout=0.5)
         self.shots.close()
+        logging.getLogger("lumen").info("tela junto: %d tela(s) guardada(s); recusas: %s", len(self.shots.items),
+                                        self.reasons or "nenhuma")
 
 
 def adopt(screens, work):

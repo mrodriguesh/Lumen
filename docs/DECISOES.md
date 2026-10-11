@@ -354,6 +354,14 @@ echo "isto nao e um video" > falso.mp4
   mudando por `STILL_S`), nada mais está vivo. Câmera num canto e pessoa falando continuam iguais (testes).
 - **Erro numa tela não para mais a captura:** antes, qualquer erro que não fosse `OSError` encerrava a thread em
   silêncio pelo resto da gravação; agora fica no log (só o tipo, sem texto da tela) e a tela é tentada de novo.
+- **Programa seu não vota na janela da aula (gravação seguinte, 2 min, 1 tela):** a janela fotografada é a que
+  tem mais pontos da mudança (na primeira tela, mais pontos do monitor). Um programa seu (VS Code, Notion…) maior
+  que o vídeo, ou com o que você escreveu nele diferente da última tela guardada, ganhava em toda tela nova; a tela
+  era recusada por privacidade e tentada de novo para sempre. Teste ao vivo (Opera GX de teste, 1300×820, vídeo de
+  demonstração com câmera redonda e mouse, VS Code maximizado atrás): antes 0 de 7 telas, 77 recusas; agora 7 de 7,
+  todas da janela de teste, lidas como aula. Agora vence a janela que não é programa seu e tem ≥ 10% dos pontos
+  (amostra de até 100); sem nenhuma, continua recusada (o programa seu nunca é fotografado). Ao parar, o log
+  registra quantas telas e as recusas por motivo (só os motivos, nada da tela).
 ## Limitações conhecidas
 
 - O áudio inteiro é decodificado em memória: ≈ 230 MB por hora de aula (o dobro em 2× desacelerado).
