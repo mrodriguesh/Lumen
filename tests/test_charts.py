@@ -85,6 +85,23 @@ class Grounding(unittest.TestCase):
         two = bars([("Turma A", 30, 1), ("Turma B", 25, 2)], series=("Alunos", "Professores"))
         self.assertEqual(charts.validate(two, us), [])  # série que a aula não citou
 
+    def test_each_value_must_be_in_its_own_column(self):
+        # revisão do Codex: cada valor era conferido só com a sua linha; trocar as colunas passava
+        us = say("Alpha 2024 10 2025 20; Beta 2024 30 2025 40")
+        right = bars([("Alpha", 10, 20), ("Beta", 30, 40)], series=("2024", "2025"))
+        self.assertEqual(charts.validate(right, us)[0]["series"][1]["valores"], [20, 40])
+        swapped = bars([("Alpha", 20, 10), ("Beta", 40, 30)], series=("2024", "2025"))
+        self.assertEqual(charts.validate(swapped, us), [])
+        # tabela na tela: os valores na ordem do cabeçalho
+        table = say(screens=[(10, "Vendas", "Produto | 2024 | 2025\nAlpha | 10 | 20\nBeta | 30 | 40", [])])
+        self.assertEqual(len(charts.validate(right, table)), 1)
+        self.assertEqual(charts.validate(swapped, table), [])
+        self.assertEqual(charts.validate(bars([("Alpha", 10, 20), ("Beta", 30, 40)], series=("2025", "2024")),
+                                         table), [])  # séries na ordem trocada
+        # na fala, sem dizer de qual ano é cada número: não dá para saber
+        vague = say("Em 2024 e 2025 o Alpha vendeu 10 e 20, e o Beta 30 e 40.")
+        self.assertEqual(charts.validate(right, vague), [])
+
     def test_the_ai_conclusion_only_stays_if_the_lesson_said_it(self):
         us = say("O bubble sort levou 5.200 ms e o merge sort, 180.", "Vejam como o bubble sort fica muito atrás.")
         rows = [("Bubble sort", 5200), ("Merge sort", 180)]
@@ -131,7 +148,22 @@ class Formulas(unittest.TestCase):
         ok = charts.validate(curve("x^2 - 4x + 3", x=(-1, 5)), us)
         self.assertEqual((ok[0]["x_min"], ok[0]["x_max"]), (-1.0, 5.0))
         self.assertEqual(charts.validate(curve("x^3 - 4x"), us), [])  # a aula não tem esta
-        self.assertEqual(charts.validate(curve("x"), us), [])  # "x" está em qualquer texto: precisa estar como O(x)
+        self.assertEqual(charts.validate(curve("x"), us), [])  # "x" está em qualquer texto, mas não é a fórmula
+        self.assertTrue(charts.validate(curve("3 - 4x + x²"), us))  # escrita de outro jeito, mesma função
+
+    def test_formula_structure_matters(self):
+        # revisão do Codex: sem os parênteses, "x+1^2" passava por "(x+1)^2" e o gráfico mostrava x+1
+        us = say("A parábola desta aula é y = (x+1)^2.")
+        self.assertEqual(charts.validate(curve("x+1^2"), us), [])
+        self.assertEqual(charts.validate(curve("x^2+1"), us), [])
+        self.assertTrue(charts.validate(curve("(x+1)^2"), us))
+        self.assertTrue(charts.validate(curve("x^2 + 2x + 1"), us))
+        spoken = say("A função é y igual a x ao quadrado mais 1.")
+        self.assertEqual(charts.validate(curve("(x+1)^2"), spoken), [])
+        self.assertTrue(charts.validate(curve("x^2 + 1"), spoken))
+        big_o = say("A busca binária é O(log n).")
+        self.assertTrue(charts.validate(curve("log n"), big_o))
+        self.assertEqual(charts.validate(curve("n log n"), big_o), [])
 
     def test_complexities_are_charted_without_ai(self):
         us = say(screens=[(37, "Complexidade", "Quicksort | O(n log n) | O(n²)\nBubble sort | O(n) | O(n²)", []),

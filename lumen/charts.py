@@ -196,19 +196,62 @@ def _where(v, k, labels, values, wins):
     oxigênio"), cada valor é do rótulo seguinte; se começa por um rótulo ("o bubble sort levou 5.200 ms e o merge
     sort, 180"; "Quicksort | 150"), do rótulo anterior. Estar no mesmo trecho não basta."""
     for t, toks in wins:
-        spots = {i: j for j, words in enumerate(labels) for i, (w, _) in enumerate(toks) if _match(words, w)}
-        if k not in spots.values():
-            continue
-        nums = [i for i, (_, vals) in enumerate(toks) if i not in spots and any(_has(vals, x) for x in values)]
-        if not nums:
-            continue
-        value_first = nums[0] < min(spots)
-        for pv in nums:
-            if _has(toks[pv][1], v):
-                near = [i for i in spots if i > pv] if value_first else [i for i in spots if i < pv]
-                if near and spots[min(near) if value_first else max(near)] == k:
-                    return t
+        spots = _spots(toks, labels)
+        if k in spots.values() and any(_has(toks[p][1], v) and _owner(toks, spots, values, p) == k
+                                       for p in range(len(toks)) if p not in spots):
+            return t
     return _NONE
+
+
+def _spots(toks, labels):
+    """{posição: índice do rótulo} das palavras dos rótulos no trecho."""
+    return {i: j for j, words in enumerate(labels) for i, (w, _) in enumerate(toks) if _match(words, w)}
+
+
+def _owner(toks, spots, values, pv):
+    """De qual rótulo é o número na posição pv (ver _where), ou None."""
+    nums = [i for i, (_, vals) in enumerate(toks) if i not in spots and any(_has(vals, x) for x in values)]
+    if not nums or not spots:
+        return None
+    if nums[0] < min(spots):  # a frase começa por valor: é do rótulo seguinte
+        near = [i for i in spots if i > pv]
+        return spots[min(near)] if near else None
+    near = [i for i in spots if i < pv]
+    return spots[max(near)] if near else None
+
+
+def _columns(values, labels, names, us, wins):
+    """Várias séries: cada valor precisa ser da sua linha e também da sua coluna ("Alpha: 2024 10, 2025 20" não vale
+    para 2024 = 20). Ou os nomes das séries estão no trecho, cada valor com o seu, ou é uma linha de tabela na tela
+    com os valores na ordem de um cabeçalho que lista as séries nessa ordem. Na fala sem os nomes, não dá para
+    saber: recusa."""
+    cols = _distinct(names)
+
+    def row_ok(k, row, i):
+        t, toks = wins[i]
+        if not any(_match(labels[k], w) for w, _ in toks):
+            return False
+        spots = _spots(toks, cols)
+        if len(set(spots.values())) == len(cols):
+            return all(any(_has(toks[p][1], v) and _owner(toks, spots, row, p) == j
+                           for p in range(len(toks)) if p not in spots) for j, v in enumerate(row))
+        if us[i][2]:
+            return False
+        at, pos = 0, []
+        for v in row:  # na linha da tabela, os valores na ordem das colunas
+            p = next((p for p in range(at, len(toks)) if _has(toks[p][1], v)), None)
+            if p is None:
+                return False
+            pos.append(p)
+            at = p + 1
+        for u in us:  # e um cabeçalho da mesma tela com as séries nessa ordem
+            if not u[2] and u[0] == t:
+                words = re.findall(r"[a-z0-9]+", _fold(u[1]))
+                first = [next((p for p, w in enumerate(words) if _match(c, w)), None) for c in cols]
+                if None not in first and first == sorted(first) and len(set(first)) == len(first):
+                    return True
+        return False
+    return all(any(row_ok(k, row, i) for i in range(len(wins))) for k, row in enumerate(values))
 
 
 def _distinct(labels):
@@ -232,7 +275,7 @@ def _num(v):
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) else None
 
 
-def _table(c, wins, all_tokens):
+def _table(c, us, wins, all_tokens):
     """barras, linha, rosca: linhas (rótulo, valores) → rótulos e séries, com cada valor achado junto do rótulo."""
     rows = [r for r in c.get("dados") or [] if isinstance(r, dict) and _clip(r.get("rotulo"), 40)]
     kind = c["tipo"]
@@ -257,6 +300,8 @@ def _table(c, wins, all_tokens):
             if t is _NONE:
                 return None
             times.append(t)
+    if width > 1 and not _columns(values, words, names, us, wins):
+        return None
     series = [{"nome": names[j], "valores": [row[j] for row in values]} for j in range(width)]
     if kind == "rosca" and "%" in str(c.get("unidade")) and abs(sum(series[0]["valores"]) - 100) > 2:
         return None  # porcentagens que não fecham o todo
@@ -417,36 +462,64 @@ def parse(expr):
     return f, var, cx
 
 
-def _ekey(s, paren=False):
-    """Forma comparável de uma fórmula: "O(n log n)" e "n·log₂ n" → "nlogn"; "x² + 1" e "x^2+1" → "x^2+1"."""
+def _ekey(s):
+    """Forma comparável de uma complexidade, para não repetir: "n log n" e "n·log₂ n" → "nlogn"."""
     s = _sup(s, paren=False).casefold()
-    for a, b in (("ao quadrado", "^2"), ("ao cubo", "^3"), ("elevado a", "^"), ("raiz quadrada de", "sqrt"),
-                 ("raiz de", "sqrt"), ("√", "sqrt"), ("log de", "log"), ("log10", "log"), ("log2", "log"),
-                 ("lg", "log"), ("ln", "log"), ("**", "^"), ("·", ""), ("×", ""), ("⋅", ""), ("*", ""),
-                 ("−", "-"), ("–", "-"), ("dividido por", "/"), (" mais ", "+"), (" menos ", "-"), (" vezes ", "")):
+    for a, b in (("log10", "log"), ("log2", "log"), ("lg", "log"), ("ln", "log"), ("**", "^"), ("·", ""),
+                 ("×", ""), ("⋅", ""), ("*", "")):
         s = s.replace(a, b)
-    return re.sub(r"[\s\[\]{}]" if paren else r"[\s()\[\]{}]", "", s)
+    return re.sub(r"[\s()\[\]{}]", "", s)
+
+
+_SPOKEN = ((" igual a ", " = "), ("ao quadrado", "^2"), ("ao cubo", "^3"), ("elevado a", "^"), ("raiz quadrada de", "sqrt"),
+           ("raiz de", "sqrt"), ("log de", "log"), ("dividido por", "/"), (" mais ", " + "), (" menos ", " - "),
+           (" vezes ", " * "))
+
+
+def written(us):
+    """[(segundos, f)] das fórmulas escritas ou ditas na aula: O(...), o lado direito de cada "=" e a linha da
+    tela inteira, cada uma lida pelo parser (o trecho mais longo que for fórmula)."""
+    out = []
+    for t, text, _ in us:
+        s = str(text)
+        for a, b in _SPOKEN:
+            s = re.sub(a, b, s, flags=re.I)
+        cands = ["O(" + m.group(1) + ")" for m in _BIG_O.finditer(s)]
+        cands += [re.split(r"[;=]|,\s", s[m.end():])[0] for m in re.finditer("=", s)] + [s]
+        for cand in cands:
+            words = re.sub(r"[.!?:;]+$", "", cand.strip()).split()[:16]  # sem o ponto final da frase
+            for n in range(len(words), 0, -1):
+                p = parse(" ".join(words[:n]))
+                if p:
+                    out.append((t, p))
+                    break
+    return out
+
+
+_PROBE = np.array([-2.9, -1.7, -.6, .37, .83, 1.3, 1.9, 2.6, 3.4, 4.7, 6.1, 7.9])
+
+
+def _same(f, g):
+    """Mesma função (não o mesmo texto): os mesmos valores nos pontos de prova. "(x+1)^2" ≠ "x+1^2"."""
+    a, b = f(_PROBE), g(_PROBE)
+    ok = np.isfinite(a) & np.isfinite(b)
+    return ok.sum() >= 5 and np.allclose(a[ok], b[ok], rtol=1e-7, atol=1e-9) and \
+        (np.isfinite(a) == np.isfinite(b)).all()
 
 
 def _formula(c, us):
-    """Curvas das fórmulas da aula, calculadas aqui. Cada fórmula precisa estar escrita (ou dita) na aula."""
-    keys = [(t, _ekey(text), _ekey(text, paren=True)) for t, text, _ in us]
+    """Curvas das fórmulas da aula, calculadas aqui. Cada fórmula precisa ser a mesma função de uma escrita (ou
+    dita) na aula."""
+    source = written(us)
     found, times, cx = [], [], False
     for fn in (c.get("funcoes") or [])[:5]:
         if not isinstance(fn, dict):
             continue
         expr = _clip(fn.get("expressao"), 80)
         parsed = parse(expr)
-        body = expr.split("=")[-1].strip()  # "y = x² + 1" → "x² + 1"; "O(n log n)" → "n log n"
-        m = re.fullmatch(r"[OoΘθΩω]\s*\((.*)\)", body)
-        k = _ekey(m.group(1) if m else body)
-        if not parsed or not k:
+        if not parsed:
             continue
-        if len(k) <= 2:  # "n", "1": tão curto que está em qualquer texto; só vale como O(n) ou "y = n" no fim
-            short = re.compile(rf"[oθω]\({re.escape(k)}\)|={re.escape(k)}(?![a-z0-9^(])")
-            hit = next((t for t, _, pk in keys if short.search(pk)), _NONE)
-        else:
-            hit = next((t for t, key, _ in keys if k in key), _NONE)
+        hit = next((t for t, p in source if p[2] == parsed[2] and _same(p[0], parsed[0])), _NONE)
         if hit is _NONE:
             continue
         found.append({"nome": _clip(fn.get("nome") or expr, 40), "expressao": expr})
@@ -529,7 +602,7 @@ def validate(data, us, comma=True):
             continue
         kind = c["tipo"]
         body = (_formula(c, us) if kind == "funcao" else _timeline(c, wins) if kind == "linha_do_tempo"
-                else _table(c, wins, all_tokens))
+                else _table(c, us, wins, all_tokens))
         if not body:
             continue
         chart = {"tipo": kind, "titulo": _clip(c.get("titulo"), 90), "unidade": _clip(c.get("unidade"), 30),

@@ -225,12 +225,19 @@ lumen/
     segue o jeito da frase: começando por valor (“78% de nitrogênio, 21% de oxigênio”), é do rótulo seguinte;
     começando por rótulo (“o bubble sort levou 5.200 e o merge sort, 180”; “Quicksort | 150”), do anterior. Os
     rótulos são comparados pelas palavras que só eles têm (“merge”, não “sort”);
+  - com várias séries, cada valor precisa ser também da sua coluna (revisão do Codex: “Alpha 2024 10 2025 20” com
+    2024 = 20 passava): ou os nomes das séries estão no trecho, cada valor com o seu pela mesma regra, ou é uma
+    linha de tabela na tela com os valores na ordem de um cabeçalho que lista as séries nessa ordem. Na fala sem
+    os nomes das séries, o gráfico é recusado;
   - números lidos como a aula escreve (“5.200” = 5200 em português, 5,2 em inglês; “1 milhão”; “cinco”); arredondar
     (10,7 → 11), inventar um ponto, uma série ou porcentagens que não fecham 100% derruba o gráfico inteiro;
   - a frase da IA sob o título saiu errada no teste (“o merge sort é o mais rápido”); ela só entra se 75% das
     palavras estiverem num mesmo trecho da aula. Senão, o subtítulo é tirado dos dados;
   - fórmulas: parser com lista fechada (números, x/n/t, + − × ÷ ^, !, log, sqrt, sen…; nada de nomes, atributos ou
-    chamadas), calculadas com numpy; a expressão precisa estar na aula (“x² - 4x + 3” acha “f(x) = x² − 4x + 3”).
+    chamadas), calculadas com numpy. A da IA precisa ser **a mesma função** de uma fórmula da aula (O(…), o lado
+    direito de cada “=”, a linha da tela; “igual a”, “ao quadrado”, “mais” falados viram símbolos), comparada
+    pelos valores em 12 pontos de prova, não pelo texto: comparar o texto sem parênteses aceitava “x+1^2” por
+    “(x+1)^2” (revisão do Codex). “3 - 4x + x²” vale por “x² − 4x + 3”.
 - **Complexidades sem IA:** a IA desenhava uma curva por algoritmo e não comparava; as notações O(…) citadas viram
   um gráfico só, com as curvas calculadas e em ordem de crescimento (log n, n, n log n, n²), n de 1 a 32. Uma curva
   que dispara (2ⁿ perto de n²) sai pelo alto em vez de achatar as outras.
