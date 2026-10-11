@@ -17,12 +17,16 @@ MEDIA = {
     ".mov": "MOV (H.264/AAC)", ".mp3": "MP3", ".m4a": "M4A (AAC)", ".wav": "WAV (PCM)",
 }
 CAPTIONS = (".srt", ".vtt", ".txt")
+IMAGES = (".png", ".jpg", ".jpeg", ".webp", ".bmp")  # capturas de tela
+MAX_CAPTURES = 30        # por aula (cada uma é lida pela IA de visão: ≈ 2–6 s)
+MAX_IMAGE_BYTES = 25_000_000
 
 STATUS = {
     "recording": ("compativel", "Compatível"),
     "file": ("compativel", "Compatível"),
     "youtube": ("limitado", "Compatível com limitações"),
     "telegram": ("manual", "Requer importação manual"),
+    "captures": ("compativel", "Compatível"),
 }
 
 
@@ -154,6 +158,30 @@ def parse_captions(text):
 
 LABELS = {"file": "Arquivo local", "telegram": "Telegram (arquivo importado)",
           "recording": "Gravação do áudio do PC"}
+CAPTURES_LABEL = "Capturas de tela"
+
+
+def captures(spec):
+    """Capturas de tela enviadas pelo estudante: valida os arquivos e devolve a fonte (sem áudio, sem transcrição)."""
+    paths = [str(p) for p in (spec.get("paths") or []) if str(p).strip()]
+    if not paths:
+        raise AppError("Nenhuma captura foi escolhida.", "Arraste, cole (Ctrl+V) ou escolha imagens de tela.")
+    if len(paths) > MAX_CAPTURES:
+        raise AppError(f"São capturas demais ({len(paths)}).", f"Use até {MAX_CAPTURES} por aula.")
+    digest = hashlib.sha256()
+    for raw in paths:
+        p = Path(raw)
+        if not p.is_file():
+            raise AppError("Uma captura não está mais disponível.", "Adicione as imagens de novo.")
+        if p.suffix.lower() not in IMAGES:
+            raise AppError(f"O formato “{p.suffix or 'sem extensão'}” não é uma imagem aceita.",
+                           "Use: " + ", ".join(IMAGES) + ".")
+        if p.stat().st_size > MAX_IMAGE_BYTES:
+            raise AppError(f"“{p.name}” é grande demais (máx. 25 MB).", "Reduza a imagem ou tire outra captura.")
+        digest.update(hashlib.sha256(p.read_bytes()).digest())
+    title = " ".join(str(spec.get("title") or "").split())[:120] or f"Capturas de tela ({len(paths)})"
+    return {"kind": "captures", "key": "caps:" + digest.hexdigest()[:32], "title": title, "label": CAPTURES_LABEL,
+            "link": lesson_link(spec.get("link")), "path": None, "paths": paths, "duration": None, "info": None}
 
 
 def lesson_link(url):
@@ -177,6 +205,8 @@ def lesson_link(url):
 def resolve(spec):
     """Valida o pedido da interface e devolve a descrição da fonte."""
     kind = spec.get("kind")
+    if kind == "captures":
+        return captures(spec)
     if kind in LABELS:
         info = probe(spec.get("path", ""))
         title = re.sub(r"^[0-9a-f]{8}_", "", Path(spec["path"]).stem)  # prefixo das cópias internas

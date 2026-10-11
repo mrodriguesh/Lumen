@@ -67,6 +67,24 @@ Responda só com JSON:
 - valores: em gráficos (barras, linhas, pizza) e tabelas com números, cada rótulo com o seu valor, como aparecem
   na imagem (ex.: {"rotulo": "Bubble sort", "valor": "5.200 ms"}); olhe a barra ou a fatia de cada rótulo. Senão []."""
 
+# Capturas que o próprio estudante escolheu (aba “Capturas”, “Adicionar capturas” na revisão): vale transcrever tudo o
+# que o conteúdo mostra, inclusive um site, uma conversa ou uma foto; só o que é do programa (abas, relógio) fica de fora.
+SYSTEM_CAPTURE = """Você lê uma captura de tela que um estudante guardou (site, slide, documento, código, tabela, conversa,
+gráfico, anotação, foto) e transcreve o que ela mostra, para virar uma página de estudo.
+Responda só com JSON:
+- titulo: o título do conteúdo, como aparece; se não houver, um título curto descritivo.
+- texto: transcreva fielmente, linha por linha, todo o texto do conteúdo (títulos, parágrafos, listas, tabelas, código,
+  fórmulas, rótulos de gráficos). Mantenha números, símbolos e o idioma original; em código, a indentação; em
+  tabelas, uma linha por linha da tabela com as colunas separadas por " | ". Ignore só o que é do programa e não do
+  conteúdo: barra do navegador, abas, relógio, notificações, botões da interface. Num site, transcreva o conteúdo da
+  página, não o menu.
+- descricao: se houver diagrama, gráfico, figura, foto ou captura de um programa, diga em 1 a 2 frases o que mostra;
+  senão "".
+- tipo: o que a imagem mostra.
+- conteudo_da_aula: sempre true (o estudante escolheu esta captura).
+- valores: em gráficos (barras, linhas, pizza) e tabelas com números, cada rótulo com o seu valor, como aparecem
+  na imagem (ex.: {"rotulo": "Bubble sort", "valor": "5.200 ms"}); olhe a barra ou a fatia de cada rótulo. Senão []."""
+
 KINDS = {"slide": "📑", "codigo": "💻", "tabela": "📊", "diagrama": "🧩", "grafico": "📈", "formula": "➗",
          "quadro": "✍️", "demonstracao": "🖱️", "pessoa": "🧑‍🏫", "anuncio": "📣", "outro": "🖥️"}
 # A ordem importa: o modelo lê primeiro (título, texto) e só depois classifica (bench: com o tipo primeiro, ele
@@ -234,8 +252,9 @@ def _words(text):
     return re.findall(r"\w+", str(text or "").lower())
 
 
-def clean(d):
-    """Resposta do modelo → anotação validada. keep = vale para a página."""
+def clean(d, manual=False):
+    """Resposta do modelo → anotação validada. keep = vale para a página. manual: captura escolhida pelo estudante,
+    que fica sempre que o modelo leu algum texto ou descreveu uma figura (sem o filtro de “conteúdo da aula”)."""
     d = d if isinstance(d, dict) else {}
     s = lambda k, n: str(d.get(k) or "").strip()[:n] if isinstance(d.get(k), (str, int, float)) else ""
     note = {"titulo": " ".join(s("titulo", 200).split()), "texto": s("texto", 4000), "descricao": s("descricao", 600),
@@ -250,6 +269,10 @@ def clean(d):
         note["texto"] = "\n".join(f"{p['rotulo']}: {p['valor']}" for p in note["valores"])
     # rosto com o nome escrito, ícone, tela em branco: o modelo às vezes diz "conteúdo". Sem texto, só vale figura
     words = len(_words(note["texto"]))
+    if manual:
+        note["aula"] = True
+        note["keep"] = words + len(_words(note["descricao"])) >= 1
+        return note
     note["keep"] = (note["aula"] and note["tipo"] not in ("pessoa", "anuncio")
                     and (words >= 2 or note["tipo"] in ("diagrama", "grafico", "quadro", "demonstracao"))
                     and words + len(_words(note["descricao"])) >= 4)
@@ -275,19 +298,46 @@ def ask(window=None):
     return "Anote esta tela da aula." + (f"\nJanela: {window}" if window else "")
 
 
-def read(jpeg, model, check=lambda: None, keep_alive="3m", window=None):
+def read(jpeg, model, check=lambda: None, keep_alive="3m", window=None, manual=False):
     import base64
-    raw = llm._chat(model, SYSTEM, ask(window), check, lambda n: None, schema=SCHEMA, num_ctx=CTX,
+    raw = llm._chat(model, SYSTEM_CAPTURE if manual else SYSTEM,
+                    "Transcreva esta captura de tela." if manual else ask(window), check, lambda n: None,
+                    schema=SCHEMA, num_ctx=CTX,
                     temperature=0, keep_alive=keep_alive, images=[base64.b64encode(jpeg).decode()], limit=3000)
     try:
-        return clean(json.loads(raw))
+        return clean(json.loads(raw), manual)
     except ValueError:
-        return clean({})
+        return clean({}, manual)
 
 
 def ready(model):
     names = llm.models() or []
     return any(n == model or n == model + ":latest" for n in names)
+
+
+# --- capturas enviadas pelo estudante ----------------------------------------------------------------------------
+
+def image_jpeg(path):
+    """Arquivo de imagem (png, jpg, webp, bmp) → JPEG de alta qualidade com no máximo WIDTH px, como as telas da aula."""
+    import av
+    try:
+        with av.open(str(path)) as c:
+            return _encode(next(c.decode(video=0)))
+    except (av.error.FFmpegError, StopIteration, ValueError):
+        raise AppError(f"Não foi possível abrir a imagem “{Path(path).name}”.",
+                       "Confira se o arquivo é uma imagem (png, jpg, webp ou bmp) e não está corrompido.") from None
+
+
+def add_captures(shots, paths, start=0.0):
+    """Guarda as imagens como telas “manuais” (escolhidas pelo estudante, sem tempo na aula). Devolve os ids novos.
+    `start`: o tempo (só para ordenar) da primeira; as seguintes vêm logo depois, na ordem em que foram enviadas."""
+    ids = []
+    for k, p in enumerate(paths):
+        i = shots.add(start + k, image_jpeg(p), None, manual=True, name=Path(p).name[:120])
+        if i is None:
+            raise AppError("Há capturas demais nesta aula.", f"O limite é de {MAX_SHOTS} telas por aula.")
+        ids.append(i)
+    return ids
 
 
 # --- telas guardadas de uma aula ---------------------------------------------------------------------------------
@@ -309,14 +359,15 @@ class Shots:
         tmp.write_text(json.dumps({"shots": self.items, "refused": self.refused}, ensure_ascii=False), "utf-8")
         os.replace(tmp, self.dir / "index.json")
 
-    def add(self, t, jpeg, window=None):
+    def add(self, t, jpeg, window=None, **extra):
         with self.lock:
             if self.closed or len(self.items) >= MAX_SHOTS:
                 return None
             self.dir.mkdir(parents=True, exist_ok=True)
             i = len(self.items)
             (self.dir / f"{i:04d}.jpg").write_bytes(jpeg)
-            self.items.append({"id": i, "t": round(float(t), 1), "state": "pending", "note": None, "window": window})
+            self.items.append({"id": i, "t": round(float(t), 1), "state": "pending", "note": None, "window": window,
+                               **extra})
             self._save()
             return i
 
@@ -405,7 +456,7 @@ def screen_lines(notes):
         body = " / ".join(x.strip() for x in note["texto"].splitlines() if x.strip())
         if note["descricao"]:
             body += (" " if body else "") + f"(figura: {note['descricao']})"
-        out.append((n["t"], f"(na tela) {note['titulo']}: {body}"[:1500]))
+        out.append((None if n.get("manual") else n["t"], f"(na tela) {note['titulo']}: {body}"[:1500]))  # captura sua: sem horário
     return out
 
 
@@ -418,7 +469,7 @@ def analyze(shots, model, check, status, last=True):
         check()
         status(f"Lendo o que apareceu na tela ({k} de {len(todo)})…", (k - 1) / len(todo))
         shots.done(i, read(shots.image(i), model, check, keep_alive="0" if last and k == len(todo) else "3m",
-                           window=shots.items[i].get("window")))
+                           window=shots.items[i].get("window"), manual=bool(shots.items[i].get("manual"))))
 
 
 def extract(path, shots, model, check, status):

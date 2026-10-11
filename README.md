@@ -94,6 +94,21 @@ integração interna crie páginas no topo do workspace, só dentro de uma pági
 | Arquivo local | Compatível | Escolher ou arrastar. O áudio é decodificado em memória; o vídeo não sai do PC. |
 | YouTube | Compatível com limitações | Link + transcrição que você fornece: colar o texto de “Mostrar transcrição”, importar `.srt`/`.vtt`/`.txt` ou escolher uma cópia local autorizada. |
 | Telegram | Requer importação manual | Salve o vídeo pelo Telegram Desktop e escolha o arquivo (a pasta `Downloads\Telegram Desktop` abre direto). |
+| Capturas de tela | Compatível | Prints de sites, textos, slides, código ou tabelas: arraste, **cole com Ctrl+V** (Win+Shift+S) ou escolha as imagens. A IA de visão local transcreve cada uma e a página sai com a seção **📸 Capturas de tela**. |
+
+### Capturas de tela
+
+- **Aba “Capturas de tela”:** até 30 imagens (png, jpg, webp, bmp, até 25 MB cada); título e link de origem opcionais. A
+  mesma página bonita de sempre (resumo, tópicos, glossário, gráficos, perguntas) é escrita a partir do que as imagens
+  mostram. Precisa do modelo de visão (`qwen3.5:4b`, o mesmo de “Assistir a tela junto”) e do Ollama abertos.
+- **Em qualquer aula (gravação, YouTube, arquivo):** na revisão, **＋ Adicionar capturas** (ou soltar/colar imagens ali)
+  junta prints à aula, com a leitura feita na hora; elas entram no fim, sem horário. Desmarque o que não quiser.
+- **Na página:** a galeria (2 por linha, clique para ampliar) e, recolhido, o texto de cada captura: código em bloco de
+  código, tabela como tabela do Notion, figuras descritas. Sites e textos são transcritos como estão; só a moldura do
+  programa (abas, relógio, botões) fica de fora. Diferente das telas de uma aula, uma captura sua nunca é descartada
+  por “não ser conteúdo da aula”: fica sempre que a IA leu algum texto ou figura.
+- **Privacidade:** nada sai do PC além das imagens e do texto que você mantiver na revisão, que vão ao Notion. Os arquivos
+  originais não são tocados; o Lumen trabalha numa cópia e apaga as cópias ao gerar a página.
 
 Formatos testados: MP4 (H.264/AAC), MKV (H.264/AAC), WebM (VP9/Opus), MOV (H.264/AAC), MP3, M4A (AAC), WAV (PCM).
 Outros formatos são recusados com uma mensagem. Arquivos sem áudio ou corrompidos são detectados antes de começar.

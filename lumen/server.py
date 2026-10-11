@@ -31,7 +31,33 @@ print(f.askopenfilename(title=sys.argv[1], filetypes=[(sys.argv[2], sys.argv[3])
                         initialdir=sys.argv[4] or None) or '')"""
 
 
+_PICK_MANY = """import sys, tkinter as t
+from tkinter import filedialog as f
+r = t.Tk(); r.withdraw(); r.attributes('-topmost', 1)
+print("\\n".join(f.askopenfilenames(title=sys.argv[1], filetypes=[(sys.argv[2], sys.argv[3]), ('Todos', '*.*')])))"""
+
+
+def pick_images():
+    """Escolher várias capturas de tela no diálogo do Windows (os arquivos ficam onde estão; o Lumen só lê)."""
+    r = subprocess.run([sys.executable, "-c", _PICK_MANY, "Escolher capturas de tela", "Imagens",
+                        " ".join("*" + e for e in sources.IMAGES)],
+                       capture_output=True, text=True, encoding="utf-8", env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    chosen = [Path(p) for p in r.stdout.splitlines() if p.strip() and Path(p).suffix.lower() in sources.IMAGES]
+    up = store.WORK / "uploads"
+    up.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for p in chosen[:sources.MAX_CAPTURES]:  # cópias na pasta do Lumen: as originais não são tocadas nem apagadas
+        if p.is_file() and p.stat().st_size <= sources.MAX_IMAGE_BYTES:
+            dest = up / f"{secrets.token_hex(4)}_{p.name}"
+            shutil.copyfile(p, dest)
+            paths.append(str(dest))
+    return {"paths": paths, "names": [Path(p).name.split("_", 1)[1] for p in paths]}
+
+
 def pick_file(kind):
+    if kind == "images":
+        return pick_images()
     if kind == "captions":
         title, label, exts, start = "Importar transcrição", "Legendas e texto", sources.CAPTIONS, ""
     else:
@@ -64,7 +90,7 @@ def state():
                    "installed": om is not None and any(x == cfg["ollama_model"] or x == cfg["ollama_model"] + ":latest"
                                                        for x in om)},
         "sources": {k: {"id": v[0], "label": v[1]} for k, v in sources.STATUS.items()},
-        "formats": sources.MEDIA, "job": jobs.snapshot(), "recording": record.status(),
+        "formats": sources.MEDIA, "images": sources.IMAGES, "job": jobs.snapshot(), "recording": record.status(),
         "covers": {"ready": imagegen.ready(), "label": imagegen.ENGINES[imagegen.DEFAULT_ENGINE]["label"],
                    "size": imagegen.ENGINES[imagegen.DEFAULT_ENGINE]["size"]},
         "vision": {"model": vision.MODEL, "size": vision.SIZE,
@@ -85,7 +111,8 @@ def inspect(spec):
         "title": src["title"], "label": src["label"], "link": src["link"], "author": src.get("author"),
         "info": src["info"], "duration": src["duration"], "duplicate": dup, "resumable": resumable,
         "has_captions": bool(src.get("captions")), "segments": len(src.get("captions") or []),
-        "needs_transcript": not src.get("captions") and not src.get("path"),
+        "needs_transcript": not src.get("captions") and not src.get("path") and src["kind"] != "captures",
+        "captures": len(src.get("paths") or []),
         "needs_transcription": needs_tr, "whisper_model": m["label"], "whisper_ready": transcribe.downloaded(m["name"]),
         "estimate": eta.transcribe_seconds(src["duration"], m["name"]) if needs_tr and src["duration"] else None,
     }
@@ -310,9 +337,12 @@ def _new_course(h):
 
 def _upload(h):
     name = Path(h._query().get("name", "")).name
-    if Path(name).suffix.lower() not in sources.MEDIA:
-        raise AppError("Formato não suportado.", "Use um destes formatos: " + ", ".join(sources.MEDIA) + ".")
+    image = Path(name).suffix.lower() in sources.IMAGES  # captura de tela (arrastada ou colada com Ctrl+V)
+    if not image and Path(name).suffix.lower() not in sources.MEDIA:
+        raise AppError("Formato não suportado.", "Use um destes formatos: " + ", ".join(sources.MEDIA + sources.IMAGES) + ".")
     n = int(h.headers.get("Content-Length") or 0)
+    if image and n > sources.MAX_IMAGE_BYTES:
+        raise AppError("A imagem é grande demais (máx. 25 MB).", "Reduza a imagem ou tire outra captura.")
     up = store.WORK / "uploads"
     up.mkdir(parents=True, exist_ok=True)
     if shutil.disk_usage(up).free < n + 500_000_000:
@@ -372,6 +402,18 @@ def _screen(h):
         raise AppError("Tela não encontrada.", "") from None
 
 
+def _captures_add(body):  # o corpo do pedido só pode ser lido uma vez
+    return jobs.add_captures(body.get("key"), body.get("paths"))
+
+
+def _capture_thumb(h):
+    """Miniatura de uma captura enviada (só de dentro da pasta de uploads do Lumen), para a lista da aba Capturas."""
+    p = Path(h._query().get("path", "")).resolve()
+    if p.parent != (store.WORK / "uploads").resolve() or p.suffix.lower() not in sources.IMAGES or not p.is_file():
+        raise AppError("Captura não encontrada.", "")
+    return vision.image_jpeg(p)
+
+
 def _start(h):
     body = h._json()
     jobs.start("process", jobs.process, body, spec=body)
@@ -394,10 +436,12 @@ ROUTES = {
     ("POST", "/api/courses"): _new_course,
     ("POST", "/api/decor/preview"): _preview,
     ("POST", "/api/pick"): lambda h: pick_file(h._json().get("kind")),
+    ("POST", "/api/captures/add"): lambda h: _captures_add(h._json()),
     ("POST", "/api/upload"): _upload,
     ("POST", "/api/inspect"): lambda h: inspect(h._json()),
     ("POST", "/api/start"): _start,
     ("GET", "/api/screen"): _screen,
+    ("GET", "/api/capture"): _capture_thumb,
     ("POST", "/api/finish"): _finish,
     ("POST", "/api/cancel"): lambda h: (jobs.cancel(), jobs.snapshot())[1],
     ("POST", "/api/download"): _download,

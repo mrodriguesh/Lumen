@@ -169,7 +169,8 @@ def units(segments, screens=()):
             continue  # os números de um código (índices, 0 e 1) não são dados da aula
         lines = [x for x in note["texto"].splitlines() if _fold(x.strip()) != _fold(note["titulo"].strip())]
         pairs = [f"{p['rotulo']}: {p['valor']}" for p in note.get("valores") or []]  # o par lido na imagem
-        out += [(sc["t"], x.strip(), False) for x in [note["titulo"], *lines, *pairs] if x.strip()]
+        when = None if sc.get("manual") else sc["t"]  # captura enviada pelo usuário: sem horário na aula
+        out += [(when, x.strip(), False) for x in [note["titulo"], *lines, *pairs] if x.strip()]
     return sorted(out, key=lambda u: u[0] if u[0] is not None else float("inf"))
 
 

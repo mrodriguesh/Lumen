@@ -533,6 +533,17 @@ details ol { padding-left: 20px; margin: 6px 0; }
 .watch #watch-status:empty { display: none; }
 .watch .btn { margin-top: 8px; }
 .shots { margin: 16px 0 6px; }
+.caps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin: 14px 0; }
+.caps-grid:empty { display: none; }
+.cap { position: relative; margin: 0; border-radius: 10px; overflow: hidden; background: var(--fill); box-shadow: 0 0 0 .5px var(--card-line); }
+.cap img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--fill-strong); }
+.cap figcaption { padding: 5px 8px; font-size: .75rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cap-x { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%;
+  background: #000000a8; color: #fff; font-size: 11px; line-height: 1; cursor: pointer; }
+.cap-x:hover { background: #000; }
+.drop kbd { padding: 1px 6px; border-radius: 5px; background: var(--fill-strong); font: inherit; font-size: .8em; }
+.shots.over { outline: 2px dashed var(--accent); outline-offset: 6px; border-radius: 12px; }
+.shots-head .btn { margin-left: auto; }
 .shots-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 10px; }
 .shots-head h3 { margin: 0; font-size: 1rem; }
 .shot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }

@@ -55,6 +55,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 4.5 3.5 11.2l5.6 2.1 2.1 6.2 3.2-4 4.4 3.3z"/><path d="m9.1 13.3 8-6"/></svg>
         <span class="side-text"><span class="side-title">Telegram</span><span class="badge" data-status="telegram"></span></span>
       </button>
+      <button role="tab" id="tab-captures" aria-controls="panel-captures" aria-selected="false" tabindex="-1" data-kind="captures" data-sub="Prints de sites, textos, slides ou código: o Lumen lê tudo e monta uma página no Notion.">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10.5" r="1.8" class="fill"/><path d="m4.5 17 4.6-4.4 3.2 3 2.6-2.4 4.6 4.3"/></svg>
+        <span class="side-text"><span class="side-title">Capturas de tela</span><span class="badge" data-status="captures"></span></span>
+      </button>
     </div>
     <div class="side-foot" id="side-status" aria-label="Estado do sistema"></div>
   </aside>
@@ -124,6 +128,19 @@
             <div role="tabpanel" id="panel-telegram" aria-labelledby="tab-telegram" hidden>
               <p>O Lumen não se conecta à sua conta do Telegram. Salve o vídeo pelo Telegram Desktop (botão direito → <em>Salvar como…</em>, normalmente em <em>Downloads\Telegram Desktop</em>) e escolha o arquivo.</p>
               <button class="btn" type="button" data-pick="telegram">Escolher arquivo do Telegram…</button>
+            </div>
+
+            <div role="tabpanel" id="panel-captures" aria-labelledby="tab-captures" hidden>
+              <div class="drop" id="drop-caps" tabindex="0">
+                <svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10.5" r="1.8"/><path d="m4.5 17 4.6-4.4 3.2 3 2.6-2.4 4.6 4.3"/></svg>
+                <p><strong>Arraste capturas de tela para cá</strong></p>
+                <p class="muted small">ou cole com <kbd>Ctrl</kbd> + <kbd>V</kbd> (<kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> tira uma captura)</p>
+                <button class="btn" type="button" data-pick="images">Escolher imagens…</button>
+                <p class="muted small">png, jpg, webp ou bmp · até 30 por aula · lidas no seu PC pela IA de visão</p>
+              </div>
+              <div class="caps-grid" id="caps-grid" role="list" aria-label="Capturas adicionadas"></div>
+              <label>Título da página <span class="muted">opcional</span>
+                <input id="caps-title" maxlength="120" placeholder="Ex.: Anotações sobre cache" autocomplete="off"></label>
             </div>
 
             <div class="watch" id="watch-row">
@@ -200,7 +217,7 @@
           <h2 class="group-h" id="review-h">Revisar e gerar</h2>
           <div class="card">
             <dl class="summary" id="summary"></dl>
-            <div class="list-row">
+            <div class="list-row" id="speed-setting">
               <label for="speed" class="inline">Velocidade da fala no arquivo
                 <small class="muted" id="speed-hint">Vale a velocidade do áudio do arquivo, não a do player.</small></label>
               <select id="speed" class="compact">
@@ -279,7 +296,8 @@
         </div>
         <div class="segments" id="segments" role="list" aria-label="Trechos da transcrição"></div>
         <section class="shots" id="shots" hidden aria-labelledby="shots-h">
-          <div class="shots-head"><h3 id="shots-h">O que apareceu na tela</h3><span class="muted small" id="shots-info"></span></div>
+          <div class="shots-head"><h3 id="shots-h">O que apareceu na tela</h3><span class="muted small" id="shots-info"></span>
+            <button class="btn small-btn" type="button" id="shots-add" title="Também dá para soltar ou colar (Ctrl+V) imagens nesta área">＋ Adicionar capturas</button></div>
           <div class="shot-grid" id="shot-grid" role="list"></div>
         </section>
         <label id="review-link-row">Link da aula <span class="muted">opcional</span>

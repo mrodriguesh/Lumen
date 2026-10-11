@@ -339,19 +339,24 @@ def _screens(screens, yt):
     if not screens:
         return []
     label = lambda s: f"{KINDS.get(s['tipo'], '🖥️')} {s['titulo'] or 'Tela'}"  # noqa: E731
-    out = [_h2("🖥️ O que apareceu na tela"),
-           _b("paragraph", _rt("Slides, quadro e código lidos pelo Lumen enquanto assistia com você. "
+    only_mine = all(s.get("manual") for s in screens)  # capturas que o próprio usuário enviou: sem tempo na aula
+    when = lambda s: "" if s.get("manual") else f"{fmt_time(s['t'])} · "  # noqa: E731
+    out = [_h2("📸 Capturas de tela" if only_mine else "🖥️ O que apareceu na tela"),
+           _b("paragraph", _rt("Imagens enviadas por você, com o texto, o código, as tabelas e as figuras lidos pelo "
+                               "Lumen. Clique numa imagem para ampliar." if only_mine else
+                               "Slides, quadro e código lidos pelo Lumen enquanto assistia com você. "
                                "Clique numa imagem para ampliar.", italic=True, color="gray"))]
     imgs = [s for s in screens if s.get("upload")]
     for i in range(0, len(imgs), 2):
         cols = [_column([{"object": "block", "type": "image", "image": {
             "type": "file_upload", "file_upload": {"id": s["upload"]},
-            "caption": _rt(f"{fmt_time(s['t'])} · {label(s)}", color="gray")}}]) for s in imgs[i:i + 2]]
+            "caption": _rt(f"{when(s)}{label(s)}", color="gray")}}]) for s in imgs[i:i + 2]]
         if len(cols) == 1:  # última linha com uma tela só: mantém o mesmo tamanho das outras
             cols.append(_column([_b("paragraph", [])]))
         out.append({"object": "block", "type": "column_list", "column_list": {"children": cols}})
     out.append(_b("heading_3", _rt("Texto das telas")))
-    out += [_b("toggle", _rt(label(s), bold=True) + _stamp(s["t"], yt), children=_screen_text(s)) for s in screens]
+    out += [_b("toggle", _rt(label(s), bold=True) + ([] if s.get("manual") else _stamp(s["t"], yt)),
+               children=_screen_text(s)) for s in screens]
     return out
 
 
@@ -421,7 +426,8 @@ def build_page(lesson, meta):
     count += [many(len(meta["charts"]), "gráfico", "gráficos")] if meta.get("charts") else []
     todo = lambda text: {"object": "block", "type": "to_do", "to_do": {"rich_text": _rt(text), "checked": False}}  # noqa
     plan = [_callout(_rt("Nesta aula", bold=True) + _rt("\n" + " · ".join(count), color="gray"), "📌", "blue_background"),
-            todo("Assistir à aula"), todo("Ler o resumo e o mapa mental"),
+            todo("Rever as capturas de tela" if meta.get("captures") else "Assistir à aula"),
+            todo("Ler o resumo e o mapa mental"),
             todo("Responder às perguntas de revisão"), todo("Revisar de novo em 7 dias")]
     blocks = [_columns([_callout(rich, "🎓")], plan)]
     try:

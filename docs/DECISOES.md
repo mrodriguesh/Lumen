@@ -395,6 +395,26 @@ echo "isto nao e um video" > falso.mp4
   o vermelho da gravação; âmbar quando o modo está ligado e nada é visto. Fica no rodapé do painel, que já tinha
   espaço nos quatro lados, sem mudar o tamanho da janela da barra; recolhida, um ponto na alça.
 
+## Capturas de tela enviadas pelo usuário (11/10/2026)
+
+- **Fonte `captures`** (`sources.captures`): até 30 imagens; a chave da aula é o conteúdo das imagens (e a ordem), então
+  a mesma coleção é reconhecida como duplicada. Reaproveita todo o caminho das telas capturadas: viram a pasta `screens`
+  da aula (JPEG de até 1280 px, como as da gravação), são lidas por `vision.analyze` e entram em `select`, na revisão,
+  nos gráficos e na galeria. Não há fala: a “transcrição” tem um trecho por captura (“Captura 1: título”, sem horário,
+  como um texto colado do YouTube sem tempos) e o texto delas vai para a IA pelo mesmo `(na tela)` de sempre.
+- **Leitura própria** (`SYSTEM_CAPTURE`, `clean(manual=True)`): o prompt das telas de aula manda ignorar menus, abas,
+  endereço e “telas que não são da aula”, e descarta rosto/anúncio. Numa captura escolhida pelo usuário isso apagaria
+  justamente o site ou o texto que ele quis guardar. Por isso: transcreve o conteúdo (só tira a moldura do programa) e
+  fica sempre que houver texto ou figura descrita.
+- **Adicionar na revisão** (`jobs.add_captures`, `POST /api/captures/add`): lê na hora (≈ 2–6 s cada, até 12 por vez) em
+  vez de virar uma tarefa, para não trocar o estado da revisão que a interface guarda; recusa se houver outra tarefa. Entram
+  com `manual: true` e tempo depois do fim da aula (só para ordenar), sem horário e sem link de tempo na página.
+- **Página:** só capturas suas → seção “📸 Capturas de tela”; misturadas com telas da aula → “🖥️ O que apareceu na tela”,
+  com horário só nas telas da aula. A checklist troca “Assistir à aula” por “Rever as capturas de tela”.
+- **Arquivos:** as imagens escolhidas no diálogo são copiadas para `work/uploads` (as originais não são tocadas); a
+  miniatura da aba só serve arquivos dessa pasta. Cópias são apagadas ao gerar a página (adicionadas na revisão: logo
+  depois da leitura) e, se esquecidas, em 7 dias.
+
 ## Limitações conhecidas
 
 - O áudio inteiro é decodificado em memória: ≈ 230 MB por hora de aula (o dobro em 2× desacelerado).

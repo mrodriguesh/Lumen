@@ -103,22 +103,23 @@ def _save(path, data):
 
 def _drop_upload(src):
     """Apaga gravações e cópias de arquivos arrastados (só dentro de work/uploads; nunca arquivos do usuário)."""
-    up = Path(src.get("path") or "").resolve()
-    if src.get("path") and up.parent == (store.WORK / "uploads").resolve():
-        try:
-            up.unlink(missing_ok=True)
-        except OSError:
-            pass
+    for raw in [src.get("path"), *(src.get("paths") or [])]:
+        up = Path(raw or "").resolve()
+        if raw and up.parent == (store.WORK / "uploads").resolve():
+            try:
+                up.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def _cached_source(spec):
     """Retomada: a gravação pode já ter sido apagada após a transcrição; usa a fonte guardada com ela."""
-    p = spec.get("path")
+    p = spec.get("path") or (spec.get("paths") or [None])[0]
     if not p or Path(p).exists():
         return None
     for f in store.WORK.glob("*/source.json"):
         s = _load(f)
-        if s and s.get("path") == p and (f.parent / "transcript.json").exists():
+        if s and p in (s.get("path"), (s.get("paths") or [None])[0]) and (f.parent / "transcript.json").exists():
             if s["kind"] in sources.LABELS and "link" in spec:
                 s["link"] = sources.lesson_link(spec["link"])
             return s
@@ -163,6 +164,11 @@ def process(spec):
     _save(work / "source.json", src)
     if src["kind"] == "recording":  # telas capturadas junto com o som (“Assistir a tela junto”)
         vision.adopt(Path(src["path"]).with_suffix(".screens"), work)
+    if src["kind"] == "captures":  # imagens enviadas pelo estudante: viram as “telas” da aula, lidas logo abaixo
+        if not vision.ready(vision.MODEL):
+            raise AppError(f"O modelo de visão ({vision.MODEL}) não está instalado ou o Ollama está fechado.",
+                           "Abra o Ollama e baixe o modelo de visão em Ajustes.")
+        _make_shots(src, work)
     if spec.get("retranscribe"):
         for f in ("transcript.json", "transcript_original.json", "lesson.json"):
             (work / f).unlink(missing_ok=True)
@@ -174,7 +180,7 @@ def process(spec):
             for f in ("transcript.json", "transcript_original.json", "lesson.json"):
                 (work / f).unlink(missing_ok=True)
             tr = None
-    if tr or src.get("captions"):
+    if tr or src.get("captions") or src["kind"] == "captures":
         _set(skipped=["transcribe"])
     dur = src.get("duration") or 0
     steps = []
@@ -188,6 +194,10 @@ def process(spec):
         if src.get("captions"):
             tr = {"segments": src["captions"], "language": None, "duration": src["duration"], "speed": None,
                   "origin": "Transcrição importada pelo usuário (legenda ou texto do YouTube).", "captions_hash": cap}
+        elif src["kind"] == "captures":  # sem fala: os trechos são preenchidos com as capturas lidas (abaixo)
+            tr = {"segments": [], "language": None, "duration": None, "speed": None,
+                  "origin": "Capturas de tela enviadas pelo usuário; o texto foi lido por IA de visão local e pode "
+                            "conter erros de leitura."}
         elif src.get("path"):
             if not Path(src["path"]).exists():
                 raise AppError("A gravação ou o arquivo não está mais disponível.", "Escolha o arquivo ou grave de novo.")
@@ -242,12 +252,69 @@ def process(spec):
     check()
     screens = _screens(src, work, cfg)
     check()
+    if src["kind"] == "captures":  # um trecho por captura lida: é o que a revisão mostra e a IA de texto recebe
+        tr["segments"] = [{"start": None, "end": None, "text": f"Captura {n}: {s['titulo'] or 'sem título'}", "flags": []}
+                          for n, s in enumerate(screens["items"], 1)]
+        if not tr["segments"]:
+            raise AppError("Não consegui ler nada nestas capturas.",
+                           "Confira se as imagens mostram texto ou figuras legíveis e tente de novo.")
+        _save(work / "transcript.json", tr)
+        _save(work / "transcript_original.json", tr)
     (work / "transcript_review.json").unlink(missing_ok=True)
     engine = (f"{tr['model']} na {'GPU (CUDA, ' if tr.get('device') == 'cuda' else 'CPU ('}{tr.get('compute')})"
               if tr.get("model") else None)
     return {"review": True, "key": src["key"], "title": src["title"], "segments": tr["segments"], "engine": engine,
             "speed": tr.get("speed"), "duration": tr.get("duration"), "language": tr.get("language"),
             "can_retranscribe": bool(src.get("path")), "screens": screens}
+
+
+def _make_shots(src, work):
+    """Capturas enviadas → pasta de telas da aula (a mesma das telas capturadas na gravação), prontas para leitura."""
+    folder = work / "screens"
+    if (folder / "index.json").exists() and (folder / "complete").exists():
+        return
+    shutil.rmtree(folder, ignore_errors=True)
+    shots = vision.Shots(folder)
+    vision.add_captures(shots, src["paths"])
+    shots.close()
+
+
+MAX_ADD = 12                  # capturas por vez na revisão (a leitura acontece enquanto o usuário espera)
+_adding = threading.Lock()
+
+
+def add_captures(key, paths):
+    """Revisão: junta capturas de tela escolhidas pelo usuário à aula (gravação, YouTube, arquivo ou outras capturas),
+    lê com a IA de visão e devolve as telas da aula, no mesmo formato da revisão. Entram no fim, sem tempo."""
+    if len(paths or []) > MAX_ADD:
+        raise AppError(f"Adicione até {MAX_ADD} capturas por vez.", "Envie o resto em seguida.")
+    files = sources.captures({"paths": paths})["paths"]
+    work = work_dir(str(key))
+    if not (work / "transcript.json").exists():
+        raise AppError("Esta aula não está mais na revisão.", "Gere a transcrição de novo.")
+    if busy() or not _adding.acquire(blocking=False):
+        raise AppError("Já existe uma tarefa em andamento.", "Aguarde terminar para adicionar capturas.")
+    try:
+        if not vision.ready(vision.MODEL):
+            raise AppError(f"O modelo de visão ({vision.MODEL}) não está instalado ou o Ollama está fechado.",
+                           "Abra o Ollama e baixe o modelo de visão em Ajustes.")
+        folder = work / "screens"
+        shots = vision.Shots(folder)
+        tr = _load(work / "transcript.json") or {}
+        last = max([s["t"] for s in shots.items] + [tr.get("duration") or 0])
+        vision.add_captures(shots, files, last + 1)
+        (folder / "complete").touch()
+        warning = None
+        try:
+            vision.analyze(vision.Shots(folder), vision.MODEL, lambda: None, lambda d, p: None)
+        except AppError as e:
+            left = len(vision.Shots(folder).pending())
+            warning = f"{left} captura(s) ficaram sem leitura: {str(e).rstrip('.')}."
+        _drop_upload({"paths": files})  # as imagens já estão (em JPEG) na pasta das telas da aula
+        logging.getLogger("lumen").info("capturas adicionadas à aula: %d", len(files))
+        return _summary(folder, warning)
+    finally:
+        _adding.release()
 
 
 def _screens_estimate(src, work, cfg):
@@ -299,9 +366,14 @@ def _screens(src, work, cfg):
     except AppError as e:
         left = len(vision.Shots(folder).pending())
         warning = (f"{left} tela(s) ficaram sem leitura" if left else "A tela não foi lida") + f": {str(e).rstrip('.')}."
+    return _summary(folder, warning, watched)
+
+
+def _summary(folder, warning=None, watched=True):
+    """As telas escolhidas para a revisão (com id e tempo), as vistas e o aviso, se houver."""
     shots = vision.Shots(folder)
-    items = [{"id": s["id"], "t": s["t"], "titulo": s["note"]["titulo"], "tipo": s["note"]["tipo"]}
-             for s in vision.select(shots.items)]
+    items = [{"id": s["id"], "t": s["t"], "titulo": s["note"]["titulo"], "tipo": s["note"]["tipo"],
+              "manual": bool(s.get("manual"))} for s in vision.select(shots.items)]
     if watched and not shots.items and not warning:  # captura sem nenhuma tela: não é o mesmo que “sem conteúdo”
         why = max(shots.refused, key=shots.refused.get) if shots.refused else None
         warning = "Nenhuma tela foi guardada durante a gravação" + (f" ({why})" if why else "") + "."
@@ -374,7 +446,7 @@ def finish(spec):
     course_id = notion.course_for(token, cfg["root_page_id"], spec.get("course_id") or "__none__")
     course = spec.get("course_title") or notion.NO_COURSE
     edited = sum(1 for s in tr["segments"] if s.get("edited"))
-    meta = {"course": course, "yt_id": src.get("yt_id"), "link": src.get("link"),
+    meta = {"course": course, "yt_id": src.get("yt_id"), "link": src.get("link"), "captures": src["kind"] == "captures",
             "source": f"{src['label']} — {src['title']}", "duration": tr.get("duration"),
             "language": tr.get("language"), "model": model,
             "transcript_origin": tr["origin"] + (f" {edited} trecho(s) corrigido(s) pelo usuário." if edited else ""),
@@ -510,7 +582,7 @@ def _upload_screens(token, shots, screens):
             return None
     with ThreadPoolExecutor(3) as ex:
         ups = list(ex.map(up, screens))
-    return [{**s["note"], "t": s["t"], "upload": u} for s, u in zip(screens, ups)]
+    return [{**s["note"], "t": s["t"], "upload": u, "manual": bool(s.get("manual"))} for s, u in zip(screens, ups)]
 
 
 def download_whisper(name):

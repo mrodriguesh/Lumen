@@ -5,7 +5,7 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 
 let S = null;            // estado do servidor
 let kind = "recording";  // aba ativa
-const picked = { recording: null, file: null, telegram: null, ytcopy: null };
+const picked = { recording: null, file: null, telegram: null, ytcopy: null, captures: [] };
 let found = null;        // resultado de /api/inspect
 let lastSpec = null;
 let polling = false;
@@ -113,6 +113,11 @@ function selectTab(btn) {
   }
   kind = btn.dataset.kind;
   $("#lesson-reference").hidden = kind === "youtube";
+  $("#speed-setting").hidden = kind === "captures";  // capturas não têm fala
+  const hint = $("#lesson-link-hint");
+  hint.dataset.v ??= hint.textContent; $("#lesson-link-h").dataset.v ??= $("#lesson-link-h").textContent;
+  $("#lesson-link-h").textContent = kind === "captures" ? "Link de origem" : $("#lesson-link-h").dataset.v;
+  hint.textContent = kind === "captures" ? "Opcional: o site ou a página de onde vieram as capturas; fica como referência na página." : hint.dataset.v;
   $("#speed-hint").textContent = kind === "recording"
     ? "A gravação sai na velocidade em que a aula tocou: se o player estava em 2× ou 4×, escolha essa velocidade."
     : "Vale a velocidade real do arquivo. Assistir em 2× ou 4× no player não acelera o arquivo: use Normal.";
@@ -139,7 +144,8 @@ for (const b of $$("[data-pick]")) {
     const what = b.dataset.pick;
     b.disabled = true;
     try {
-      const r = await api("/api/pick", { kind: what === "captions" ? "captions" : what === "telegram" ? "telegram" : "media" });
+      const r = await api("/api/pick", { kind: ["captions", "telegram", "images"].includes(what) ? what : "media" });
+      if (what === "images") return addCaps((r.paths || []).map((p, i) => ({ path: p, name: r.names[i] })));
       if (!r.path && !r.text) return;
       if (what === "captions") { $("#yt-text").value = r.text; toast(`“${r.name}” importado.`); }
       else picked[what === "media" ? "file" : what] = r;
@@ -164,6 +170,71 @@ drop.addEventListener("drop", async (e) => {
     await inspect();
   } catch (err) { fail(err); renderSource(); }
 });
+// ---------- capturas de tela (aba “Capturas de tela” e “Adicionar capturas” na revisão) ----------
+const isImage = (f) => /\.(png|jpe?g|webp|bmp)$/i.test(f.name || "") || /^image\//.test(f.type || "");
+async function uploadImages(files) {
+  const out = [];
+  for (const f of files) {  // uma imagem colada não tem nome: vira “captura.png”
+    const name = /\.[a-z]+$/i.test(f.name || "") ? f.name : `captura.${(f.type.split("/")[1] || "png").replace("jpeg", "jpg")}`;
+    out.push(await api("/api/upload?name=" + encodeURIComponent(name), f));
+  }
+  return out;
+}
+function renderCaps() {
+  $("#caps-grid").replaceChildren(...picked.captures.map((c, i) => el("figure", { class: "cap", role: "listitem" },
+    el("img", { src: `/api/capture?path=${encodeURIComponent(c.path)}&t=${encodeURIComponent(TOKEN)}`, alt: c.name, loading: "lazy" }),
+    el("button", { class: "cap-x", type: "button", "aria-label": `Remover ${c.name}`, onclick: () => {
+      picked.captures.splice(i, 1); renderCaps(); capsChanged();
+    } }, "✕"),
+    el("figcaption", {}, `${i + 1} · ${c.name}`))));
+}
+async function capsChanged() { found = null; renderSource(); if (currentSpec()) await inspect(); else updateGo(); }
+async function addCaps(items) {
+  if (!items.length) return;
+  const room = 30 - picked.captures.length;
+  if (items.length > room) toast(`O limite é de 30 capturas por aula; ${room > 0 ? `só as ${room} primeiras entraram` : "nenhuma entrou"}.`, true);
+  picked.captures.push(...items.slice(0, Math.max(room, 0)));
+  renderCaps();
+  await capsChanged();
+}
+async function addToReview(items) {  // junta capturas à aula que está na revisão
+  if (!review || !items.length) return;
+  const btn = $("#shots-add"), n = items.length;
+  btn.disabled = true;
+  $("#shots-info").textContent = `Lendo ${n} captura${n === 1 ? "" : "s"} com a IA de visão no seu PC… (≈ ${Math.max(5, n * 4)} s)`;
+  try {
+    review.screens = await api("/api/captures/add", { key: review.key, paths: items.map((p) => p.path) });
+    renderShots(review, true);
+    toast(`${n} captura${n === 1 ? " adicionada" : "s adicionadas"} à aula.`);
+  } catch (e) { fail(e); renderShots(review, true); }
+  finally { btn.disabled = false; }
+}
+$("#shots-add").addEventListener("click", async () => {
+  $("#shots-add").disabled = true;
+  try {
+    const r = await api("/api/pick", { kind: "images" });
+    $("#shots-add").disabled = false;
+    await addToReview((r.paths || []).map((p, i) => ({ path: p, name: r.names[i] })));
+  } catch (e) { fail(e); } finally { $("#shots-add").disabled = false; }
+});
+for (const [zone, add] of [[$("#drop-caps"), addCaps], [$("#shots"), addToReview]]) {
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("over"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("over"));
+  zone.addEventListener("drop", async (e) => {
+    e.preventDefault(); zone.classList.remove("over");
+    const files = [...e.dataTransfer.files].filter(isImage);
+    if (!files.length) return toast("Solte imagens de tela (png, jpg, webp ou bmp).", true);
+    try { await add(await uploadImages(files)); } catch (err) { fail(err); }
+  });
+}
+document.addEventListener("paste", async (e) => {  // Ctrl+V de uma captura (Win+Shift+S) na aba Capturas ou na revisão
+  const files = [...(e.clipboardData?.files || [])].filter(isImage);
+  const reviewing = !$("#review").hidden, composing = !$("#compose").hidden && kind === "captures" && !$("#view-new").hidden;
+  if (!files.length || !(reviewing || composing)) return;
+  e.preventDefault();
+  try { const ups = await uploadImages(files); await (reviewing ? addToReview(ups) : addCaps(ups)); } catch (err) { fail(err); }
+});
+
 // Evita que soltar um arquivo fora da área abra o vídeo na janela.
 window.addEventListener("dragover", (e) => e.preventDefault());
 window.addEventListener("drop", (e) => e.preventDefault());
@@ -173,6 +244,9 @@ $("#yt-url").addEventListener("keydown", (e) => { if (e.key === "Enter") inspect
 $("#yt-text").addEventListener("change", () => $("#yt-url").value.trim() && inspect());
 
 function currentSpec() {
+  if (kind === "captures")
+    return picked.captures.length ? { kind, paths: picked.captures.map((c) => c.path), title: $("#caps-title").value.trim(),
+                                      link: $("#lesson-link").value.trim() } : null;
   if (kind === "youtube") {
     const url = $("#yt-url").value.trim();
     if (!url) return null;
@@ -197,6 +271,7 @@ function renderSource() {
   const f = found, tags = [];
   if (f.info) tags.push([f.info.format, ""]);
   if (f.duration) tags.push([fmtDur(f.duration), ""]);
+  if (f.captures) tags.push([`${f.captures} captura${f.captures === 1 ? "" : "s"} · lida${f.captures === 1 ? "" : "s"} no seu PC pela IA de visão`, "ok"]);
   if (f.has_captions) tags.push([`Transcrição pronta (${f.segments} trechos)`, "ok"]);
   else if (f.resumable) tags.push(["Transcrição já feita — será reaproveitada", "ok"]);
   else if (f.needs_transcription) tags.push([`Será transcrito no seu PC${f.estimate ? ` · cerca de ${fmtDur(f.estimate)} (estimativa)` : ""}`, ""]);
@@ -687,6 +762,7 @@ function updateGo() {
   else if (course?.value === "__none__" && !rootReady()) why = "Escolha uma página do Notion (ou a página raiz em Ajustes).";
   else if (!S.ollama.running) why = "Abra o Ollama para gerar o material.";
   else if (!S.ollama.installed) why = "Baixe o modelo de IA em Configurações.";
+  else if (kind === "captures" && !S.vision.installed) why = "Baixe o modelo de visão em Ajustes para ler as capturas.";
   else if (!found) why = "Escolha uma fonte.";
   else if (found.needs_transcript) why = "Forneça a transcrição do vídeo.";
   else if (found.needs_transcription && !found.whisper_ready) why = "Baixe o modelo de transcrição em Configurações.";
@@ -802,22 +878,23 @@ async function cancelJob() {
 
 // ---------- revisão da transcrição ----------
 let review = null, edits = {}, shotsOff = new Set();
-function renderShots(r) {
+function renderShots(r, keepOff = false) {
   const sc = r.screens, items = sc?.items || [];
-  shotsOff = new Set();
-  $("#shots").hidden = !sc;
-  if (!sc) return;
+  shotsOff = keepOff ? new Set([...shotsOff].filter((id) => items.some((s) => s.id === id))) : new Set();
+  $("#shots").hidden = false;  // sempre: é por aqui que se adicionam capturas de tela
   $("#shots-info").textContent = (items.length
-    ? `${items.length} com conteúdo da aula${sc.seen > items.length ? `, de ${sc.seen} telas vistas` : ""}. Desmarque o que não deve ir para a página.`
-    : sc.seen ? "Nenhuma tela com conteúdo da aula (slide, quadro, código) foi encontrada." : "")
-    + (sc.warning ? " " + sc.warning : "");
+    ? `${items.length} com conteúdo${sc.seen > items.length ? `, de ${sc.seen} telas vistas` : ""}. Desmarque o que não deve ir para a página.`
+    : sc?.seen ? "Nenhuma tela com conteúdo da aula (slide, quadro, código) foi encontrada."
+    : "Nenhuma captura de tela nesta aula. Adicione imagens (sites, textos, slides, código) para entrarem na página.")
+    + (sc?.warning ? " " + sc.warning : "");
   $("#shot-grid").replaceChildren(...items.map((s) => {
-    const cb = el("input", { type: "checkbox", "aria-label": `Usar a tela de ${mmss(s.t)}: ${s.titulo}` });
-    cb.checked = true;
+    const cb = el("input", { type: "checkbox", "aria-label": `Usar ${s.manual ? "a captura" : "a tela de " + mmss(s.t)}: ${s.titulo}` });
+    cb.checked = !shotsOff.has(s.id);
     const card = el("label", { class: "shot", role: "listitem" },
       el("img", { src: `/api/screen?key=${encodeURIComponent(r.key)}&id=${s.id}&t=${encodeURIComponent(TOKEN)}`,
                   alt: s.titulo || "Tela da aula", loading: "lazy" }),
-      el("span", { class: "shot-cap" }, cb, el("span", { class: "shot-time" }, mmss(s.t)), el("span", { class: "shot-title" }, s.titulo)));
+      el("span", { class: "shot-cap" }, cb, el("span", { class: "shot-time" }, s.manual ? "📸" : mmss(s.t)), el("span", { class: "shot-title" }, s.titulo)));
+    card.classList.toggle("off", !cb.checked);
     cb.addEventListener("change", () => { cb.checked ? shotsOff.delete(s.id) : shotsOff.add(s.id); card.classList.toggle("off", !cb.checked); });
     return card;
   }));
@@ -838,6 +915,10 @@ function showReview(r) {
     + (sp && sp.warning ? " " + sp.warning : "")
     + (r.engine ? ` Transcrito com ${r.engine}.` : "");
   $("#speed-row").hidden = !r.can_retranscribe;
+  const caps = lastSpec?.kind === "captures";  // revisão de capturas: o que vale são as telas, não os trechos
+  $("#review-title").textContent = caps ? "Revise as capturas" : "Revise a transcrição";
+  if (caps) $("#review-info").textContent = `${r.screens?.items?.length || 0} capturas lidas pelo Lumen no seu PC. Confira abaixo e desmarque o que não deve ir para a página.`;
+  $("#segments").hidden = caps; $("#only-flagged").closest("label, .switch-row, div")?.toggleAttribute("hidden", caps);
   for (const i of $$("input[name=rspeed]")) i.checked = sp && String(sp.used) === i.value;
   $("#retranscribe").disabled = true;
   const box = $("#segments");
@@ -877,6 +958,7 @@ $("#review-go").addEventListener("click", () => {
     lastSpec.link = $("#review-link").value.trim();
     $("#lesson-link").value = lastSpec.link;
   }
+  if (lastSpec.kind === "captures" && !S.config.keep_temp) picked.captures = [];  // as imagens somem ao gerar a página
   // a gravação é apagada ao gerar a página (sem “manter arquivos temporários”): deixa de ser a fonte escolhida, e
   // “Nova aula” volta para gravar em vez de conferir um arquivo que não existe mais (“Arquivo não encontrado”)
   if (lastSpec.kind === "recording" && !S.config.keep_temp) picked.recording = null;
@@ -887,7 +969,7 @@ $("#review-cancel").addEventListener("click", () => { $("#review").hidden = true
 function backToCompose() {
   $("#run").hidden = true; $("#review").hidden = true; $("#compose").hidden = false; $("#redo").hidden = true;
   dockDest(null);
-  found = null; renderSource();
+  found = null; renderSource(); renderCaps();
   if (currentSpec()) inspect();
   else if (kind === "recording" && recorder.dataset.state === "done") {  // a gravação já virou aula
     setRecState("idle", "Iniciar gravação"); $("#rec-time").textContent = "00:00"; $("#rec-hint").textContent = "";
@@ -959,7 +1041,7 @@ function renderWatch() {  // “Assistir a tela junto”: chave no cartão da fo
   if (!S) return;
   const on = S.config.watch_screen, v = S.vision, missing = S.ollama.running && !v.installed;
   $("#watch").checked = $("#watch-set").checked = on;
-  $("#watch-row").hidden = kind === "youtube" && !picked.ytcopy;
+  $("#watch-row").hidden = kind === "captures" || (kind === "youtube" && !picked.ytcopy);
   $("#watch-status").textContent = !on ? ""
     : !S.ollama.running ? "Abra o Ollama para a IA ler a tela."
     : missing ? `Falta o modelo de visão (${v.model}, ${v.size}). Ele é baixado uma vez e fica no PC.`
