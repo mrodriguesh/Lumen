@@ -388,6 +388,13 @@ echo "isto nao e um video" > falso.mp4
   de volta pela API e pelo conector do Notion. Aula 2: 3 de 3 slides; a equação só da tela chegou à página; nenhuma
   aula tem conteúdo da outra; os blocos anteriores da página continuam, na mesma ordem.
 
+## Sensor de “Assistir a tela junto” na barra flutuante (11/10/2026)
+
+- O chip lê `recording.screens` (só existe com a captura rodando) e `watch` (opção ligada, enviado por `/api/widget`),
+  então “Vendo a tela” nunca aparece por a opção estar apenas ligada. Cor própria (ciano) para não se confundir com
+  o vermelho da gravação; âmbar quando o modo está ligado e nada é visto. Fica no rodapé do painel, que já tinha
+  espaço nos quatro lados, sem mudar o tamanho da janela da barra; recolhida, um ponto na alça.
+
 ## Limitações conhecidas
 
 - O áudio inteiro é decodificado em memória: ≈ 230 MB por hora de aula (o dobro em 2× desacelerado).

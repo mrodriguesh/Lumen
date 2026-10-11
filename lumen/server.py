@@ -239,7 +239,7 @@ def _widget(h):
     job["title"] = res.get("title") or (j.get("spec") or {}).get("title") or ""
     job["url"] = res.get("url") or ""
     job["review"] = bool(res.get("review"))  # transcrição pronta, esperando revisão no app
-    return {"job": job, "recording": record.status()}
+    return {"job": job, "recording": record.status(), "watch": bool(store.load_config()["watch_screen"])}
 
 
 def _need_token():

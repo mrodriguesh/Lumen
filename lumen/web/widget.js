@@ -14,9 +14,27 @@ async function api(path, body) {
   if (!r.ok) throw new Error([d.error?.message || "Não foi possível concluir.", d.error?.action].filter(Boolean).join(" "));
   return d;
 }
+// Sensor de “Assistir a tela junto”: só mostra “vendo” quando a captura está de fato rodando (recording.screens).
+function eyeSensor(d) {
+  const r = d.recording, sc = r.screens;
+  if (!r.active) return d.watch ? { mode: "armed", text: "Assistir ativado", tip: "A tela será vista junto com o som quando você gravar." } : null;
+  if (sc?.refused && !sc.seen) return { mode: "warn", text: "Sem capturas", tip: `Ainda não guardei nenhuma tela: ${sc.why}.` };
+  if (sc) return { mode: "live", text: "Vendo a tela", n: sc.seen, tip: `Assistindo a tela junto: ${sc.seen} tela${sc.seen === 1 ? "" : "s"} guardada${sc.seen === 1 ? "" : "s"}.` };
+  return d.watch ? { mode: "warn", text: "Tela não vista", tip: "Esta gravação não está assistindo a tela." } : null;
+}
 function render(d) {
   state = d;
   const r = d.recording, j = d.job;
+  const eye = eyeSensor(d);
+  document.body.dataset.eye = eye?.mode || "off";
+  $("#eye").hidden = !eye;
+  if (eye) {
+    $("#eye-text").textContent = eye.text;
+    $("#eye-n").hidden = !eye.n;
+    $("#eye-n").textContent = eye.n || "";
+    $("#eye").title = eye.tip;
+    $("#eye").setAttribute("aria-label", eye.tip);
+  }
   document.body.dataset.state = r.error ? "error" : r.active ? "live" : "idle";
   document.body.dataset.heard = String(!!r.heard);
   const label = r.active ? "Parar e usar gravação" : "Iniciar gravação";

@@ -122,6 +122,15 @@ class Widget(unittest.TestCase):
             self.request("/api/widget", token="bad")
         self.assertEqual(e.exception.code, 403)
 
+    def test_widget_tells_whether_watching_the_screen_is_on(self):
+        # o sensor “Assistir a tela junto” da barra: a opção ligada (para o “pronto”) e a captura de fato rodando
+        self.assertFalse(json.loads(self.request("/api/widget"))["watch"])
+        store.save_config({**store.DEFAULTS, "watch_screen": True})
+        self.assertTrue(json.loads(self.request("/api/widget"))["watch"])
+        rec = {"active": True, "seconds": 5, "screens": {"seen": 2, "read": 1, "kept": 1, "refused": 0, "why": ""}}
+        with mock.patch.object(record, "status", return_value=rec):
+            self.assertEqual(json.loads(self.request("/api/widget"))["recording"]["screens"]["seen"], 2)
+
     def test_widget_gets_the_time_left(self):
         # revisão do Codex: a lista de campos do widget não tinha eta_total e o tempo restante nunca aparecia
         running = {"status": "running", "kind": "process", "stage": "generate", "detail": "x", "eta_total": 95}

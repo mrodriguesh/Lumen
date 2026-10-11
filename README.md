@@ -115,6 +115,10 @@ visão local (`qwen3.5:4b`).
   recomendações do YouTube e notificações ficam de fora. Seus próprios programas (editor de código, anotações,
   Word, e-mail, WhatsApp, terminal, pastas) **nunca** são lidos, nem durante a aula. A janela do Lumen também
   não: se ela estiver na frente, a aula atrás ou ao lado continua sendo assistida.
+- **Sensor na barra flutuante:** um chip azul mostra o estado. “Assistir ativado” (modo ligado, ainda sem gravar);
+  “Vendo a tela” com a contagem de telas guardadas, com uma linha de varredura animada (a captura está rodando de
+  verdade); âmbar em “Sem capturas” ou “Tela não vista” (o modo está ligado mas nada está sendo visto; passe o
+  mouse para ver o motivo). Com a barra recolhida, um ponto azul na alça indica o mesmo. Sem o modo, o chip some.
 - **Se nenhuma tela entrar,** a gravação mostra o motivo (“Sem capturas ainda: …”) e a revisão diz “Nenhuma tela
   foi guardada durante a gravação (motivo)”, em vez de parecer que as telas foram lidas e descartadas.
 - **Na revisão** aparecem as telas escolhidas; desmarque o que não quiser na página. A IA usa o texto delas para

@@ -14,6 +14,11 @@ body[data-edge=bottom] #peek { top: auto; bottom: 0; }
 body[data-edge=top] #peek span, body[data-edge=bottom] #peek span { width: 26px; height: 2px; }
 body[data-edge=top] #peek:hover span, body[data-edge=bottom] #peek:hover span { width: 32px; height: 2px; }
 body[data-state=live] #peek span { background: #ff7678; animation: breathe 2s ease-in-out infinite; }
+#peek::after { content: ''; position: absolute; left: 50%; bottom: 8px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: #64d2ff; box-shadow: 0 0 7px #64d2ff; opacity: 0; }
+body[data-edge=top] #peek::after, body[data-edge=bottom] #peek::after { left: auto; right: 9px; bottom: 50%; margin: 0 0 -2px; }
+body[data-eye=live] #peek { border-color: #64d2ff40; }
+body[data-eye=live] #peek::after { opacity: 1; animation: breathe 1.7s ease-in-out infinite; }
+body[data-eye=warn] #peek::after { opacity: 1; background: #ffb84a; box-shadow: 0 0 7px #ffb84a; }
 body[data-expanded=true] #peek { opacity: 0; visibility: hidden; pointer-events: none; }
 body:not([data-expanded=true]) .notch { visibility: hidden; opacity: 0; pointer-events: none; }
 .notch { width: 304px; height: 252px; display: flex; overflow: hidden; border: 1px solid #ffffff18; border-radius: 18px; background: radial-gradient(ellipse at 20% 0, #ffffff04, transparent 65%), #0e0e10; transition: opacity .2s; }
@@ -53,6 +58,15 @@ body[data-state=idle] .action::after { animation-delay: 1.3s; }
 .record-symbol { position: relative; z-index: 1; width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(120% 120% at 50% 20%, #ff7a70 0%, #ff3b30 55%, #e0201a 100%); box-shadow: inset 0 1px 1px #ffffff59, inset 0 -1px 2px #78000040, 0 1px 5px #ff3b3073; transition: border-radius .42s cubic-bezier(.5, 1.6, .4, 1), transform .42s cubic-bezier(.5, 1.6, .4, 1); }
 #action-label { display: none; }
 footer { display: flex; align-items: center; gap: 8px; flex: none; min-height: 24px; margin-top: auto; }
+.eye { position: relative; display: inline-flex; flex: none; align-items: center; gap: 6px; height: 22px; padding: 0 9px 0 7px; border: 1px solid #ffffff12; border-radius: 99px; background: #ffffff06; color: #8c8c96; font-size: 10px; font-weight: 500; white-space: nowrap; transition: color .3s, background .3s, border-color .3s, box-shadow .3s; }
+.eye-icon { position: relative; width: 16px; height: 14px; flex: none; }
+.eye-icon svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+.eye-icon i { position: absolute; left: 3px; right: 3px; top: 3px; height: 1.5px; border-radius: 99px; background: linear-gradient(90deg, transparent, #c4f1ff, transparent); box-shadow: 0 0 5px #64d2ff; opacity: 0; }
+.eye b { min-width: 16px; padding: 1px 5px; border-radius: 99px; background: #64d2ff22; color: #bdeeff; font-size: 9px; font-weight: 600; line-height: 12px; text-align: center; font-variant-numeric: tabular-nums; }
+body[data-eye=armed] .eye { color: #7fb7cc; border-color: #64d2ff1f; background: #64d2ff0a; }
+body[data-eye=live] .eye { color: #8fe1ff; border-color: #64d2ff55; background: linear-gradient(90deg, #64d2ff1c, #64d2ff0c); box-shadow: 0 0 14px #64d2ff26, inset 0 1px #ffffff0d; animation: eye-glow 2.4s ease-in-out infinite; }
+body[data-eye=live] .eye-icon i { opacity: 1; animation: eye-scan 1.7s ease-in-out infinite; }
+body[data-eye=warn] .eye { color: #ffd37a; border-color: #ffb84a45; background: #ffb84a14; }
 #job { min-width: 0; flex: 1; padding: 6px 0; text-align: center; color: #96969f; font-size: 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 #exit { display: grid; place-items: center; flex: none; margin-left: auto; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: none; }
 #exit span { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; box-shadow: inset 0 0 0 1px #00000012; transition: background .15s; }
@@ -145,6 +159,8 @@ body[data-edge=top] .prefs-menu button, body[data-edge=bottom] .prefs-menu butto
 @keyframes prefs-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes breathe { 50% { opacity: .35; } }
 @keyframes record-pulse { 0%, 100% { scale: .88; filter: brightness(.96); } 50% { scale: 1.08; filter: brightness(1.08); } }
+@keyframes eye-scan { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
+@keyframes eye-glow { 50% { box-shadow: 0 0 20px #64d2ff3d, inset 0 1px #ffffff0d; border-color: #64d2ff80; } }
 @keyframes idle-halo { 0% { opacity: .5; transform: scale(1); } 100% { opacity: 0; transform: scale(1.45); } }
 @keyframes live-halo { 0% { opacity: .35; transform: scale(1); } 100% { opacity: 0; transform: scale(1.6); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } body[data-state=live] .action::before { transform: scale(1.1); } }
