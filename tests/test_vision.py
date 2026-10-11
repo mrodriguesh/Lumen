@@ -53,6 +53,25 @@ class Scenes(unittest.TestCase):
         out += [round(x[0]) for x in p.flush()]
         return out
 
+    def test_slides_between_a_speaker_in_a_youtube_video(self):
+        # gravação real: 10 min de um vídeo do YouTube com 1 tela guardada, 5 min com nenhuma. O vídeo (80% da tela)
+        # se mexe o tempo todo com a pessoa falando; ao cortar para um slide, a área só voltava a contar depois de
+        # ~28 s parada, e os slides de 10–20 s nunca eram guardados
+        rng = np.random.default_rng(0)
+
+        def youtube(content):
+            img = np.full((540, 960), 30, np.uint8)
+            img[:40] = 60
+            img[50:500, 20:820] = content[50:500, 20:820]
+            return img
+
+        def talking(n):
+            return [youtube(rng.integers(0, 255, (540, 960), dtype=np.uint8)) for _ in range(n)]
+        frames = (talking(40) + [youtube(slide("A"))] * 15 + talking(20) + [youtube(slide("B"))] * 12
+                  + talking(10) + [youtube(slide("C"))] * 35)
+        # cada slide, poucos segundos depois de aparecer (antes: só o C, aos 124 s)
+        self.assertEqual(self.run_screen(frames), [41, 76, 98])
+
     def test_a_screen_whose_image_failed_is_tried_again(self):
         # a captura da janela falhou uma vez (programa que ainda não desenhava, janela por cima…): a tela parada era dada
         # por vista e nunca mais tentada; num vídeo de aula quase parado, não sobrava nenhuma captura
@@ -370,6 +389,20 @@ class Private(unittest.TestCase):
                 return None if Late.asked <= 3 else super().window_image(hwnd)
         jpegs = self.run_watch(Late([slide("A")] * 30))
         self.assertEqual(len(jpegs), 1)  # a mesma tela, parada o tempo todo, entra quando a janela deixa
+
+    def test_an_error_on_one_screen_does_not_stop_the_capture(self):
+        # antes, qualquer erro que não fosse OSError matava a thread da captura em silêncio, pelo resto da gravação
+        class Flaky(FakeScreen):
+            asked = 0
+
+            def window_image(self, hwnd):
+                Flaky.asked += 1
+                if Flaky.asked == 1:
+                    raise ValueError("imagem estranha")
+                return super().window_image(hwnd)
+        with self.assertLogs("lumen", "WARNING"):
+            jpegs = self.run_watch(Flaky([slide("A")] * 6 + [slide("B")] * 9))
+        self.assertEqual(len(jpegs), 2)  # A (na 2ª tentativa) e B
 
     def test_the_recording_says_why_nothing_was_captured(self):
         reasons = {}

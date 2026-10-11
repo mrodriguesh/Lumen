@@ -346,6 +346,14 @@ echo "isto nao e um video" > falso.mp4
   Lumen desenhar a janela”).
 - **Medido:** `PrintWindow` desenha o Opera GX (perfil e página de teste isolados) com texto e com vídeo tocando,
   10/10 capturas, ≈ 16 ms. Vídeo de aula de teste por arquivo: 5 telas lidas e na página.
+- **A causa principal (gravação seguinte, 5 min, nenhuma tela):** a área que muda sempre (câmera, vídeo) sai da
+  comparação e só volta depois de ~28 s parada (`LIVE_OFF`, para a câmera do professor num canto não piscar).
+  Num vídeo do YouTube o vídeo é quase a tela toda: com a pessoa falando ele vira “vivo” e, quando corta para um
+  slide de 10–20 s, o slide nunca é guardado. Simulação (fala, slides de 15, 12 e 35 s): antes, só o último, 19 s
+  depois de aparecer; agora os três, 1 s depois. Correção: quando a tela inteira para (no máximo 0,2% das células
+  mudando por `STILL_S`), nada mais está vivo. Câmera num canto e pessoa falando continuam iguais (testes).
+- **Erro numa tela não para mais a captura:** antes, qualquer erro que não fosse `OSError` encerrava a thread em
+  silêncio pelo resto da gravação; agora fica no log (só o tipo, sem texto da tela) e a tela é tentada de novo.
 ## Limitações conhecidas
 
 - O áudio inteiro é decodificado em memória: ≈ 230 MB por hora de aula (o dobro em 2× desacelerado).

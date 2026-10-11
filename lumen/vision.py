@@ -12,6 +12,7 @@ texto lido em 18 telas, 18/18 decisões certas, nenhum texto de recomendação/n
 acontece enquanto você assiste, entre uma tela e outra; o que sobrar é lido quando a aula for processada.
 """
 import json
+import logging
 import os
 import queue
 import re
@@ -39,6 +40,7 @@ SMALL = 0.05        # abaixo disto, é a mesma tela ganhando conteúdo (tópico 
 SIMILAR = 0.25      # parecida com uma tela de “pessoa falando” já lida: não relê (só esse tipo; slides não)
 GAP_S = 20          # numa tela que vai ganhando conteúdo, guarda o estado mais recente a cada 20 s
 STILL_S = 1.5       # a tela precisa ficar parada este tempo (descarta transições)
+CALM = 0.002        # fração das células que pode mudar com a tela “parada” (um cursor, uma letra digitada)
 INTERVAL_S = 1.0
 STOP_S = 5.0        # ao parar, espera a captura guardar a última tela; depois a pasta fecha mesmo assim
 MAX_SHOTS = 300     # telas guardadas por aula (≈ 60–150 KB cada)
@@ -129,7 +131,7 @@ class Scenes:
     compara a imagem inteira."""
 
     def __init__(self, still_s=STILL_S):
-        self.still_s, self.keys, self.prev, self.since = still_s, [], None, 0.0
+        self.still_s, self.keys, self.prev, self.since, self.calm = still_s, [], None, 0.0, 0.0
         self.motion, self.live = np.zeros(GRID, np.float32), np.zeros(GRID, bool)
 
     def feed(self, t, small):
@@ -146,8 +148,16 @@ class Scenes:
         # em ~4 capturas e não sai a cada instante parado; uma troca de slide (1 ou 2 mudanças) nunca entra.
         self.motion += 0.1 * (changed - self.motion)
         self.live = (self.live & (self.motion > LIVE_OFF)) | (self.motion > LIVE_ON)
+        # A tela inteira parou (o vídeo cortou da pessoa falando para um slide, ou foi pausado): o que se mexia não
+        # está mais vivo. Sem isso, a área do vídeo só voltava à comparação depois de ~28 s parada, e num vídeo do
+        # YouTube os slides de 10–20 s entre uma fala e outra nunca eram guardados (gravações de 10 min com 1 tela).
+        if changed.mean() > CALM:
+            self.calm = t
+        elif t - self.calm >= self.still_s:
+            self.motion[:] = 0
+            self.live[:] = False
         static = ~self.live
-        if static.mean() < 0.4 or (changed & static).mean() > 0.002:  # quase tudo se mexe, ou ainda mudando
+        if static.mean() < 0.4 or (changed & static).mean() > CALM:  # quase tudo se mexe, ou ainda mudando
             self.since = t
             return False
         return t - self.since >= self.still_s and self._new(small, static)
@@ -175,7 +185,11 @@ class Picker:
             small = self.scenes.keys[-1]
             if any(_diff(small, s) < SIMILAR for s in self.skip):
                 return out
-            img = image()
+            try:
+                img = image()
+            except Exception:
+                self.scenes.keys.pop()  # erro ao capturar: a tela também não foi guardada
+                raise
             if img is None:
                 self.scenes.keys.pop()  # não foi guardada: tenta de novo no próximo instante parado, em vez de
                 return out              # dar a tela por vista (uma falha de uma vez perdia a tela parada para sempre)
@@ -648,8 +662,12 @@ class Watch:
             if got:
                 bgra, bar, origin = got
                 small = self._small(bgra, bar)
-                found = self.picker.feed(self.clock(), small, lambda: self._image(bgra, small, origin, av))
-                self._keep(found)
+                try:  # um erro numa tela (imagem estranha, janela que sumiu) não pode parar a captura da aula toda
+                    found = self.picker.feed(self.clock(), small, lambda: self._image(bgra, small, origin, av))
+                    self._keep(found)
+                except Exception as e:  # noqa: BLE001 — sem a mensagem no log: pode ter texto da tela
+                    logging.getLogger("lumen").warning("captura da tela: %s", type(e).__name__)
+                    self._refuse(f"erro ao capturar ({type(e).__name__})")
             self.stop_ev.wait(max(INTERVAL_S - (time.monotonic() - start), 0.05))
         self._keep(self.picker.flush())
 
