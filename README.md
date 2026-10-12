@@ -92,8 +92,6 @@ integração interna crie páginas no topo do workspace, só dentro de uma pági
 |---|---|---|
 | Gravar ao assistir | Compatível | Dê play na aula em qualquer site ou app; o Lumen grava o som que sai do PC (loopback do Windows) e transcreve localmente. Nada é baixado. Leva o tempo da aula. |
 | Arquivo local | Compatível | Escolher ou arrastar. O áudio é decodificado em memória; o vídeo não sai do PC. |
-| YouTube | Compatível com limitações | Link + transcrição que você fornece: colar o texto de “Mostrar transcrição”, importar `.srt`/`.vtt`/`.txt` ou escolher uma cópia local autorizada. |
-| Telegram | Requer importação manual | Salve o vídeo pelo Telegram Desktop e escolha o arquivo (a pasta `Downloads\Telegram Desktop` abre direto). |
 | Capturas de tela | Compatível | Prints de sites, textos, slides, código ou tabelas: arraste, **cole com Ctrl+V** (Win+Shift+S) ou escolha as imagens. A IA de visão local transcreve cada uma e a página sai com a seção **📸 Capturas de tela**. |
 
 ### Capturas de tela
