@@ -336,7 +336,7 @@ function watchRec() {
 async function startRec() {
   try {
     $("#rec-hint").textContent = "";
-    renderRec(await api("/api/record/start", { title: $("#rec-title").value }));
+    renderRec(await api("/api/record/start", {}));
     picked.recording = null; found = null; renderSource();
     watchRec();
   } catch (e) { fail(e); }
