@@ -253,6 +253,9 @@ class MainForm : Form
         core.Settings.IsPasswordAutosaveEnabled = false;
         core.Settings.IsGeneralAutofillEnabled = false;
         if (customFrame) core.Settings.IsNonClientRegionSupportEnabled = true;  // CSS app-region: drag
+        core.ProcessFailed += (s, e) => {  // o renderizador caiu: recarrega em vez de deixar a janela em branco
+            if (e.ProcessFailedKind != CoreWebView2ProcessFailedKind.BrowserProcessExited) { try { core.Reload(); } catch (Exception) { } }
+        };
         core.WebMessageReceived += async (s, e) =>
         {
             string msg = e.TryGetWebMessageAsString();

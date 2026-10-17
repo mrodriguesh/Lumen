@@ -417,6 +417,20 @@ echo "isto nao e um video" > falso.mp4
   miniatura da aba só serve arquivos dessa pasta. Cópias são apagadas ao gerar a página (adicionadas na revisão: logo
   depois da leitura) e, se esquecidas, em 7 dias.
 
+## Barra flutuante que se recupera sozinha (17/10/2026; `launcher/WidgetForm.cs`, `launcher/Lumen.cs`)
+
+- **Defeito:** a barra é uma página dentro do WebView2. Se o processo de renderização morria ou travava, ficava só a
+  faixa de 12 px, sem alça nem painel, até reiniciar o Lumen: nada tratava `ProcessFailed`. Reproduzido derrubando o
+  renderizador do WebView2 do Lumen: a barra não voltava (nenhum processo novo em 25 s). Não havia queda registrada no
+  Windows nem suspensão/reset de vídeo no período da reclamação; o `Lumen.exe` já aberto desde o login não tinha
+  nenhuma proteção, e um reinício resolvia.
+- **Correção:** `ProcessFailed` recarrega a página (e recria o controle se o navegador inteiro caiu); um batimento a
+  cada 15 s roda um script na página e, se não responder em 8 s ou voltar vazio, recarrega (na 2ª falha seguida,
+  recria o controle). A janela principal também recarrega se o renderizador cair.
+- **Medido:** renderizador derrubado → barra de volta em ~1 s (antes: nunca); renderizador congelado → detectado e
+  trocado em ~38 s. Testes nativos do projeto (`tests\DesktopChecks.cs`) continuam passando.
+- **Limite:** se a causa da reclamação foi outra (por exemplo, um jogo em tela cheia cobrindo a barra), isto não muda.
+
 ## Limitações conhecidas
 
 - O áudio inteiro é decodificado em memória: ≈ 230 MB por hora de aula (o dobro em 2× desacelerado).

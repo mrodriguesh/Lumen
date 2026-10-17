@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -14,9 +15,13 @@ class WidgetForm : Form
     [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] static extern int GetDpiForWindow(IntPtr h);
     [DllImport("user32.dll")] static extern bool SystemParametersInfo(uint action, uint param, out bool value, uint flags);
-    readonly WebView2 web;
-    readonly string url, positionFile;
+    WebView2 web;
+    readonly string url, positionFile, dataDir;
+    readonly Action<string> command;
     readonly Timer animation = new Timer { Interval = 16 };
+    readonly Timer beat = new Timer { Interval = 15000 };  // confere se a página da barra ainda responde
+    bool recovering;
+    int fails;
     string mode, edge = "left";
     Point anchor;
     bool expanded, dragging;
@@ -25,7 +30,7 @@ class WidgetForm : Form
 
     public WidgetForm(string url, string data, Action<string> command)
     {
-        this.url = url;
+        this.url = url; this.command = command; dataDir = data;
         positionFile = Path.Combine(data, "widget-position.txt");
         Text = "Lumen · barra flutuante";
         FormBorderStyle = FormBorderStyle.None;
@@ -34,7 +39,7 @@ class WidgetForm : Form
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false; TopMost = true;
         BackColor = Color.FromArgb(14, 14, 16);
-        web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = BackColor };
+        web = NewWeb();
         Controls.Add(web);
         animation.Tick += (s, e) => {
             Size = new Size(Approach(Width, targetWidth), Approach(Height, targetHeight));
@@ -42,36 +47,70 @@ class WidgetForm : Form
             if (Width == targetWidth && Height == targetHeight) animation.Stop();
         };
         Load += async (s, e) => {
-            try {
-                var env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(data, "webview"));
-                await web.EnsureCoreWebView2Async(env);
-                var core = web.CoreWebView2;
-                core.Settings.IsStatusBarEnabled = false;
-                core.Settings.AreDevToolsEnabled = false;
-                core.Settings.IsPasswordAutosaveEnabled = false;
-                core.Settings.IsGeneralAutofillEnabled = false;
-                core.NavigationStarting += (sender, ev) => { if (!ev.Uri.StartsWith(url, StringComparison.Ordinal)) ev.Cancel = true; };
-                core.NewWindowRequested += (sender, ev) => ev.Handled = true;
-                core.WebMessageReceived += (sender, ev) => {
-                    if (!ev.Source.StartsWith(url, StringComparison.Ordinal)) return;
-                    string msg = ev.TryGetWebMessageAsString();
-                    if (msg == "widget:expand") Expand(true);
-                    else if (msg == "widget:collapse") Expand(false);
-                    else if (msg == "widget:drag") Drag();
-                    else command(msg);
-                };
-                core.NavigationCompleted += (sender, ev) => SendSide();
-                web.Source = new Uri(url + "widget");
-            } catch (Exception) {
+            try { await Attach(); }
+            catch (Exception) {
                 Hide();
                 MessageBox.Show("Não foi possível abrir a barra flutuante. A janela principal e a bandeja continuam disponíveis.", "Lumen", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         };
+        beat.Tick += async (s, e) => await Heartbeat();
+        beat.Start();
+        FormClosed += (s, e) => beat.Stop();
         DpiChanged += (s, e) => {
             e.Cancel = true; animation.Stop(); ResizeForDpi(e.DeviceDpiNew);
             SetAnchor(anchor, Screen.FromHandle(Handle).WorkingArea); Place(); RoundCorners(); SendSide();
         };
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += DisplayChanged;
+    }
+
+    WebView2 NewWeb() { return new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = BackColor }; }
+
+    async Task Attach()
+    {
+        var env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(dataDir, "webview"));
+        await web.EnsureCoreWebView2Async(env);
+        var core = web.CoreWebView2;
+        core.Settings.IsStatusBarEnabled = false;
+        core.Settings.AreDevToolsEnabled = false;
+        core.Settings.IsPasswordAutosaveEnabled = false;
+        core.Settings.IsGeneralAutofillEnabled = false;
+        core.NavigationStarting += (sender, ev) => { if (!ev.Uri.StartsWith(url, StringComparison.Ordinal)) ev.Cancel = true; };
+        core.NewWindowRequested += (sender, ev) => ev.Handled = true;
+        core.WebMessageReceived += (sender, ev) => {
+            if (!ev.Source.StartsWith(url, StringComparison.Ordinal)) return;
+            string msg = ev.TryGetWebMessageAsString();
+            if (msg == "widget:expand") Expand(true);
+            else if (msg == "widget:collapse") Expand(false);
+            else if (msg == "widget:drag") Drag();
+            else command(msg);
+        };
+        core.NavigationCompleted += (sender, ev) => SendSide();
+        core.ProcessFailed += (sender, ev) => Recover(ev.ProcessFailedKind == CoreWebView2ProcessFailedKind.BrowserProcessExited);
+        web.Source = new Uri(url + "widget");
+    }
+
+    // Se o processo do WebView2 morrer ou a página travar, a barra virava uma faixa morta até reiniciar o Lumen. Agora
+    // ela recarrega sozinha; se o navegador inteiro caiu, recria o controle.
+    async void Recover(bool recreate)
+    {
+        if (recovering || IsDisposed) return;
+        recovering = true;
+        try {
+            await Task.Delay(800);
+            if (recreate) { Controls.Remove(web); web.Dispose(); web = NewWeb(); Controls.Add(web); await Attach(); }
+            else web.CoreWebView2.Reload();
+        } catch (Exception) { }
+        finally { recovering = false; }
+    }
+
+    async Task Heartbeat()
+    {
+        if (recovering || IsDisposed || !Visible || web.CoreWebView2 == null) return;
+        try {
+            var t = web.ExecuteScriptAsync("document.body ? 'ok' : ''");
+            if (await Task.WhenAny(t, Task.Delay(8000)) != t || t.Result != "\"ok\"") { fails++; Recover(fails >= 2); }
+            else fails = 0;
+        } catch (Exception) { fails++; Recover(fails >= 2); }
     }
 
     protected override bool ShowWithoutActivation { get { return true; } }
