@@ -4,6 +4,9 @@ Transforma aulas em vídeo em material de estudo salvo diretamente na página es
 Gratuito, sem chave de API paga: a transcrição (Whisper) e a escrita do material (Ollama) rodam no seu PC.
 Só o material gerado e o link opcional da aula vão para o Notion; o áudio permanece local.
 
+**O Lumen nunca cria a sua compreensão; ele complementa a que você construiu.** Antes de qualquer IA, você escreve
+o que entendeu da aula. Só depois a IA analisa a sua nota contra a aula (ver [Minha compreensão](#minha-compreensão)).
+
 ## Requisitos
 
 - Windows 10/11 (prioritário). Também roda em macOS/Linux pelo navegador padrão, mas lá não foi testado.
@@ -14,6 +17,9 @@ Só o material gerado e o link opcional da aula vão para o Notion; o áudio per
 - Memória: 16 GB de RAM recomendados para `qwen3:8b`. Uma GPU NVIDIA (CUDA 12) acelera bastante, mas é opcional.
 - Opcional, para **Assistir a tela junto**: o modelo de visão `qwen3.5:4b` no Ollama (≈ 3,3 GB, Apache 2.0; Ollama
   0.30 ou mais novo), baixado pelo próprio app.
+- Opcional, para **Filtrar música externa**: YAMNet (Google, Apache 2.0, 16 MB), o separador de voz UVR-MDX-NET
+  (30 MB) e o modelo de voz ResNet34 do WeSpeaker (CC-BY-4.0, 26 MB), em ONNX, baixados pelo próprio app. Rodam na
+  CPU; com o suporte a GPU instalado, o separador usa a GPU (DirectML). Não precisam de PyTorch.
 
 ## Instalar e abrir
 
@@ -29,6 +35,55 @@ Python em segundo plano. Para recompilar: `powershell -ExecutionPolicy Bypass -F
 compilador C# que já vem no Windows). O ícone é gerado por `launcher\make-icon.ps1`.
 
 Pela linha de comando: `.venv\Scripts\python -m lumen`.
+
+## Minha compreensão
+
+O fluxo é **conteúdo → a sua compreensão → a IA analisa a sua compreensão → Notion**:
+
+1. Escolha a fonte e clique em **Continuar**. O Lumen prepara a aula no PC (transcrição, telas) em segundo plano.
+   Nenhum resumo é feito, e a transcrição e as telas não aparecem: seriam cola.
+2. Na hora abre **Minha compreensão**, um editor só seu: escreva com suas palavras o que entendeu. Não há sugestão,
+   autocompletar, dica nem correção de conceito por IA (só a correção ortográfica do sistema). Dá para escrever
+   enquanto a aula ainda está sendo preparada.
+3. **Processar minha compreensão** (ou Ctrl+Enter) libera quando a nota tem conteúdo de verdade: pelo menos 20
+   palavras, 12 diferentes, com cara de texto. Só então a IA local recebe a aula e a sua nota.
+4. **Análise concluída:** a sua nota, intacta, e à parte o que a IA observou: o que você compreendeu corretamente,
+   o que entendeu em parte, o que faltou, possíveis confusões (as suas palavras e o que a aula diz), complementos,
+   conexões e perguntas para aprofundar.
+5. **Salvar no Notion** cria a página da aula, escrita a partir da sua compreensão (ela tem prioridade no pedido à
+   IA), e logo abaixo dela a subpágina **Minha compreensão**: primeiro a sua nota original, em citação; depois de
+   um divisor, a análise, rotulada como da IA. A revisão da transcrição e das telas fica aqui, recolhida e opcional.
+
+- **Sem perder o que você escreveu:** salva neste PC a cada tecla e no Lumen 0,6 s depois da última; ao fechar ou
+  esconder a janela, o que falta vai na hora. Ao reabrir, o texto volta (com aviso, se veio do PC).
+- **Uma nota só, três janelas:** a janela principal, a barra lateral e a janela flutuante mostram sempre a **aula em
+  foco** (a que foi aberta por último em qualquer uma delas): trocar de aula numa troca nas três, sem misturar textos.
+  O que se digita aparece nas outras na hora (aviso entre janelas, sem esperar o disco); só a janela onde você digitou
+  salva (as outras só salvam se ela fechar antes de confirmar). Cada versão tem um horário: um salvamento atrasado
+  nunca apaga um texto mais novo, e quem mandou o atrasado passa a mostrar o novo.
+- **Status e “por que ainda não posso processar”:** uma regra só (`understanding.readiness` no servidor, `Notes.ready`
+  nas janelas) e o mesmo texto nas três: *Preparando a aula…* · *Termine a gravação para analisar* · *Aguardando
+  outra tarefa terminar* · *Escreva sua compreensão para continuar* (ou quantas palavras faltam) · *Salvando sua
+  compreensão…* · *Pronto para analisar* · *Analisando sua compreensão…* (com a etapa, ex. “Lendo a aula por partes
+  (1 de 4)”, e o tempo estimado, que vem das velocidades medidas neste PC) · *Análise concluída* · *Não foi possível
+  analisar* (com **Tentar novamente**; a nota nunca é perdida, nem se o app fechar no meio). Na barra e na janela
+  flutuante aparece também **Processar**. O servidor confere tudo de novo e trava a nota no instante do pedido; a
+  análise lê exatamente a versão enviada (guarda a revisão), e a nota fica só para leitura até ela terminar.
+- **Escrever depois:** a aula fica em **Continuar aprendendo**, no topo de Nova aula, até ser salva no Notion.
+- **Destacar (Ctrl+Shift+D):** o ícone no canto do papel leva a nota para uma janela flutuante, sempre por cima, para
+  escrever enquanto revê o vídeo em outro programa. Arraste pela barra, redimensione pelas bordas, minimize para ficar
+  só a barra; **Voltar para o Lumen** traz o editor de volta e **fechar** só fecha a janela. Ela lembra posição e
+  tamanho, não sai da tela e não cresce além de 60% × 92% da área útil. A **barra flutuante** do lado esquerdo também
+  tem a nota (ícone de lápis), com o mesmo botão de destacar. É sempre o mesmo documento: o que se escreve numa das três
+  aparece nas outras na hora, com o mesmo autosave. Nenhuma delas mostra análise ou sugestão de IA. Para trocar o
+  atalho: `localStorage.understandingShortcut` (ex.: `"Ctrl+Alt+N"`).
+- **Editar depois da análise:** a primeira versão fica guardada como **compreensão original** (nunca muda depois da
+  1ª análise); a editada vira a atual, pode ser analisada de novo e as duas vão para a subpágina.
+- **Estudar de novo** uma aula já salva começa uma nota nova; as anteriores entram em “Compreensões anteriores”.
+- A regra fica no servidor (`lumen/understanding.py`) e vale para todas as fontes, inclusive as futuras: a geração
+  de material, a análise e a publicação recusam rodar sem nota válida, mesmo chamadas diretamente pela API.
+- Estados de cada aula: `studying` (preparando) → `waiting_for_understanding` → `understanding_written` →
+  `processing_with_ai` → `completed` (análise pronta) → `synced_to_notion`.
 
 ## Barra flutuante e inicialização
 
@@ -50,12 +105,37 @@ Em **Ajustes → Lumen sempre por perto**, escolha esquerda, direita, em cima, e
 **Restaurar posição** recoloca a barra. **Iniciar com o Windows** registra apenas o usuário atual na chave Run,
 com o caminho do executável entre aspas. O login abre o Lumen em segundo plano (`--background`), sem gravar sozinho.
 Mesmo com a barra desativada, a bandeja permite abrir, acessar ajustes e sair. Ao sair durante uma gravação,
-o Lumen pede confirmação e finaliza o WAV antes de encerrar.
+o Lumen pede confirmação e finaliza o WAV antes de encerrar; na próxima abertura, a janela principal oferece
+**Usar gravação** ou **Descartar**. O mesmo vale se o app fechar de repente (cada gravação em andamento tem um
+`<gravação>.session` ao lado do WAV, e o cabeçalho do WAV é corrigido pelo tamanho do arquivo).
+
+### Pausar captura
+
+Durante a gravação, **Pausar captura** (barra, janela principal, janela flutuante da nota ou `Ctrl+Alt+P`) para de
+guardar o som e as telas sem encerrar a sessão; **Retomar captura** continua no mesmo arquivo. O período pausado
+não entra na aula nem como silêncio: o tempo gravado e o tempo das telas ficam parados (o tempo real e as pausas
+ficam no `.session`). O som segue sendo lido e descartado, para o Windows não acumular áudio velho. O Lumen não
+pausa o vídeo, o navegador nem outro programa. Pausado é âmbar e parado; gravando é vermelho e pulsa. Para trocar o
+atalho: `localStorage` `captureShortcut` (tabela `SHORTCUTS` em `understanding-editor.js`).
+
+### Pomodoro
+
+Um timer só (`lumen/pomodoro.py`, guardado em `pomodoro.json`), mostrado na barra, na janela flutuante de “Minha
+compreensão” (clique no tempo para os controles) e na janela principal. Foco, pausa curta, pausa longa e ciclos são
+personalizáveis (25/5/15/4 por padrão; atalhos 25 e 50 min), com **Iniciar a próxima etapa sozinho** (desligado) e
+**Som ao terminar** (ligado). O tempo vem do horário em que a etapa termina, não de ticks: minimizar, fechar janelas,
+reiniciar o app ou suspender o PC não atrasa nada. É independente da captura: um nunca pausa o outro. No fim de uma
+etapa: notificação do Windows sem som, destaque discreto no timer e um som curto do Lumen, que não toca enquanto a
+captura grava (entraria na aula).
 
 Verificação da função: `.venv\Scripts\python.exe -m unittest tests.test_widget tests.test_record -v`.
 `py tests\widget_ui.py` usa Playwright no Python do sistema e o Chrome instalado; testa a interface com API
 simulada e salva imagens em `tests\desktop-artifacts`. `tests\DesktopChecks.cs` é o teste nativo: compile junto
-com os dois arquivos do launcher usando `/target:exe /main:DesktopChecks`.
+com os três arquivos do launcher (`Lumen.cs`, `WidgetForm.cs`, `NoteForm.cs`) usando `/target:exe /main:DesktopChecks`.
+`tests
+ote_sync_ui.py` (precisa do Node e do Edge; ver o início do arquivo) abre a janela principal, a barra e a
+flutuante juntas e confere sincronização, troca de aula e cada status. Ele também confere “Minha compreensão” nas três interfaces reais e a janela flutuante (mover, redimensionar,
+minimizar, lembrar, fechar e voltar).
 Os testes devem usar `LUMEN_DATA` temporário e `PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring` para isolar
 configurações e credenciais. A verificação cobre `--background`, visibilidade, expansão, posição salva e desativação;
 Também cobre mensagens atrasadas, hover repetido, quatro bordas/cantos da tela real e 480 casos de geometria com
@@ -146,10 +226,53 @@ Limites: vídeo protegido por DRM (Netflix e alguns cursos pagos) aparece preto 
 cada tela pode atrasar até um quadro-chave (normalmente ≤ 10 s); com vários monitores, vale o monitor da janela em
 uso. Sem GPU, a leitura fica para depois da gravação e é mais lenta.
 
+## Filtrar música externa (opcional)
+
+Para quem estuda ouvindo música. Liga em Ajustes → **Música de fundo** → **Filtrar música externa** (desligado por
+padrão; baixa uma vez o filtro, ≈ 72 MB). Desligado, nada muda: nenhum modelo é carregado e a transcrição é a mesma
+de antes. Ligado, nesta ordem:
+
+1. **Isolar a fonte (gravação):** se um app de música estiver aberto (Spotify, Deezer, TIDAL, Apple Music, Amazon
+   Music, YouTube Music para desktop, foobar2000, MusicBee, AIMP…), o som dele **não é gravado** (captura por
+   processo do Windows 10 2004+/11). O resto do som do PC continua entrando. A gravação mostra “Filtro de música
+   ativo: o som do Spotify fica fora da gravação”.
+2. **Detectar:** antes da transcrição, o Lumen procura música no áudio (gravado ou de um arquivo) a cada 0,48 s.
+   Sem música, o áudio vai para a transcrição como está.
+3. **Separar:** onde a música está alta por cima da fala (≈ 5 dB acima dela ou mais), a transcrição recebe só a
+   voz, separada dos instrumentos no seu PC. Com a música mais baixa, nada muda: a transcrição já se vira bem com
+   ela. Onde há música e não dá para ter certeza de que é a aula (música com letra, rap, voz “falada” numa música),
+   o trecho fica como está e aparece marcado como **música ao fundo** na revisão; a IA o recebe como incerto e não
+   o trata como fato. Nada é apagado: na dúvida, a fala fica.
+4. **Voz de quem ensina:** o Lumen tira uma referência técnica da voz das partes da aula sem música (dois
+   professores, entrevista ou aluno perguntando viram referências separadas) e, nos trechos com música, protege a voz
+   parecida com a delas. Serve só para o filtro: fica na memória durante o processamento, não identifica ninguém e
+   não é comparada com outras aulas.
+5. **Original intacto:** a transcrição usa uma cópia filtrada (na pasta de trabalho, apagada ao confirmar a revisão
+   ou em 7 dias). O vídeo, o arquivo e a gravação não são alterados, e o vídeo que você assiste não muda em nada.
+
+**Modo** (aparece com o filtro ligado):
+
+| Modo | O que faz |
+|---|---|
+| Conservador | Nunca corta fala; separa a voz só com confiança alta e marca mais trechos como dúvida. Para aulas e palestras importantes. |
+| Balanceado (padrão) | Separa a voz onde a música cobre a fala; nunca silencia; marca o que for duvidoso. |
+| Agressivo | Separa em mais trechos, marca a voz diferente da dos professores e silencia a música ao fundo onde não há fala. Pode remover mais áudio. |
+
+Música que toca sozinha (o professor mostrando uma música para a turma, a vinheta do vídeo) nunca é silenciada, em
+nenhum modo: só aparece marcada.
+
+O filtro preserva a fala: é melhor sobrar um pouco de música do que perder uma explicação. A letra de uma música
+que toca num app de música (passo 1) não chega à transcrição; a que toca no mesmo navegador da aula pode chegar,
+marcada. Se ele
+falhar (modelo ausente, erro, disco), a aula é transcrita do áudio original e a revisão diz que o filtro não foi
+aplicado. Medições, escolhas e limites em [bench/RESULTADOS_MUSICA.md](bench/RESULTADOS_MUSICA.md),
+[bench/RESULTADOS_MUSICA_V2.md](bench/RESULTADOS_MUSICA_V2.md) e em [docs/DECISOES.md](docs/DECISOES.md) (“Filtro de
+música externa” e “Filtro de música v2”).
+
 ## A página gerada
 
 Em **Vídeo da aula → Link da aula**, cole o endereço do YouTube. Você também pode adicionar, trocar ou remover
-esse link na revisão da transcrição, antes de **Gerar página**. O vídeo entra como player nativo do Notion na
+esse link em **Salvar no Notion**, antes de **Criar página no Notion**. O vídeo entra como player nativo do Notion na
 seção **Assistir à aula**, com legenda discreta e divisor, antes do resumo. Na fonte **YouTube**, o link informado
 já é usado automaticamente. Links curtos, Shorts e lives são normalizados; outros sites ficam como referência.
 Não há download do vídeo. Vídeos privados, removidos ou com incorporação bloqueada podem não tocar no Notion.
@@ -219,8 +342,9 @@ Medido numa RTX 3060 / i5-11400F, palavras erradas (WER): turbo 11,5% numa aula 
 reais, Parakeet 14,3% na CPU. Velocidade: turbo ≈ 23× o tempo real na GPU; Parakeet ≈ 19× na CPU.
 Nenhum modelo é perfeito: em conversa espontânea o erro passa de 20%. Por isso há a revisão.
 
-**Revisão antes de gerar.** Depois de transcrever, o Lumen mostra os trechos com o tempo de cada um. Você pode
-editar qualquer trecho. Trechos com sinal de problema vêm destacados:
+**Revisão antes de salvar.** Depois da sua compreensão, em **Salvar no Notion → Revisar a transcrição e as telas**,
+o Lumen mostra os trechos com o tempo de cada um. Você pode editar qualquer trecho. Trechos com sinal de problema
+vêm destacados:
 - “trecho incerto”: confiança baixa do Whisper;
 - “modelos discordam”: na GPU, um segundo modelo ouve o mesmo áudio e o app mostra o que ele ouviu, para você
   escolher;
@@ -261,7 +385,8 @@ Para outro modelo, informe o nome em Configurações → IA local (ex.: `qwen3:4
 
 ## Privacidade
 
-- Processado no PC: decodificação do áudio, transcrição, escrita do material.
+- Processado no PC: decodificação do áudio, transcrição, análise da sua compreensão, escrita do material.
+- Suas notas de compreensão ficam em `%LOCALAPPDATA%\Lumen\understanding` e só vão para o Notion ao salvar.
 - Enviado ao Notion: só o texto da página. Ao YouTube: apenas uma consulta ao oEmbed público para obter o título.
 - Sem telemetria (o download dos modelos do Hugging Face roda com `HF_HUB_DISABLE_TELEMETRY=1`).
 - O log (`%LOCALAPPDATA%\Lumen\lumen.log`) registra só etapas e tipos de erro, nunca tokens ou conteúdo.
@@ -269,6 +394,8 @@ Para outro modelo, informe o nome em Configurações → IA local (ex.: `qwen3:4
   falha. Configurações → **Limpar histórico e dados locais** apaga tudo. **Desconectar Notion** também remove o token.
 - Assistir a tela junto: as capturas ficam no PC e são lidas pelo modelo local; só as imagens das telas que você
   mantiver na revisão vão para o Notion. Detalhes em [Assistir a tela junto](#assistir-a-tela-junto-opcional).
+- Filtrar música externa: detecção e separação no PC; o áudio filtrado é uma cópia temporária, e o log guarda só
+  confianças e durações (nada do que foi dito ou cantado).
 - O servidor da interface escuta só em `127.0.0.1`, confere o cabeçalho `Host` e exige um token aleatório por sessão.
 
 ## Testes

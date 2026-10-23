@@ -13,6 +13,23 @@ def load(path):
     return decode_audio(path if hasattr(path, "read") else str(path), sampling_rate=SR)
 
 
+def resample(samples, rate, to):
+    """Muda a taxa de amostragem (mono float32) pelo resampler do FFmpeg (swr)."""
+    if rate == to:
+        return samples
+    r = av.AudioResampler(format="flt", layout="mono", rate=to)
+    out = []
+    for i in range(0, len(samples), rate):  # 1 s por quadro
+        frame = av.AudioFrame.from_ndarray(np.ascontiguousarray(samples[i:i + rate], dtype=np.float32).reshape(1, -1),
+                                           format="flt", layout="mono")
+        frame.sample_rate = rate
+        frame.pts = i
+        frame.time_base = Fraction(1, rate)
+        out += [f.to_ndarray().reshape(-1) for f in r.resample(frame)]
+    out += [f.to_ndarray().reshape(-1) for f in r.resample(None)]
+    return np.concatenate(out) if out else np.zeros(0, dtype=np.float32)
+
+
 def tempo(samples, factor):
     """Muda a velocidade sem mudar o tom (filtro atempo do FFmpeg, WSOLA). factor 0.5 = metade da velocidade.
 

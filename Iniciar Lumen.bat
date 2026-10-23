@@ -17,7 +17,12 @@ if not exist ".venv\.instalado" (
   )
   where nvidia-smi >nul 2>nul && (
     choice /m "GPU NVIDIA detectada. Baixar suporte a GPU (cerca de 1 GB) para transcrever mais rapido"
-    if not errorlevel 2 ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r requirements-gpu.txt
+    if not errorlevel 2 (
+      ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r requirements-gpu.txt
+      rem filtro de musica na GPU: o onnxruntime-directml ocupa o lugar do onnxruntime de CPU (mesmo modulo)
+      ".venv\Scripts\python.exe" -m pip uninstall --disable-pip-version-check -q -y onnxruntime
+      ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q onnxruntime-directml==1.24.4 || ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q onnxruntime
+    )
   )
   echo ok> ".venv\.instalado"
 )

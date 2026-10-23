@@ -18,12 +18,14 @@ async function api(path, body) {
 function eyeSensor(d) {
   const r = d.recording, sc = r.screens;
   if (!r.active) return d.watch ? { mode: "armed", text: "Assistir ativado", tip: "A tela será vista junto com o som quando você gravar." } : null;
+  if (r.paused && (sc || d.watch)) return { mode: "paused", text: "Tela em pausa", tip: "Captura pausada: nenhuma tela é guardada até você retomar." };
   if (sc?.refused && !sc.seen) return { mode: "warn", text: "Sem capturas", tip: `Ainda não guardei nenhuma tela: ${sc.why}.` };
   if (sc) return { mode: "live", text: "Vendo a tela", n: sc.seen, tip: `Assistindo a tela junto: ${sc.seen} tela${sc.seen === 1 ? "" : "s"} guardada${sc.seen === 1 ? "" : "s"}.` };
   return d.watch ? { mode: "warn", text: "Tela não vista", tip: "Esta gravação não está assistindo a tela." } : null;
 }
 function render(d) {
   state = d;
+  pickNote(d);
   const r = d.recording, j = d.job;
   const eye = eyeSensor(d);
   document.body.dataset.eye = eye?.mode || "off";
@@ -35,16 +37,28 @@ function render(d) {
     $("#eye").title = eye.tip;
     $("#eye").setAttribute("aria-label", eye.tip);
   }
+  const music = r.active ? r.music_filter : d.music;  // a gravação vale pelo ajuste com que começou
+  $("#music").hidden = !music;
+  const musicTip = r.isolated ? `Filtro de música ativo: o som do ${r.isolated} fica fora da gravação.` : "Filtro de música ativo";
+  $("#music").title = musicTip;
+  $("#music").setAttribute("aria-label", musicTip);
   document.body.dataset.state = r.error ? "error" : r.active ? "live" : "idle";
   document.body.dataset.heard = String(!!r.heard);
+  const paused = !!(r.active && r.paused && !r.error);
+  document.body.dataset.paused = String(paused);
+  $("#pause").hidden = !r.active || !!r.error;
+  $("#pause-label").textContent = paused ? "Retomar captura" : "Pausar captura";
+  $("#pause-icon").setAttribute("d", paused ? "M8 5.5v13l10.5-6.5Z" : "M8.5 5.5v13M15.5 5.5v13");
+  $("#pause").title = `${paused ? "Retomar" : "Pausar"} a captura do som e da tela (${Shortcuts.capture.label}). O vídeo não é pausado.`;
+  Pomodoro.feed(d.pomodoro);
   const label = r.active ? "Parar e usar gravação" : "Iniciar gravação";
   $("#action").setAttribute("aria-label", label);
   $("#action-label").textContent = r.active ? "Parar" : "Gravar";
   $("#time").textContent = clock(r.active ? r.seconds : 0);
-  $("#status").textContent = r.error ? "Gravação interrompida" : r.active ? "Gravando o som do PC" : j.status === "running" ? "Preparando material…" : j.review ? "Pronto para revisar" : "Pronto para gravar";
-  $("#detail").textContent = r.error || (r.active && !r.heard ? "Dê play com o volume ligado." : "");
+  $("#status").textContent = r.error ? "Gravação interrompida" : paused ? "Captura pausada" : r.active ? "Gravando o som do PC" : j.status === "running" ? (j.kind === "analyze" ? "Analisando sua compreensão…" : "Preparando a aula…") : j.review ? "O que você entendeu?" : "Pronto para gravar";
+  $("#detail").textContent = r.error || (paused ? `Pausada há ${clock(r.paused_for)} · nada é gravado` : r.active && !r.heard ? "Dê play com o volume ligado." : "");
   const left = Number.isFinite(j.eta_total) ? ` · faltam ~${j.eta_total < 90 ? `${Math.max(5, Math.round(j.eta_total / 5) * 5)} s` : `${Math.round(j.eta_total / 60)} min`}` : "";
-  $("#job").textContent = j.status === "running" ? `${j.detail || j.stage || "Processando"}${Number.isFinite(j.progress) ? ` · ${Math.round(j.progress * 100)}%` : ""}${left}` : j.review ? "Abra o Lumen para revisar" : "";
+  $("#job").textContent = j.status === "running" ? `${j.detail || j.stage || "Processando"}${Number.isFinite(j.progress) ? ` · ${Math.round(j.progress * 100)}%` : ""}${left}` : j.review ? "Abra o Lumen e escreva sua compreensão" : "";
   $("#job").hidden = !$("#job").textContent;
   const level = r.active && !r.error ? Math.min(1, Math.sqrt(Math.max(0, Number(r.level) || 0)) * 2) : 0;
   $("#action").style.setProperty("--lvl", level);
@@ -92,10 +106,33 @@ async function toggleRecording() {
   $("#action").disabled = false;
 }
 $("#action").addEventListener("click", toggleRecording);
+// Pausar captura: a mesma gravação continua depois; o vídeo e os outros programas não são tocados.
+async function togglePause() {
+  if (pending || !state?.recording.active) return;
+  pending = true;
+  errorUntil = 0;
+  $("#pause").disabled = true;
+  try {
+    await api(state.recording.paused ? "/api/record/resume" : "/api/record/pause", {});
+    render(await api("/api/widget"));
+  } catch (e) {
+    $("#status").textContent = "Não foi possível pausar.";
+    $("#detail").textContent = e.message;
+    errorUntil = Date.now() + 6000;
+  } finally {
+    pending = false;
+    $("#pause").disabled = false;
+  }
+}
+$("#pause").addEventListener("click", togglePause);
+document.addEventListener("keydown", (e) => { if (Shortcuts.capture.test(e)) { e.preventDefault(); togglePause(); } });
+Pomodoro.mount($("#pomo-main"));
+Pomodoro.mount($("#pomo-note"));
 $("#open").addEventListener("click", () => host?.postMessage("window:open"));
 function showPreferences(open) {
+  if (open && noteOpen) showNote(false);
   $("#preferences").hidden = !open;
-  $("#recording-panel").hidden = open;
+  $("#recording-panel").hidden = open || noteOpen;
   $("#settings").setAttribute("aria-expanded", String(open));
   if (!open) $("#prefs-token").value = "";
 }
@@ -260,7 +297,7 @@ document.querySelectorAll("[data-download]").forEach((b) => b.addEventListener("
 function confirmPreferences(action) {
   if (settingsBusy) return;
   confirmAction = action;
-  $("#prefs-confirm-text").textContent = action === "forget" ? "Desconectar o Notion? O token será removido do cofre do Windows e o histórico local será apagado." : "Apagar histórico, transcrições e arquivos temporários deste PC? As páginas no Notion serão mantidas.";
+  $("#prefs-confirm-text").textContent = action === "forget" ? "Desconectar o Notion? O token será removido do cofre do Windows e o histórico local (com as notas de compreensão guardadas aqui) será apagado." : "Apagar histórico, transcrições, suas notas de compreensão guardadas e arquivos temporários deste PC? As páginas no Notion serão mantidas.";
   navigatePreferences("confirm"); settingsFeedback(""); $("#prefs-cancel").focus();
 }
 $("#prefs-clear").addEventListener("click", () => confirmPreferences("clear"));
@@ -280,14 +317,79 @@ $("#prefs-confirm").addEventListener("click", async () => {
 $("#exit").addEventListener("click", () => host?.postMessage("window:exit"));
 $("#drag").addEventListener("pointerdown", (e) => { if (e.button === 0) { clearTimeout(collapse); host?.postMessage("widget:drag"); } });
 $("#drag").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPreferences(); } });
+// ---------- Minha compreensão na barra lateral ----------
+// O mesmo documento da janela principal e da janela flutuante (understanding-editor.js): o que se escreve aqui aparece
+// lá na hora, e vice-versa. Mostra a aula aberta no Lumen ou, sem ela, a última que espera a compreensão.
+let noteKey = null, noteOpen = false;
+const noteEditor = new UnderstandingEditor({ text: $("#note-text"), save: $("#note-save"), count: $("#note-count"), mode: "side",
+  onChange: (d) => { $("#note-lesson").textContent = d.view?.title || ""; } });
+const writing = () => noteOpen && document.hasFocus() && document.activeElement === $("#note-text");
+// A nota é a da aula em foco no Lumen (a mesma da janela principal e da flutuante). Se essa aula já não está na lista
+// (salva no Notion), vale a mais recente, e ela passa a ser a aula em foco para as outras janelas também.
+let missed = 0;
+function pickNote(d, fresh = true) {
+  const notes = d.notes || [], active = Notes.active();
+  let n = notes.find((x) => x.key === active) || null;
+  // A aula em foco pode ainda não estar na lista (acabou de abrir): só troca de aula se faltar em duas leituras
+  // seguidas do servidor, e nunca ao receber o aviso de outra janela (a lista pode ser a anterior).
+  if (fresh) missed = n ? 0 : missed + 1;
+  if (!n && fresh && missed >= 2 && notes[0]) { n = notes[0]; Notes.setActive(n.key); missed = 0; }
+  if (fresh) notes.forEach((x) => Notes.merge(x.key, x));  // o que bloqueia “Processar” e textos mais novos, sem polling a mais
+  document.body.dataset.note = String(!!n || !!noteKey);
+  $("#note-btn").hidden = !n && !noteKey;
+  if (!n) { if (fresh && missed >= 2) { if (noteOpen) showNote(false); noteKey = null; } return; }
+  if (n.key !== noteKey) { noteKey = n.key; if (noteOpen) bindNote(); }
+}
+Notes.on("active", () => { if (state) pickNote(state, false); });  // outra janela abriu outra aula: esta acompanha na hora
+let unbindStatus = null;
+async function bindNote() {
+  try {
+    await Notes.load(noteKey); noteEditor.bind(noteKey);
+    unbindStatus?.();
+    unbindStatus = Notes.bindStatus(noteKey, { box: $("#note-status"), text: $("#note-ready"), go: $("#note-go"), compact: true });
+  } catch (e) { $("#note-save").textContent = e.message; }
+}
+$("#note-go").addEventListener("click", async () => {
+  try { await Notes.process(noteKey); } catch (e) { $("#note-ready").textContent = e.message; }
+});
+function showNote(open) {
+  if (open && !noteKey) return;
+  noteOpen = open;
+  if (open) { $("#preferences").hidden = true; $("#settings").setAttribute("aria-expanded", "false"); }
+  $("#note-panel").hidden = !open;
+  $("#recording-panel").hidden = open || !$("#preferences").hidden;
+  $("#note-btn").setAttribute("aria-expanded", String(open));
+  document.body.dataset.panel = open ? "note" : "";
+  host?.postMessage(open ? "widget:panel:note" : "widget:panel:main");  // a barra cresce para caber a nota
+  if (open) bindNote().then(() => { const t = $("#note-text"); t.focus(); t.setSelectionRange(t.value.length, t.value.length); });
+  else { noteEditor.unbind(); unbindStatus?.(); unbindStatus = null; }
+}
+async function detachNote() {  // a mesma nota numa janela flutuante, maior e por cima do vídeo
+  if (!noteKey) return;
+  await Notes.flush(noteKey);
+  Notes.setActive(noteKey);  // a janela principal e a flutuante passam a mostrar esta mesma aula
+  Notes.setPref("Mode", "floating"); Notes.setPref("Key", noteKey);
+  host?.postMessage("note:float:" + noteKey);
+  conceal(); host?.postMessage("widget:collapse");
+}
+$("#note-btn").addEventListener("click", () => showNote(!noteOpen));
+$("#note-back").addEventListener("click", () => { showNote(false); $("#note-btn").focus(); });
+$("#note-detach").addEventListener("click", detachNote);
+$("#note-detach").title = `Destacar numa janela flutuante (${Notes.shortcutLabel})`;
+document.addEventListener("keydown", (e) => { if (noteOpen && Notes.isShortcut(e)) { e.preventDefault(); detachNote(); } });
 function syncPresentation() {
   if (!host) return;
   document.body.dataset.expanded = String(innerWidth > 100 || innerHeight > 100);
-  if (document.body.dataset.expanded === "false") { document.activeElement?.blur(); showPreferences(false); }
+  if (document.body.dataset.expanded === "false" && !writing()) { document.activeElement?.blur(); showPreferences(false); }
 }
 function expand() { clearTimeout(collapse); if (!host) document.body.dataset.expanded = "true"; host?.postMessage("widget:expand"); }
-function conceal() { clearTimeout(collapse); if (!host) document.body.dataset.expanded = "false"; document.activeElement?.blur(); showPreferences(false); }
-function retract() { clearTimeout(collapse); collapse = setTimeout(() => { conceal(); host?.postMessage("widget:collapse"); }, 450); }
+function conceal() { clearTimeout(collapse); if (!host) document.body.dataset.expanded = "false"; document.activeElement?.blur(); showPreferences(false); if (noteOpen) showNote(false); }
+function retract() {
+  clearTimeout(collapse);
+  if (writing()) return;  // escrevendo a nota: a barra não se recolhe embaixo do cursor
+  collapse = setTimeout(() => { conceal(); host?.postMessage("widget:collapse"); }, 450);
+}
+window.addEventListener("blur", () => { if (noteOpen && !document.documentElement.matches(":hover")) retract(); });
 $("#peek").addEventListener("click", expand);
 document.documentElement.addEventListener("pointerenter", expand);
 document.documentElement.addEventListener("pointerleave", retract);

@@ -67,6 +67,9 @@ body[data-eye=armed] .eye { color: #7fb7cc; border-color: #64d2ff1f; background:
 body[data-eye=live] .eye { color: #8fe1ff; border-color: #64d2ff55; background: linear-gradient(90deg, #64d2ff1c, #64d2ff0c); box-shadow: 0 0 14px #64d2ff26, inset 0 1px #ffffff0d; animation: eye-glow 2.4s ease-in-out infinite; }
 body[data-eye=live] .eye-icon i { opacity: 1; animation: eye-scan 1.7s ease-in-out infinite; }
 body[data-eye=warn] .eye { color: #ffd37a; border-color: #ffb84a45; background: #ffb84a14; }
+.music-chip { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 22px; height: 22px; border: 1px solid #ffffff12; border-radius: 99px; background: #ffffff06; color: #8c8c96; }
+.music-chip svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+body[data-state=live] .music-chip { color: #c3b5ff; border-color: #a78bfa40; background: #a78bfa12; }
 #job { min-width: 0; flex: 1; padding: 6px 0; text-align: center; color: #96969f; font-size: 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 #exit { display: grid; place-items: center; flex: none; margin-left: auto; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: none; }
 #exit span { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; box-shadow: inset 0 0 0 1px #00000012; transition: background .15s; }
@@ -88,6 +91,8 @@ body[data-state=live][data-heard=false] .detail { text-align: center; margin: 4p
 body[data-edge=top] .notch, body[data-edge=bottom] .notch { flex-direction: column; margin-left: 0; }
 body[data-edge=bottom] .notch { flex-direction: column-reverse; }
 body[data-edge=top] .rail, body[data-edge=bottom] .rail { width: 100%; height: 52px; display: grid; grid-template-columns: 36px 40px 36px; align-items: center; justify-items: center; }
+body[data-note=true][data-edge=top] .rail, body[data-note=true][data-edge=bottom] .rail { grid-template-columns: 36px 40px 36px 36px; }
+body[data-edge=top] .note-orb, body[data-edge=bottom] .note-orb { grid-column: 4; grid-row: 1; }
 body[data-edge=top] .brand, body[data-edge=bottom] .brand { grid-column: 1; grid-row: 1; }
 body[data-edge=top] .action, body[data-edge=bottom] .action { grid-column: 2; grid-row: 1; }
 body[data-edge=top] .grip, body[data-edge=bottom] .grip { top: 50%; left: 14px; transform: translateY(-50%); width: 32px; }
@@ -173,3 +178,81 @@ body[data-edge=top] .prefs-menu button, body[data-edge=bottom] .prefs-menu butto
 @keyframes idle-halo { 0% { opacity: .5; transform: scale(1); } 100% { opacity: 0; transform: scale(1.45); } }
 @keyframes live-halo { 0% { opacity: .35; transform: scale(1); } 100% { opacity: 0; transform: scale(1.6); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } body[data-state=live] .action::before { transform: scale(1.1); } }
+
+/* Minha compreensão na barra lateral: o mesmo documento da janela principal e da flutuante (understanding-editor.js) */
+body[data-panel=note] .notch { width: 360px; height: 440px; }
+body[data-side=right][data-panel=note] .notch { margin-left: calc(100vw - 360px); }
+body[data-edge=top][data-panel=note] .notch, body[data-edge=bottom][data-panel=note] .notch { margin-left: 0; }
+body[data-edge=top][data-panel=note] .panel, body[data-edge=bottom][data-panel=note] .panel { height: 386px; }
+.note-orb svg { width: 17px; height: 17px; }
+.note-orb[aria-expanded=true] { border-color: #ffffff1c; background: #ffffff10; }
+.note-orb[aria-expanded=true] svg { stroke: #e5e5e9; }
+.note-panel { gap: 8px; padding-top: 18px; }
+.note-head { justify-content: space-between; gap: 6px; }
+.note-head .prefs-back { position: static; flex: none; }
+.note-head h1 { flex: 1; min-width: 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.note-head h1 { font-size: 15px; letter-spacing: -.3px; }
+.note-tool { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: none; transition: background .15s; }
+.note-tool:hover { background: #ffffff10; }
+.note-tool svg { width: 16px; height: 16px; fill: none; stroke: #b7b7bf; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.note-lesson { margin: -4px 0 0; color: #8c8c96; font-size: 10px; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.note-lesson:empty { display: none; }
+.note-text { flex: 1; min-height: 0; width: 100%; resize: none; margin: 0; padding: 12px 13px; border: 1px solid #ffffff12; border-radius: 12px; background: #ffffff07; color: #f2f2f4; font: 14px/1.6 "New York", "Iowan Old Style", Charter, Georgia, serif; user-select: text; outline: none; transition: border-color .2s, background .2s; }
+.note-text:focus { border-color: #a8c0ff55; background: #ffffff0b; }
+.note-text::placeholder { color: #6e6e76; font-style: italic; }
+.note-text[readonly] { color: #b7b7bf; }
+.note-foot { display: flex; justify-content: space-between; gap: 8px; min-height: 14px; color: #7c7c86; font-size: 10px; font-variant-numeric: tabular-nums; }
+#note-save[data-s=error] { color: #ffd37a; }
+
+/* Captura pausada: âmbar e parado, nunca confundível com gravando (vermelho que pulsa) */
+.pause-pill { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 24px; padding: 0 11px 0 9px; border: 1px solid #ffffff14; border-radius: 99px; background: #ffffff08; color: #c9c9d1; font-size: 10px; font-weight: 500; transition: background .2s, color .2s, border-color .2s; }
+.pause-pill:hover { background: #ffffff12; color: #fff; }
+.pause-pill svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+body[data-paused=true] .pause-pill { color: #ffd37a; border-color: #ffb84a45; background: #ffb84a14; }
+body[data-paused=true] .pause-pill svg { fill: currentColor; stroke-width: 1.5; }
+body[data-paused=true] .status { color: #ffd37a; }
+body[data-paused=true] .live-dot { background: #ffb84a; animation: none; opacity: 1; }
+body[data-paused=true] .time { color: #a7a7b0; }
+body[data-paused=true] .wave { opacity: .3; }
+body[data-paused=true] .wave i { background: #ffb84a; }
+body[data-paused=true] .detail { display: block; text-align: center; margin: 2px 0 0; }
+body[data-paused=true] .action::before, body[data-paused=true] .action::after, body[data-paused=true] .record-symbol { animation: none; }
+body[data-paused=true] .action::before { opacity: 0; }
+body[data-paused=true] .record-symbol { background: radial-gradient(120% 120% at 50% 20%, #ffd27a 0%, #ffb84a 60%, #e89a2a 100%); box-shadow: inset 0 1px 1px #ffffff59, 0 1px 5px #ffb84a55; }
+body[data-paused=true] #peek span { background: #ffb84a; animation: none; opacity: .9; }
+body[data-edge=top][data-paused=true] .wave, body[data-edge=bottom][data-paused=true] .wave { display: none; }
+
+/* Pomodoro (pomodoro.js): o tempo e o play, discretos; o mesmo timer da janela flutuante e da principal */
+#recording-panel header .pomo-slot { position: absolute; left: 0; }
+.note-head .pomo-slot { flex: none; }
+.pomo { --pomo-c: #c9c9d1; position: relative; display: inline-flex; align-items: center; height: 22px; padding: 0 2px 0 0; border: 1px solid #ffffff12; border-radius: 99px; background: #ffffff06; transition: border-color .3s, background .3s; }
+.pomo::before { content: ''; position: absolute; left: 8px; right: 22px; bottom: 3px; height: 1px; border-radius: 99px; background: linear-gradient(90deg, var(--pomo-c) calc(var(--pomo-p, 0) * 100%), transparent 0); opacity: .45; }
+.pomo-time { height: 20px; padding: 0 3px 0 8px; border: 0; background: none; color: #d7d7dd; font-size: 10px; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: .1px; cursor: default; }
+.pomo-play { width: 18px; height: 18px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--pomo-c); }
+.pomo-play:hover { background: #ffffff12; }
+.pomo-play svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.pomo-play svg .fill { fill: currentColor; stroke-width: 1.5; }
+.pomo[data-running=true] { border-color: #ffffff20; background: #ffffff0a; }
+.pomo[data-phase=short], .pomo[data-phase=long] { --pomo-c: #7fd6a6; }
+.pomo[data-running=false] .pomo-time { color: #8c8c96; }
+.pomo.pomo-ended { animation: pomo-ended 1.6s ease-in-out 3; }
+@keyframes pomo-ended { 50% { border-color: #ffffff55; background: #ffffff18; } }
+
+/* Barras de rolagem discretas (estilo Apple): finas, translúcidas, sem setas nem fundo branco */
+html { color-scheme: dark; }
+* { scrollbar-width: thin; scrollbar-color: #ffffff30 transparent; }
+.note-text { scrollbar-gutter: stable; }
+
+/* Status de Minha compreensão (o mesmo componente da janela principal e da flutuante, em versão compacta) */
+.note-foot #note-save { display: none; }
+.note-foot { justify-content: flex-end; }
+.note-status { display: flex; align-items: center; gap: 7px; flex: none; min-height: 28px; color: #96969f; font-size: 10px; line-height: 1.35; }
+.note-status i { width: 6px; height: 6px; flex: none; border-radius: 50%; background: #8c8c96; }
+.note-status span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-status[data-tone=ok] i { background: #4cd37d; }
+.note-status[data-tone=busy] i { background: #64d2ff; animation: breathe 1.6s ease-in-out infinite; }
+.note-status[data-tone=error] i { background: #ffb84a; }
+.note-status[data-tone=error] { color: #ffd37a; }
+#note-go { flex: none; height: 24px; padding: 0 11px; border: 0; border-radius: 99px; background: #f2f2f4; color: #0e0e10; font-size: 10px; font-weight: 600; transition: opacity .2s, background .2s; }
+#note-go:hover:not(:disabled) { background: #fff; }
+#note-go:disabled { opacity: .3; cursor: default; }

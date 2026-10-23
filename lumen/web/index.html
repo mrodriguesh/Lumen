@@ -7,6 +7,8 @@
 <title>Lumen</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='1' y='1' width='30' height='30' rx='8' fill='%233b6ff0'/%3E%3Ccircle cx='16' cy='16' r='8.4' fill='none' stroke='white' stroke-width='2.6'/%3E%3Ccircle cx='16' cy='16' r='3.8' fill='%23ffd60a'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/app.css">
+<script src="/understanding-editor.js" defer></script>
+<script src="/pomodoro.js" defer></script>
 <script src="/app.js" defer></script>
 </head>
 <body>
@@ -57,7 +59,7 @@
 
   <main class="content" id="content">
     <!-- Nova aula -->
-    <div id="view-new">
+    <div id="view-new" data-step="compose">
       <div class="hero">
         <h1 id="hero-title">Gravar ao assistir</h1>
         <p id="hero-sub">Dê play na aula em qualquer site ou app e o Lumen grava o som do PC.</p>
@@ -69,6 +71,11 @@
       </section>
 
       <div id="compose">
+        <section class="group" id="pending" hidden aria-labelledby="pending-h">
+          <h2 class="group-h" id="pending-h">Continuar aprendendo</h2>
+          <div class="card list" id="pending-list" role="list"></div>
+        </section>
+
         <section class="group" aria-labelledby="src-h">
           <h2 class="group-h" id="src-h">Fonte</h2>
           <div class="card">
@@ -84,10 +91,17 @@
                     <span class="halo" aria-hidden="true"></span><span class="halo two" aria-hidden="true"></span>
                     <span class="core" aria-hidden="true"></span>
                   </button>
-                  <span class="round-btn ghost" aria-hidden="true"></span>
+                  <button class="round-btn" type="button" id="rec-pause" aria-label="Pausar captura">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path id="rec-pause-icon" d="M9 6v12M15 6v12"/></svg>
+                  </button>
                 </div>
                 <span class="rec-label" id="rec-start-label" aria-hidden="true">Iniciar gravação</span>
                 <p class="rec-hint" id="rec-hint" aria-live="polite"></p>
+                <div class="rec-recover" id="rec-recover" hidden>
+                  <span id="rec-recover-text"></span>
+                  <button class="btn" type="button" id="rec-recover-use">Usar gravação</button>
+                  <button class="btn plain" type="button" id="rec-recover-drop">Descartar</button>
+                </div>
               </div>
               <p class="footnote rec-note">Deixe o volume ligado (pode ser baixo, mas não no mudo). Sons do sistema também entram.</p>
             </div>
@@ -233,11 +247,61 @@
             </fieldset>
             <div class="actions">
               <p class="muted small" id="go-hint" aria-live="polite"></p>
-              <button class="btn primary" type="button" id="go" disabled>Gerar resumo</button>
+              <button class="btn primary" type="button" id="go" disabled>Continuar</button>
             </div>
           </div>
         </section>
       </div>
+
+      <!-- Minha compreensão: o estudante escreve antes de qualquer IA (lumen/understanding.py) -->
+      <section class="understand" id="understand" hidden aria-labelledby="u-title">
+        <header class="u-head">
+          <span class="pomo-slot" id="u-pomo"></span>
+          <p class="u-eyebrow" id="u-lesson"></p>
+          <h1 id="u-title" tabindex="-1">Minha compreensão</h1>
+          <p>Escreva com suas próprias palavras o que você entendeu. Não precisa estar perfeito.</p>
+        </header>
+        <div class="paper" id="u-paper">
+          <button class="tool-btn u-detach" type="button" id="u-detach" aria-pressed="false" aria-label="Destacar numa janela flutuante">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="7" width="13" height="13" rx="2.5"/><path d="M10 4h10v10M20 4l-8.5 8.5"/></svg></button>
+          <textarea id="u-text" class="writing" aria-labelledby="u-title" spellcheck="true" autocomplete="off"
+                    autocapitalize="sentences" maxlength="12000" placeholder="O que você entendeu?"></textarea>
+          <div class="u-foot"><span class="u-save" id="u-save" aria-live="polite"></span><span id="u-count"></span></div>
+        </div>
+        <p class="u-float" id="u-float" hidden><span class="u-pulse" aria-hidden="true"></span>
+          <span>Aberta também na janela flutuante, por cima do vídeo. O texto é o mesmo nas duas.</span>
+          <button class="link-btn" type="button" id="u-float-back">Trazer de volta</button></p>
+        <div class="u-status" id="u-status" aria-live="polite" hidden></div>
+        <div class="u-actions">
+          <p class="u-hint" id="u-hint" aria-live="polite"></p>
+          <button class="btn plain" type="button" id="u-later">Escrever depois</button>
+          <button class="btn primary" type="button" id="u-go" disabled>Processar minha compreensão</button>
+        </div>
+      </section>
+
+      <!-- Análise: a nota do estudante (intacta) e, separada, o que a IA observou sobre ela -->
+      <section class="understand" id="analysis" hidden aria-labelledby="a-title">
+        <header class="u-head">
+          <p class="u-eyebrow" id="a-lesson"></p>
+          <h1 id="a-title" tabindex="-1">Análise concluída</h1>
+          <p id="a-sub">A IA comparou sua nota com a aula. Sua compreensão original continua exatamente como você escreveu.</p>
+        </header>
+        <article class="paper mine" aria-labelledby="mine-label">
+          <div class="mine-head">
+            <span class="mine-label" id="mine-label">Você escreveu</span><span class="muted small" id="mine-when"></span>
+            <button class="btn plain small-btn" type="button" id="mine-edit">Editar</button>
+          </div>
+          <textarea id="mine-text" class="writing" aria-labelledby="mine-label" spellcheck="true" autocomplete="off" maxlength="12000" readonly></textarea>
+          <div class="u-foot" id="mine-foot" hidden><span class="u-save" id="mine-save" aria-live="polite"></span>
+            <button class="btn small-btn" type="button" id="mine-again" hidden>Analisar de novo</button></div>
+          <details class="mine-original" id="mine-original" hidden>
+            <summary>Compreensão original (antes da análise)</summary>
+            <p class="writing" id="mine-original-text"></p>
+          </details>
+        </article>
+        <article class="ai" id="ai" aria-label="Análise da IA local"></article>
+        <div class="u-actions" id="a-actions" hidden></div>
+      </section>
 
       <section class="card run" id="run" hidden aria-labelledby="run-h">
         <h2 id="run-h" tabindex="-1">Gerando a aula</h2>
@@ -245,7 +309,7 @@
           <li data-stage="prepare">Preparar a fonte</li>
           <li data-stage="transcribe">Transcrever no PC</li>
           <li data-stage="screen" hidden>Ler o que apareceu na tela</li>
-          <li data-stage="generate">Escrever o material com IA local</li>
+          <li data-stage="generate">Escrever o material a partir da sua compreensão</li>
           <li data-stage="publish">Salvar na página escolhida do Notion</li>
         </ol>
         <div class="bar" id="bar" role="progressbar" aria-label="Progresso da etapa atual" aria-valuemin="0" aria-valuemax="100"><span></span></div>
@@ -267,38 +331,40 @@
         <div class="actions" id="run-actions"></div>
       </section>
 
-      <section class="card review" id="review" hidden aria-labelledby="review-title">
-        <div class="review-head">
-          <div>
-            <h2 id="review-title" tabindex="-1">Revise a transcrição</h2>
+      <section class="card review" id="review" hidden aria-labelledby="review-h">
+        <h2 id="review-h">Salvar no Notion</h2>
+        <p class="muted small">Cria a página da aula, escrita a partir da sua compreensão, e dentro dela a subpágina “Minha compreensão”, com a sua nota original e a análise.</p>
+        <details class="more" id="review-more">
+          <summary id="review-title">Revisar a transcrição e as telas <span class="muted">opcional</span></summary>
+          <div class="review-head">
             <p class="muted small" id="review-info"></p>
+            <label class="switch-row compact-switch"><span>Só marcados</span><input type="checkbox" class="switch" role="switch" id="only-flagged"></label>
           </div>
-          <label class="switch-row compact-switch"><span>Só marcados</span><input type="checkbox" class="switch" role="switch" id="only-flagged"></label>
-        </div>
-        <div class="speed-row" id="speed-row">
-          <span class="small">Velocidade usada:</span>
-          <div class="segmented" role="radiogroup" aria-label="Velocidade da fala" id="review-speed">
-            <label><input type="radio" name="rspeed" value="1"> Normal</label>
-            <label><input type="radio" name="rspeed" value="2"> 2×</label>
-            <label><input type="radio" name="rspeed" value="4"> 4× Ultra</label>
+          <div class="speed-row" id="speed-row">
+            <span class="small">Velocidade usada:</span>
+            <div class="segmented" role="radiogroup" aria-label="Velocidade da fala" id="review-speed">
+              <label><input type="radio" name="rspeed" value="1"> Normal</label>
+              <label><input type="radio" name="rspeed" value="2"> 2×</label>
+              <label><input type="radio" name="rspeed" value="4"> 4× Ultra</label>
+            </div>
+            <button class="btn" type="button" id="retranscribe" disabled>Transcrever de novo</button>
           </div>
-          <button class="btn" type="button" id="retranscribe" disabled>Transcrever de novo</button>
-        </div>
-        <div class="segments" id="segments" role="list" aria-label="Trechos da transcrição"></div>
-        <section class="shots" id="shots" hidden aria-labelledby="shots-h">
-          <div class="shots-head"><h3 id="shots-h">O que apareceu na tela</h3><span class="muted small" id="shots-info"></span>
-            <button class="btn small-btn" type="button" id="shots-add" title="Também dá para soltar ou colar (Ctrl+V) imagens nesta área">＋ Adicionar capturas</button></div>
-          <div class="shot-grid" id="shot-grid" role="list"></div>
-        </section>
+          <div class="segments" id="segments" role="list" aria-label="Trechos da transcrição"></div>
+          <section class="shots" id="shots" hidden aria-labelledby="shots-h">
+            <div class="shots-head"><h3 id="shots-h">O que apareceu na tela</h3><span class="muted small" id="shots-info"></span>
+              <button class="btn small-btn" type="button" id="shots-add" title="Também dá para soltar ou colar (Ctrl+V) imagens nesta área">＋ Adicionar capturas</button></div>
+            <div class="shot-grid" id="shot-grid" role="list"></div>
+          </section>
+        </details>
         <label id="review-link-row">Link da aula <span class="muted">opcional</span>
           <input id="review-link" type="url" inputmode="url" maxlength="2000" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" aria-describedby="review-link-hint">
           <small class="muted" id="review-link-hint">No YouTube, o vídeo aparece como player antes do resumo no Notion.</small></label>
         <label class="switch-row"><span>Incluir a transcrição completa na página<small>Vai recolhida no fim da página. Desligado por padrão: a transcrição pode ser privada.</small></span><input type="checkbox" class="switch" role="switch" id="include-transcript"></label>
         <div class="dest-slot" id="review-dest"></div>
         <div class="actions">
-          <p class="muted small" id="review-hint">O resumo e as perguntas serão feitos a partir desta versão.</p>
-          <button class="btn" type="button" id="review-cancel">Cancelar</button>
-          <button class="btn primary" type="button" id="review-go">Gerar página</button>
+          <p class="muted small" id="review-hint">Fica guardado em “Continuar aprendendo”.</p>
+          <button class="btn" type="button" id="review-cancel">Salvar depois</button>
+          <button class="btn primary" type="button" id="review-go">Criar página no Notion</button>
         </div>
       </section>
     </div>
@@ -384,6 +450,18 @@
       <label class="switch-row"><span>Ler a tela da aula<small>Slides, quadro, código e tabelas entram na página, com as imagens. Na gravação, a tela é capturada 1 vez por segundo e só as telas novas ficam; num arquivo, o vídeo é lido direto.</small></span><input type="checkbox" class="switch" role="switch" id="watch-set"></label>
       <p class="muted small" id="vision-status"></p>
       <button class="btn" type="button" id="vision-dl-set" hidden>Baixar modelo de visão</button>
+    </section>
+
+    <section>
+      <h3>Música de fundo</h3>
+      <label class="switch-row"><span>Filtrar música externa<small>Detecta e reduz músicas externas que podem interferir na transcrição do conteúdo estudado.</small></span><input type="checkbox" class="switch" role="switch" id="music-set" aria-describedby="music-status"></label>
+      <div class="segmented wide" role="radiogroup" aria-label="Modo do filtro de música" id="music-mode" hidden>
+        <label><input type="radio" name="music_mode" value="conservador"> Conservador<small>Nunca corta fala. Para aulas e palestras importantes.</small></label>
+        <label><input type="radio" name="music_mode" value="balanceado"> Balanceado<small>Padrão: tira a música sem arriscar a fala.</small></label>
+        <label><input type="radio" name="music_mode" value="agressivo"> Agressivo<small>Tira mais música e letra; pode remover mais áudio.</small></label>
+      </div>
+      <p class="muted small" id="music-status"></p>
+      <button class="btn" type="button" id="music-dl" hidden>Baixar filtro de música</button>
     </section>
 
     <section>

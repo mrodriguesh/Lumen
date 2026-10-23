@@ -202,8 +202,12 @@ def _model(name, device):
             import onnxruntime
             opts = onnxruntime.SessionOptions()
             opts.intra_op_num_threads = cpu_threads(PARAKEET)
-            asr = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v3", _onnx_dir(PARAKEET), quantization="int8", sess_options=opts)
-            _loaded[(name, device)] = asr.with_vad(onnx_asr.load_vad("silero", _onnx_dir("silero")), batch_size=1)
+            # na CPU mesmo com o onnxruntime-directml (filtro de música na GPU): o onnx-asr usaria a GPU sozinho
+            cpu = ["CPUExecutionProvider"]
+            asr = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v3", _onnx_dir(PARAKEET), quantization="int8", sess_options=opts,
+                                      providers=cpu)
+            _loaded[(name, device)] = asr.with_vad(onnx_asr.load_vad("silero", _onnx_dir("silero"), providers=cpu),
+                                                   batch_size=1)
             return _loaded[(name, device)]
         ct = COMPUTE.get((name, device)) or _compute(name, device)
         _loaded[(name, device)] = WhisperModel(name, device=device, compute_type=ct,

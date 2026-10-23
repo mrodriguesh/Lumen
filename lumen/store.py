@@ -21,6 +21,8 @@ DEFAULTS = {
     "page_language": "pt",      # pt | original
     "keep_temp": False,
     "watch_screen": False,      # “Assistir a tela junto”: lê slides/quadro da tela ou do vídeo (lumen/vision.py)
+    "music_filter": False,      # “Filtrar música externa”: protege a transcrição da música de fundo (lumen/music.py)
+    "music_mode": "balanceado",  # conservador | balanceado | agressivo (music.MODES)
     "widget": "left",           # off | left | right | top | bottom | free
     "autostart": False,         # abrir com o Windows (chave Run do usuário)
 }
@@ -80,10 +82,11 @@ def delete_token():
 
 
 def purge_old_uploads(days=7):
-    """Remove gravações, cópias e telas capturadas esquecidas com mais de `days` dias. As telas de uma aula (as
-    imagens são o que mais ocupa) também saem depois desse prazo; a transcrição fica para retomar."""
+    """Remove gravações, cópias, telas capturadas e áudio do filtro de música esquecidos com mais de `days` dias. As
+    telas de uma aula (as imagens são o que mais ocupa) também saem depois desse prazo; a transcrição fica para
+    retomar."""
     cutoff = time.time() - days * 86400
-    for f in [*(WORK / "uploads").glob("*"), *WORK.glob("*/screens")]:
+    for f in [*(WORK / "uploads").glob("*"), *WORK.glob("*/screens"), *WORK.glob("*/music-*.wav")]:
         try:
             if f.stat().st_mtime < cutoff:
                 shutil.rmtree(f, ignore_errors=True) if f.is_dir() else f.unlink()
@@ -92,8 +95,10 @@ def purge_old_uploads(days=7):
 
 
 def clear_local_data():
-    """Apaga histórico, transcrições guardadas e arquivos temporários (não toca no Notion nem no token)."""
+    """Apaga histórico, transcrições, notas de compreensão guardadas e arquivos temporários (não toca no Notion
+    nem no token). A interface avisa das notas antes de confirmar."""
     shutil.rmtree(WORK, ignore_errors=True)
+    shutil.rmtree(DATA / "understanding", ignore_errors=True)
     (DATA / "history.json").unlink(missing_ok=True)
     try:  # o log fica aberto pelo app; esvaziar funciona no Windows, apagar não
         open(DATA / "lumen.log", "w").close()

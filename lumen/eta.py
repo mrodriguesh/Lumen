@@ -21,8 +21,9 @@ PRIOR = {
     "llm_gen_tps": 56.0,       # tokens escritos por segundo
     "llm_load_s": 3.6,         # carregar o modelo na GPU (0 se já estiver carregado)
     "chars_per_token": 2.65,
-    "out_lesson": 1.0, "out_notes": 1.0, "out_charts": 1.0,  # correção deste PC sobre SHAPE (medido ÷ previsto)
+    "out_lesson": 1.0, "out_notes": 1.0, "out_charts": 1.0, "out_analysis": 1.0,  # correção sobre SHAPE (medido ÷ previsto)
     "screen_s": 2.3,           # leitura de uma tela pela IA de visão
+    "music_rtf": 0.1,          # filtro de música, por segundo de áudio (separar na CPU: ≈ 0,15 s/s onde há música)
     "scan_rtf": 0.31,          # assistir o vídeo e ler as telas, por segundo de vídeo
     "mindmap_s": 4.9, "chart_s": 5.9, "upload_s": 1.3, "request_s": 1.0,
 }
@@ -30,7 +31,7 @@ PRIOR = {
 
 # Tamanho típico de cada resposta (tokens) = fixo + parte do pedido (tokens): aula maior, página maior. Medido:
 # página de uma aula curta (2,2 mil tokens) ≈ 1.700; de uma longa (8,5 mil) ≈ 3.400; notas de uma parte ≈ 1.500.
-SHAPE = {"lesson": (1300, 0.25), "notes": (300, 0.22), "charts": (400, 0.05)}
+SHAPE = {"lesson": (1300, 0.25), "notes": (300, 0.22), "charts": (400, 0.05), "analysis": (600, 0.04)}
 
 
 def out_tokens(model, kind, prompt_tokens):

@@ -1,0 +1,25 @@
+{
+ "device": "CPU",
+ "audio_min": 10,
+ "wall_s": 163.2,
+ "rtf": 3.7,
+ "cpu_s": 911.9,
+ "cpu_cores_avg": 5.6,
+ "threads": 6,
+ "peak_ram_mb_before": 447,
+ "peak_ram_mb": 1054,
+ "vram_mb_peak_extra": 6,
+ "wav_mb": 0.0,
+ "models_mb": 72.3,
+ "cache_hit_s": 0.15,
+ "cached": true,
+ "filter_s": 162.9,
+ "rep": {
+  "removed_s": 0.0,
+  "separated_s": 0.0,
+  "doubt_s": 35.0,
+  "speakers": 0,
+  "teacher_s": 0.0,
+  "error": null
+ }
+}

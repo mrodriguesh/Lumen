@@ -9,7 +9,7 @@ from unittest import mock
 import tests  # noqa: F401  (isola LUMEN_DATA antes do lumen, mesmo sem -t .)
 from lumen import jobs, llm, notion, server, sources, store
 from tests.fake_notion import Fake
-from tests.test_llm import GOOD
+from tests.test_llm import GOOD, understood
 
 CAPTIONS = "0:00\nHoje vamos estudar fotossíntese.\n0:40\nA fase clara depende de luz.\n1:05\nExemplo da planta no escuro."
 SPEC = {"kind": "youtube", "url": "https://youtu.be/dQw4w9WgXcQ", "captions": CAPTIONS, "language": "pt", "mode": "new"}
@@ -17,12 +17,13 @@ META_LINK = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
 
 def full(spec, **finish):
-    """Fase 1 (transcrição → revisão) e fase 2 (confirmação → Notion), como na interface."""
+    """Fase 1 (transcrição), a compreensão do estudante (escrita e analisada) e fase 2 (Notion), como na interface."""
     jobs.start("process", jobs.process, spec)
     j = wait()
     if j["status"] != "done":
         return j
     assert j["result"]["review"], j
+    understood(j["result"]["key"])
     jobs.start("process", jobs.finish, {**spec, **finish})
     return wait()
 
@@ -85,7 +86,8 @@ class Flow(unittest.TestCase):
         sem_curso = [p for p in self.fake.pages.values() if p["title"] == "Sem curso"][0]
         first = dict(store.history()["yt:dQw4w9WgXcQ"])
         self.assertEqual(first["page_id"], sem_curso["id"])
-        self.assertEqual(len(self.fake.pages), 2)
+        alive = lambda: sorted(p["title"] for p in self.fake.pages.values() if not p["in_trash"])  # noqa: E731
+        self.assertEqual(alive(), ["Estudos", "Minha compreensão", "Sem curso"])
         self.assertTrue((jobs.work_dir("yt:dQw4w9WgXcQ") / "published").exists())  # só a última fica (Refazer)
 
         info = server.inspect(SPEC)
@@ -98,9 +100,9 @@ class Flow(unittest.TestCase):
         self.assertFalse(sem_curso["in_trash"])
         updated = store.history()["yt:dQw4w9WgXcQ"]
         self.assertEqual(updated["page_id"], first["page_id"])
-        self.assertTrue(all(self.fake.blocks[bid]["in_trash"] for bid in first["block_ids"]))
+        self.assertTrue(all((self.fake.blocks.get(bid) or self.fake.pages[bid])["in_trash"] for bid in first["block_ids"]))
         self.assertIn(manual, [b["id"] for b in sem_curso["blocks"]])
-        self.assertEqual(len(self.fake.pages), 2)
+        self.assertEqual(alive(), ["Estudos", "Minha compreensão", "Sem curso"])  # a subpágina antiga foi junto
 
     def test_http_flow_saves_in_page_created_at_start(self):
         httpd = server.serve()
@@ -123,11 +125,13 @@ class Flow(unittest.TestCase):
             post("/api/start", spec)
             self.assertTrue(wait()["result"]["review"])
             self.assertEqual(self.fake.pages[made["id"]]["blocks"], [])
+            understood("yt:dQw4w9WgXcQ")
             post("/api/finish", {**spec, "edits": {"1": "Texto corrigido pelo usuário."}, "include_transcript": True})
             result = wait()
             self.assertEqual(result["status"], "done", result.get("error"))
             self.assertEqual(store.history()["yt:dQw4w9WgXcQ"]["page_id"], made["id"])
-            self.assertEqual(len(self.fake.pages), before)
+            self.assertEqual(len(self.fake.pages), before + 1)  # só a subpágina “Minha compreensão”, dentro dela
+            self.assertEqual([p["parent"] for p in self.fake.pages.values() if p["title"] == "Minha compreensão"], [made["id"]])
             page = self.fake.pages[made["id"]]
             self.assertEqual(page["title"], made["title"])
             self.assertIn(made["id"].replace("-", ""), result["result"]["url"].replace("-", ""))
@@ -158,6 +162,7 @@ class Flow(unittest.TestCase):
                                                       "origin": "Transcrição local revisada.", "duration": 65})
                 spec = {"kind": kind, "path": path, "course_id": self.root,
                         "link": "https://youtu.be/dQw4w9WgXcQ?si=x"}
+                understood(key)
                 self.fake.fail_append = True
                 jobs.start("process", jobs.finish, spec)
                 self.assertEqual(wait()["status"], "error")
@@ -168,7 +173,7 @@ class Flow(unittest.TestCase):
                 videos = [b for b in self.fake.pages[self.root]["blocks"] if b["type"] == "video"]
                 self.assertEqual(videos[-1]["video"]["external"]["url"], META_LINK)
                 self.assertFalse(any(b["type"] == "child_page" for b in self.fake.pages[self.root]["blocks"]))
-                self.assertEqual(len(self.fake.pages), 1)
+                self.assertEqual({p["title"] for p in self.fake.pages.values()}, {"Estudos", "Minha compreensão"})
 
     def test_blank_review_link_removes_cached_video_reference(self):
         key = "file:removed-link"
@@ -178,6 +183,7 @@ class Flow(unittest.TestCase):
         jobs._save(work / "source.json", {"kind": "recording", "key": key, "path": path,
                                          "title": "Aula", "label": "Gravação", "link": META_LINK})
         jobs._save(work / "transcript.json", {"segments": sources.parse_captions(CAPTIONS), "origin": "Revisada."})
+        understood(key)
         jobs.start("process", jobs.finish, {"kind": "recording", "path": path, "course_id": self.root, "link": ""})
         j = wait()
         self.assertEqual(j["status"], "done", j)
@@ -221,6 +227,7 @@ class Flow(unittest.TestCase):
         with mock.patch.object(llm, "_chat", side_effect=slow):
             jobs.start("process", jobs.process, {**SPEC, "course_id": "__none__"})
             self.assertTrue(wait()["result"]["review"])
+            understood("yt:dQw4w9WgXcQ")
             jobs.start("process", jobs.finish, {**SPEC, "course_id": "__none__"})
             time.sleep(0.2)
             jobs.cancel()
@@ -245,6 +252,7 @@ class Flow(unittest.TestCase):
     def test_summary_uses_reviewed_transcript_and_optional_transcript(self):
         jobs.start("process", jobs.process, {**SPEC, "course_id": "__none__"})
         self.assertTrue(wait()["result"]["review"])
+        understood("yt:dQw4w9WgXcQ")
         jobs.start("process", jobs.finish, {**SPEC, "course_id": "__none__", "include_transcript": True,
                                             "edits": {"1": "A fase clara depende da luz solar, corrigido."}})
         self.assertEqual(wait()["status"], "done")

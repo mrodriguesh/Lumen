@@ -136,6 +136,9 @@ class Fake:
             return 200, {"id": p["id"], "in_trash": p["in_trash"], "url": f"https://www.notion.so/{p['id']}"}
         if method == "DELETE" and parts[0] == "blocks" and len(parts) == 2:
             bid = parts[1]
+            if bid in self.pages:  # subpágina (bloco child_page): vai para a lixeira, como no Notion
+                self.pages[bid]["in_trash"] = True
+                return 200, {"id": bid, "type": "child_page", "in_trash": True}
             if bid not in self.blocks:
                 return 404, {"code": "object_not_found"}
             self.blocks[bid]["in_trash"] = True

@@ -5,6 +5,6 @@ $bin = Join-Path $PSScriptRoot 'bin'
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 & $csc /nologo /target:winexe /platform:x64 /optimize+ "/out:$root\Lumen.exe" "/win32icon:$PSScriptRoot\lumen.ico" `
     "/r:$bin\Microsoft.Web.WebView2.Core.dll" "/r:$bin\Microsoft.Web.WebView2.WinForms.dll" `
-    /r:System.Windows.Forms.dll /r:System.Drawing.dll "$PSScriptRoot\Lumen.cs" "$PSScriptRoot\WidgetForm.cs"
+    /r:System.Windows.Forms.dll /r:System.Drawing.dll "$PSScriptRoot\Lumen.cs" "$PSScriptRoot\WidgetForm.cs" "$PSScriptRoot\NoteForm.cs"
 if ($LASTEXITCODE) { throw "Falha ao compilar Lumen.exe" }
 Write-Output "Lumen.exe gerado em $root"

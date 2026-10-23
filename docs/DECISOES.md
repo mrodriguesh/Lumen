@@ -10,7 +10,8 @@ Um único processo Python:
 lumen/
   __main__.py    inicia o servidor e abre a janela; encerra quando a janela fecha
   server.py      HTTP só em 127.0.0.1 (stdlib): interface + API JSON
-  jobs.py        uma tarefa por vez: preparar → transcrever → gerar → publicar; guarda etapas para retomar
+  jobs.py        uma tarefa por vez: preparar → transcrever → (nota do estudante) → analisar → gerar → publicar
+  understanding.py  “Minha compreensão”: a nota do estudante, os estados e a trava de toda IA sobre a aula
   sources.py     arquivo local, link do YouTube, legendas/transcrições importadas
   transcribe.py  faster-whisper (CPU ou GPU NVIDIA)
   llm.py         Ollama: prompt, JSON Schema, validação, leitura por partes
@@ -122,8 +123,8 @@ lumen/
   níveis de aninhamento por requisição (o toggle tem um), e 429 tratado com `Retry-After`.
 - **Integração interna** com token, não OAuth público: o OAuth exige um `client_secret` num servidor, o que um app
   local e gratuito não tem.
-- Destino em páginas, não em banco de dados: a aula entra como blocos no corpo da página escolhida,
-  sem criar uma subpágina. A criação explícita de cursos e módulos continua disponível.
+- Destino em páginas, não em banco de dados: a aula entra como blocos no corpo da página escolhida; a única
+  subpágina é “Minha compreensão”, logo abaixo da aula. A criação explícita de cursos e módulos continua disponível.
 - Respostas das perguntas ficam como filhas de blocos `toggle`. O Notion abre toggles recolhidos, e o estado aberto é
   por leitor e não é exposto pela API.
 - Publicação: uma aula comum (≈ 30–60 blocos) é acrescentada numa requisição. Se um lote falhar ou o usuário
@@ -431,6 +432,269 @@ echo "isto nao e um video" > falso.mp4
   trocado em ~38 s. Testes nativos do projeto (`tests\DesktopChecks.cs`) continuam passando.
 - **Limite:** se a causa da reclamação foi outra (por exemplo, um jogo em tela cheia cobrindo a barra), isto não muda.
 
+## Minha compreensão antes de qualquer IA (20/10/2026; `lumen/understanding.py`)
+
+- **Pedido do usuário:** o Lumen deixa de pensar pelo estudante. Fluxo obrigatório: conteúdo → compreensão escrita
+  por ele → a IA analisa essa compreensão → Notion. Nenhum resumo, anotação ou página antes da nota.
+- **Uma regra, num lugar só.** `understanding.py` guarda a nota e decide: `check` (a nota vale?), `require` (há nota
+  enviada; para salvar, também a análise), `reveal` (transcrição, telas e revisão só depois da nota) e `guard` (o
+  que a interface recebe de uma tarefa). Quem gera material chama a trava: `llm.generate` e `llm.analyze` recusam
+  sem nota válida (mesmo chamadas diretamente), `jobs.finish` sem nota analisada, `jobs.review`, `jobs.add_captures`
+  e `/api/screen` sem nota enviada. Toda fonte passa por `jobs.process` → nota → `jobs.analyze` → `jobs.finish`;
+  uma fonte nova herda a regra sem código próprio.
+- **O que é uma nota válida:** ≥ 20 palavras de 2+ letras, ≥ 12 diferentes e ≥ 80% com vogal (barra “teste teste…”
+  e teclas ao acaso, aceita texto imperfeito). A interface usa os mesmos números só para liberar o botão.
+- **A preparação continua técnica:** transcrição e leitura das telas (sem IA de texto) rodam antes, em segundo
+  plano; o editor abre assim que a aula tem nome. A tarefa entregue à interface vem sem `segments` e `screens`
+  até a nota ser enviada (os dados ficam no disco para a IA).
+- **Nota original × atual:** `original_understanding` é o que o estudante escreveu antes de a IA interferir: muda
+  só enquanto nenhuma análise existe e congela na 1ª. Edições depois vão para `current_understanding`, que pode ser
+  analisada de novo. Estudar de novo uma aula já salva começa uma nota nova e guarda as anteriores em `earlier`.
+- **Guardar sem perder:** um JSON por aula em `DATA/understanding`, gravado com `os.replace` (atômico). A interface
+  salva no `localStorage` a cada tecla, no Lumen 0,6 s depois (pedidos fora de ordem são ignorados pelo horário
+  `at`) e por `sendBeacon` ao fechar ou esconder a janela; ao reabrir, o texto mais novo vence.
+- **Análise (`llm.ANALYSIS`):** JSON Schema com confusões (trecho = as palavras do estudante; correção = o que a
+  aula diz), acertos, parciais, lacunas, complementos, conexões e perguntas; listas curtas (até 5) para não virar
+  relatório. Recebe a aula (transcrição + telas) e a nota no mesmo pedido; a nota nunca é reescrita. A página da aula
+  também recebe a nota, com a regra de complementar o que o estudante não mencionou ou confundiu.
+- **Notion:** a página da aula continua indo para o corpo da página escolhida; a subpágina “Minha compreensão” é
+  criada por último, então fica logo abaixo daquela aula (a API acrescenta a subpágina no fim da página). Nota em
+  bloco de citação, divisor, aviso “análise da IA local” e as seções da IA. O id dela entra nos blocos da aula:
+  falha no envio, “Atualizar material” e “Refazer página” a removem junto. Limite: várias aulas na mesma página
+  geram várias subpáginas com o mesmo nome, cada uma logo abaixo da sua aula.
+- **Limite:** numa aula longa (> 40 mil caracteres), a leitura por partes acontece na análise e de novo na página
+  (≈ 1 min a mais por parte).
+- **Teste real** (aula sintética de 98 s sobre fotossíntese, voz do Windows; Whisper large-v3-turbo + qwen3:8b na
+  RTX 3060; Notion simulado): preparação 8 s; análise 50 s com o modelo frio, 10–12 s quente; página + subpágina
+  74 s. Nota com 3 erros de conceito (glicose “na fase clara”, oxigênio “do gás carbônico”, fase escura “só à
+  noite”): com `confusoes` no fim do esquema, a 1ª ia sempre para “parciais” (3 de 3 rodadas); com `confusoes`
+  primeiro e a regra “meio certa, meio errada também entra”, os 3 erros saíram em confusões nas 3 rodadas. Nota
+  incompleta: as lacunas foram cloroplastos, clorofila, as duas fases, a quebra da água e a glicose. Resta, às
+  vezes, um item de “parciais” que atribui ao estudante algo que ele não escreveu (limite do modelo de 8B).
+- **Interface** (Edge sem janela via CDP, com o mesmo Whisper e Ollama): o editor abre 1 s depois de “Continuar”,
+  com a preparação em segundo plano; a nota curta fica bloqueada e o servidor recusa o envio direto; a janela
+  recarregada antes do autosave e sem sendBeacon recupera o texto do PC; claro, escuro e janela estreita conferidos.
+
+## “Minha compreensão” destacada e na barra lateral (20/10/2026; `web/understanding-editor.js`, `launcher/NoteForm.cs`)
+
+- **Pedido do usuário:** escrever a compreensão enquanto revê o vídeo, sem alternar telas, na janela principal e na
+  barra lateral. O vídeo toca em outro programa (navegador, curso), então um painel só dentro da janela do Lumen não
+  ficaria por cima dele: o modo flutuante é uma janela nativa sempre por cima (`NoteForm`), com a moldura do sistema
+  sem a barra de título (bordas de redimensionar, sombra e cantos do Windows, como a janela principal). No navegador
+  comum (sem o Lumen.exe), é um popup.
+- **Um documento só:** `understanding-editor.js` tem o estado da nota por aula (`Notes`) e o campo (`UnderstandingEditor`,
+  modos normal, lateral e flutuante; o modo só muda o visual). Os três editores usam o mesmo componente; o autosave
+  que estava em `app.js` foi para ele. Cada tecla vai na hora para as outras janelas (`BroadcastChannel`, as três
+  páginas são do mesmo endereço e do mesmo perfil do WebView2) e ao Lumen 0,6 s depois. Quem recebe o texto salva
+  em 2,5 s se a janela onde se digitou fechar antes (o servidor ordena pelo horário `at`, salvar duas vezes não
+  estraga nada). Sem o canal, cada janela confere o Lumen ao ganhar foco e a cada 3 s.
+- **Sem perder texto ao trocar de modo:** destacar salva antes de abrir; fechar, voltar e minimizar salvam antes de
+  agir; fechar só esconde a janela (a página vai para `about:blank`, o que dispara o envio do que faltar); ao sair
+  do Lumen, as três janelas mandam o que falta (`Notes.flushAll`, `fetch` com `keepalive`).
+- **Porta fixa:** o `localStorage` (cópia do rascunho neste PC, preferências da nota, páginas recentes) é guardado por
+  endereço, e o Lumen.exe escolhia uma porta nova a cada abertura: a cópia do rascunho não sobrevivia a reabrir o app.
+  Agora ele reusa a porta da última vez (`port.txt`) se estiver livre.
+- **Janela flutuante:** padrão 400 × 500 no canto inferior direito (longe do centro, onde costuma ficar o player);
+  mínimo 300 × 240, máximo 60% × 92% da área útil; sempre inteira dentro da tela (ao soltar depois de arrastar ou
+  redimensionar, e ao abrir numa tela que não existe mais). Posição e tamanho em `understanding-panel.txt`; o último
+  modo (destacada ou não) e a aula em `localStorage` (`understandingPanelMode`, `understandingPanelKey`; no popup
+  também `understandingPanelPosition` e `understandingPanelSize`). Minimizar deixa só a barra (sem sumir da tela).
+- **Barra lateral:** o ícone de lápis aparece quando há uma nota em escrita (a aula aberta na janela principal ou,
+  sem ela, a mais recente); o painel cresce para 360 × 440 e não se recolhe enquanto se digita. Destacar dali
+  recolhe a barra para não cobrir o vídeo.
+- **IA:** as três interfaces só mostram a nota; análise, transcrição e telas continuam presas às regras de
+  `understanding.py` (verificado no teste nativo: revisão e envio de nota curta recusados).
+- **Atalho:** Ctrl+Shift+D (“destacar”); dentro do Lumen não conflita (no Chrome é “favoritar todas as abas”, o que
+  não existe no WebView2). Trocável em `localStorage.understandingShortcut`.
+- **Verificado** em `tests/DesktopChecks.cs` com as janelas reais (invisíveis) e dados isolados: escrever na principal
+  → aparece na lateral; na lateral → principal; destacar; na flutuante → as outras duas; mover e esticar para fora da
+  tela; mínimo; minimizar; fechar; reabrir no mesmo lugar; voltar; recarregar. 140 casos de geometria (telas com
+  origem negativa, escalas de 100% a 200%, notebook 1366 × 728 e tela de 800 × 560).
+- **Limite:** o teste não mostra um vídeo de verdade atrás da janela; “sempre por cima” é o `TopMost` do Windows.
+
+## Filtro de música externa (20/10/2026; `lumen/music.py`, `lumen/loopback.py`, `bench/music_bench.py`)
+
+- **Pedido do usuário:** estuda ouvindo música alta enquanto a aula toca; a música não pode contaminar transcrição,
+  IA, “Minha compreensão” nem a página. Ajustes → **Filtrar música externa** (`music_filter`, desligado por padrão).
+- **De onde vem o áudio (antes de mudar nada):** (1) arquivo local, cópia autorizada do YouTube e Telegram:
+  `audio.load` decodifica a faixa de áudio do próprio arquivo (só o conteúdo estudado; a música só entra se estiver
+  no arquivo); (2) “Gravar ao assistir”: loopback WASAPI do alto-falante padrão, ou seja, **todo o som do PC**,
+  inclusive o Spotify. Não há microfone. YouTube com legenda colada e capturas de tela não têm áudio.
+- **Desligado:** o caminho do áudio é o de antes (`record._open_recorder` e `jobs.process` só desviam com o filtro
+  ligado; testado em `tests/test_music.py`), nenhum modelo é carregado e `transcript.json` não ganha campos.
+- **Ligado, em ordem:**
+  1. *Isolar a fonte* (gravação): se um app só de música está aberto (lista em `loopback.MUSIC_APPS`), a gravação
+     usa o *process loopback* do Windows 10 2004+/11 (`ActivateAudioInterfaceAsync`,
+     `PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE`) e o som dele não entra. A captura continua sendo a do
+     `soundcard`; só a ativação do cliente de áudio é nova (ctypes). Verificado com a gravação real do Lumen e dois
+     processos tocando tons: o “app de música” (1234 Hz) caiu de 0,0297 para 0,0 de amplitude e a “aula” (777 Hz)
+     ficou em 0,0298 (0,0299 sem o filtro). Players que também tocam vídeo (VLC, Media Player) não entram na lista:
+     a aula pode estar neles. Se o Windows recusar, grava todo o som, como sem o filtro.
+  2. *Detectar* (`music.detect`): YAMNet (Google, AudioSet, Apache-2.0; ONNX de 16 MB, 750× o tempo real na CPU)
+     dá a cada 0,48 s a confiança de fala (classes 0–3), canto/rap (24–32) e música (132–276). Música estável por
+     ≈ 2 s acima de 0,3 marca o trecho. Sem música, ou com a fala clara na própria mistura (fala ≥ 0,3; música
+     sozinha ficou abaixo de 0,12 em todas as faixas do MUSDB18), o áudio vai ao ASR como está e nada é separado.
+  3. *Separar* (`music.separate`): nos trechos que sobraram, em blocos de até 1 min com 2 s de contexto, a voz é
+     separada dos instrumentos por um MDX-Net (UVR) em ONNX, com STFT/iSTFT em numpy iguais às do UVR (sem PyTorch).
+  4. *Validar a fala* (`music.decide`): a voz separada substitui o original só se a sonda tem certeza de que há fala
+     (média ≥ 0,6 em ≈ 5 s) **e** a música domina a voz (acompanhamento ≥ 7 dB acima da voz separada,
+     `music.dominance`), por ≥ 3 s seguidos. Fora disso fica o original; abaixo de 0,6 o trecho é marcado.
+  5. *ASR e depois*: a transcrição de sempre recebe o WAV derivado (ou o próprio arquivo, se nada mudou);
+     `music.mark` marca **música ao fundo** + incerto nos trechos de dúvida. Incerto chega à IA como “(?)”, que os
+     pedidos mandam não tratar como fato; vale para “Minha compreensão”, página e gráficos. O texto nunca é trocado.
+- **Por que uma sonda:** medido com as falas reais + MUSDB18: com a música a −5 dB da fala ou mais alta, o YAMNet
+  dá fala ≈ 0 na mistura mesmo com o professor falando; na voz separada, canto e rap também parecem fala (0,3–0,9).
+  A sonda é uma regressão logística (numpy, 2048 pesos em `lumen/music_probe.json`) sobre os embeddings do YAMNet da
+  voz separada e da mistura, treinada com 40 falas (FLEURS/CORAA) misturadas a 100 faixas do MUSDB18 *train*
+  (instrumental e com voz, −10 a +10 dB) contra as faixas sozinhas e 50 vozes a cappella. Teste com falas e faixas
+  nunca vistas (MUSDB18 *test*): AUC 0,94. Testados e descartados: só a voz (AUC 0,89) e média/desvio em ±3
+  quadros (AUC 0,91, apagava mais fala).
+- **O que o benchmark mudou no desenho** (`bench/RESULTADOS_MUSICA.md`; transcrição de verdade, large-v3-turbo):
+  - *1ª versão — voz separada em todo trecho com música:* piorava a letra. Numa música sozinha, o Whisper costuma
+    não escrever nada (0 palavras em 7 de 11 faixas); com a voz isolada, sem os instrumentos, ele transcrevia a
+    letra (0 → 18, 14 → 48; rap 1 → 31 palavras). Com a música a 0 dB, 0 → 14–21 palavras de letra; com a música
+    baixa a voz separada não ajudava e às vezes piorava (0 → 3 erros).
+  - *2ª — silenciar onde a sonda via só música:* apagou fala inteira sob piano e eletrônica que a sonda nunca viu
+    (0/18 → 18/18 e 6/40 → 40/40 erros) para tirar pouca letra (52 → 40 palavras em 10 músicas sozinhas). Na
+    dúvida, preservar a fala: o modo padrão **nunca silencia**.
+  - *3ª — dominância ≥ 4 dB:* separava música com letra (o cantor entra na “voz”: 1 a 3,6 dB) e ilhas de 0,5–2 s
+    de voz separada mudavam a decodificação inteira (num caso, de 2 para 42 palavras de letra). Daí 7 dB e ≥ 3 s.
+  - *Final:* nenhum cenário piorou. Instrumental +5 / +10 / +15 dB: WER 75,7% → 48,9% / 69,4% → 52,3% / 100% →
+    90,2%; palavras da fala perdidas 85 → 51 / 137 → 51 / 235 → 133. Fala sozinha, silêncio, ventilador, teclado,
+    conversa ao fundo, música até 0 dB, música com letra, rap e fala 2×: idênticos a sem o filtro. Na aula real do
+    app (`jobs.process`) com instrumental a +10 dB, sem o filtro o app respondia “Não foi detectada fala”; com o
+    filtro, transcreveu (WER 77%) e marcou 6 trechos.
+- **Modos** (`music.MODES`, prontos para uma escolha futura; a interface só liga e desliga e vale **balanceado**):
+  conservador marca mais (keep 0,7); balanceado marca abaixo de 0,6; agressivo também silencia onde a sonda tem
+  certeza de que só há música (abaixo de 0,3 por ≥ 2,5 s; no teste, 0% da fala e 29% da música sozinha), com o
+  risco medido acima. O relatório de cada aula guarda `music_confidence`, `speech_confidence`,
+  `separation_confidence` e `dominance_db`.
+- **Separador escolhido** (CPU i5-11400F; SDR da voz estimada a partir de áudio 16 kHz, 4 faixas do MUSDB18):
+
+  | Modelo | Tamanho | Velocidade (CPU) | SDR da voz | Observação |
+  |---|---|---|---|---|
+  | **UVR-MDX-NET 3 (9662)** | 28 MB | 8,8× o tempo real | 4,0–10,5 dB | escolhido |
+  | Kim Vocal 2 (MDX-Net) | 63 MB | 3,0× | 4,0–11,5 dB | 0,3–1 dB melhor, 3× mais lento |
+  | kuielab_a_vocals (MDX) | 28 MB | 8,7× | – | mesma família, mais antigo |
+  | Open-Unmix UMX-L | 108 MB | – | – | SDR publicado menor que o MDX |
+  | Demucs / htdemucs, BS/Mel-RoFormer | 80–700 MB | – | – | exigem PyTorch (≈ 2 GB) ou são lentos sem GPU |
+
+  Mais threads (6 → 12) não aceleraram; o filtro usa metade dos núcleos lógicos para o PC continuar usável. Sem o
+  “arena” do onnxruntime o pico do separador caiu de 1,2 GB para 0,65 GB, na mesma velocidade.
+- **Custo:** sem música, só o detector (1 h ≈ 5 s). Pior caso (música com voz a aula toda, separada inteira):
+  10 min em 156 s (3,9× o tempo real), ≈ 5,5 núcleos, pico de RAM +630 MB, sem GPU. Modelos: 46 MB. Áudio derivado
+  só quando muda algo (≈ 115 MB por hora).
+- **GPU:** o `onnxruntime` do Lumen é o de CPU (o Parakeet também usa). Trocar pelo `onnxruntime-gpu` (≈ 450 MB
+  com cuFFT) mexeria na transcrição sem GPU; se um onnxruntime com CUDA ou DirectML estiver instalado, o filtro usa
+  a GPU sozinho e volta para a CPU se ela falhar.
+- **Original intacto e cache:** o áudio limpo é `work/<aula>/music-<chave>.wav` (16 kHz), gravado em `.tmp` e
+  renomeado; a chave é o hash do áudio decodificado + versão da regra + modelos + modo, e o relatório
+  (`music-<chave>.json`) guarda a decisão: transcrever de novo não processa o mesmo áudio outra vez (0,16 s). O WAV
+  some ao confirmar a revisão (sem “Guardar gravações”) ou em 7 dias (`store.purge_old_uploads`).
+- **Falhas:** qualquer erro do detector, do separador, da GPU, de memória ou de disco cai no áudio original
+  (`music.prepare`), registra o tipo no log e a revisão mostra “Filtro de música não aplicado (…)”. Só cancelar
+  interrompe. Se só sobrar música (nada de fala transcrita), o erro diz como desligar o filtro e tentar de novo.
+- **Indicadores:** chip ♪ na barra flutuante (“Filtro de música ativo”; com isolamento, “o som do Spotify fica fora
+  da gravação”), a mesma frase na dica da gravação, “Filtrando música externa…” no progresso e uma linha na revisão
+  (“Música externa detectada e filtrada…” ou “nenhuma música externa detectada”). Nada de pop-up. Conferido no Edge
+  (CDP): chip, Ajustes, gravação da preferência, sem erros de JavaScript.
+- **Logs** (sem conteúdo): `sourceIsolationUsed`, `musicDetected`, `musicConfidence`, `speechConfidence`,
+  `separationConfidence`, `sourceSeparationUsed`, segundos separados/incertos/removidos, tempo, CPU/GPU, e depois do
+  ASR: trechos marcados e incertos (avg_logprob < −1, a confiança do ASR disponível no app; o antes/depois fica no
+  benchmark, que não cabe numa aula real sem transcrever duas vezes).
+- **Limites:** letra de música no mesmo navegador da aula (YouTube Music numa aba) não é tirada, só marcada: rap e
+  voz “falada” parecem um professor falando sobre música alta, e na dúvida a fala fica. O isolamento exclui um app
+  de música por vez, decidido no início da gravação (um aberto depois não sai). Fala sob música muito alta (+15 dB)
+  continua quase perdida (90%). Fala 2× com música não melhora. Medido com fala lida/palestra/conversa reais e
+  música real do MUSDB18 (pop, rock, eletrônica, acústica, um rap), mais piano e eletrônica sintéticos; não com
+  aulas suas gravadas com música.
+- **Melhorias possíveis (feitas na v2, abaixo):** voz do professor, sonda com rap e clássica, separador na GPU,
+  modos na interface. Continua em aberto: isolar a aba do navegador (exigiria extensão).
+
+### Filtro de música v2 (21/10/2026; `lumen/music.py`, `lumen/speaker.py`, `bench/music_bench.py run2`)
+
+Incremental sobre a v1: mesmos detector, separador, emenda, cache, recuo e integração. Medido antes de mudar
+(`run2 antes`, com a v1 congelada) e depois, no mesmo conjunto (`bench/RESULTADOS_MUSICA_V2.md`).
+
+- **Conjunto de validação v2** (fora do app, em `bench/.data`): 16 “professores” (palestras TEDx do CORAA, 30 falas
+  seguidas de cada, dev e test; o train só existe em .rar), aulas de ≈ 60 s com metade sem música, e música do MUSDB18
+  test, do GTZAN 50–99 (hip-hop, clássica, rock, pop, jazz, reggae, country, metal, blues, disco; lido em fluxo do
+  pacote de 1,2 GB, guardados 330 clipes) e coral (Cantoría, 5 mixagens SATB; o Zenodo recusou o acesso, veio do
+  espelho no Hugging Face, conferido por SHA-256). Cenários: professor sozinho; + instrumental 0/+5/+10 dB; música a
+  aula toda; + cantor (vozes femininas e masculinas); + rap; rap a aula toda; dois professores alternando; professor
+  novo que só aparece sob música; + clássica 0/+5/+10; música contínua com o professor pausando (cantor, rap);
+  podcast com vinheta e trilha; professor tocando uma música para a turma; coral sozinho e com fala; voz a cappella
+  sozinha e com fala; instrumental e clássica sem voz; professor rápido (1,5×); professor baixo (−26 dB); conversa
+  com várias pessoas; spoken word (outra pessoa falando sobre uma batida, por cima da aula); 8 gêneros. 152 casos,
+  nos 3 modos.
+- **Voz do professor** (`lumen/speaker.py`): embedding do ResNet34-LM do WeSpeaker (VoxCeleb, CC-BY-4.0, ONNX de
+  26 MB, fbank do Kaldi reescrito em numpy, sem PyTorch). O CAM++ do WeSpeaker em ONNX foi testado primeiro e
+  descartado: com as mesmas características, EER 27% nos 16 palestrantes, contra 0% do ResNet34 (mesmo palestrante
+  0,76 de mediana, outro 0,26). Referência: janelas de 3 s de fala limpa da própria aula (YAMNet fala ≥ 0,5, sem
+  música; se faltar, fala clara sobre música baixa), até 40 espalhadas, agrupadas por voz (ligação média, 0,35):
+  dois professores, entrevista e aluno perguntando dão grupos separados, todos tratados como locutores da aula
+  (16 palestras: um professor dá 1–2 grupos; 8 pares de professores nunca viraram um grupo só). Nos trechos com
+  música, a voz separada é comparada com o grupo mais parecido.
+  - Medido sob música (voz separada): o próprio professor fica em 0,40 de mediana (5%: 0,09); cantores 0,18,
+    rappers 0,14, outros professores até 0,34. Ou seja: **similaridade alta prova que é o professor; baixa não prova
+    nada**. Por isso a voz entra como proteção (≥ 0,4: nunca silenciada nem marcada, e a voz separada pode entrar
+    com a sonda em dúvida), não como regra de corte.
+  - “Voz diferente → marcar” (other_sim) foi medido e ficou só no agressivo: no balanceado, a 0,2, tirou 45 palavras
+    de letra sem marca e marcou 750 palavras do professor a mais.
+  - Privacidade: o embedding só existe na memória durante o filtro; nada de voz vai para disco (o relatório da aula
+    guarda só similaridade mediana e número de locutores), nem é comparado entre aulas. O “cache de voz” é o cache do
+    próprio filtro: o mesmo áudio no mesmo modo não é processado de novo.
+- **Sonda retreinada** (a mesma regressão logística sobre os embeddings congelados do YAMNet; nenhum modelo grande
+  treinado): + hip-hop e clássica do GTZAN 0–49 no treino e 2 sinais de ritmo (`music.rhythm`: periodicidade da
+  voz separada no período da batida do acompanhamento e correlação dos ataques; AUC sozinhos rap × professor 0,73 e
+  0,76). Teste (falas B, MUSDB test, GTZAN 50–99): AUC 0,860 → 0,930; rap 0,773 → 0,859; clássica 0,989 → 0,996.
+  Com o limiar do app, o rap que passava por fala caiu de **64% para 19%** dos quadros, com a mesma fala mantida
+  (85,8% → 85,1%) e a mesma letra cantada passando (4,5% → 4,0%). O primeiro treino (l2 = 0,1) tinha AUC 0,918 e
+  calibração ruim (70% da música cantada acima do limiar: a letra passaria sem marca); ficou l2 = 0,01, MUSDB com
+  peso 2 e o viés ajustado no treino (−1,0) para a música cantada passar em ≤ 3,5%.
+- **Clássica**: o detector já pegava (música ≥ 0,3 em 90–100% dos quadros de orquestra e piano). O ganho veio da sonda
+  e da voz do professor: professor + clássica, WER 31,7% → 16,7% (0 dB), 30,2% → 26,3% (+5), 39,9% → 28,9% (+10).
+- **Música só da aula** (`music.external`): silenciar (agressivo) só vale na música que toca por baixo da fala (≥ 3 s
+  de fala dentro do mesmo trecho de música). Música sozinha (o professor mostrando uma música, vinheta, faixa sem
+  aula) é só marcada, em qualquer modo. Falsos positivos do agressivo (aula sem música externa e o filtro mexeu):
+  12/20 → 6/20.
+- **Nível**: o YAMNet perdia a música abaixo de ≈ −50 dBFS (aula gravada muito baixa: 0–2% dos quadros). O detector
+  recebe o áudio quieto mais alto (até +30 dB, `music.level_gain`); o ASR recebe o volume original.
+- **Separação com limiar próprio** (sep_keep): a dominância ≥ 7 dB já barra a letra, então a voz separada pode entrar
+  com menos certeza de fala do que a usada para marcar. Balanceado 0,5 (5% menos palavras perdidas que 0,6, mesmo
+  total de erros; abaixo disso a fala rápida e a de dois professores pioravam), agressivo 0,3, conservador 0,6.
+- **GPU** (`music._session`/`_run`): o separador e a voz rodam no DirectML (onnxruntime-directml, 25 MB, qualquer GPU
+  DirectX 12) ou CUDA (onnxruntime-gpu) se estiver instalado; se a sessão não abrir ou a GPU falhar no meio, refaz na
+  CPU e não tenta mais a GPU naquele processo. O detector fica na CPU. Escolhido o DirectML: 25 MB contra 161 MB do
+  onnxruntime-gpu (que ainda precisaria de cuFFT e cuDNN) e funciona também em AMD e Intel. Ele substitui o
+  onnxruntime de CPU (mesmo módulo; o `Iniciar Lumen.bat` troca na opção de GPU); o Parakeet foi fixado na CPU para
+  não mudar (Parakeet e Whisper deram o mesmo texto com o pacote novo). Medido (10 min, pior caso, RTX 3060):
+  163 s → 28 s (21× o tempo real), CPU 912 s → 41 s, RAM de pico 1054 → 805 MB, +556 MB de VRAM, saída idêntica
+  (diferença máxima 0).
+- **Modos** (`music.MODES`, a única tabela de limiares; Ajustes → Filtrar música externa → Modo): conservador marca
+  mais (keep 0,7) e separa só com confiança alta (0,6), nunca silencia; balanceado (padrão) separa a partir de 0,5,
+  nunca silencia; agressivo detecta música a partir de 0,25, separa também onde a fala é razoavelmente clara, a
+  partir de 0,3 e com a música 5 dB acima, marca a voz diferente da dos locutores da aula e silencia música ao fundo
+  sem fala.
+- **Antes × depois** (152 casos por modo; WER nas aulas com fala; sem filtro 42,2%):
+
+  | Modo | WER v1 → v2 | Palavras perdidas | Letra sem marca | Fala marcada | Falsos positivos | Falsos negativos |
+  |---|---|---|---|---|---|---|
+  | conservador | 37,1% → 34,3% | 3511 → 3113 | 159 → 158 | 1647 → 1637 | 0/20 → 0/20 | 6 → 4 de 132 |
+  | balanceado | 36,3% → 34,5% | 3098 → 2948 | 188 → 176 | 925 → 1119 | 0/20 → 0/20 | 6 → 4 de 132 |
+  | agressivo | 35,7% → 34,1% | 3135 → 2978 | 225 → 126 | 874 → 1812 | 12/20 → 6/20 | 6 → 4 de 132 |
+
+  No conjunto da v1 (falas isoladas de 10 s, sem trecho limpo para a referência de voz), tudo idêntico, menos
+  instrumental +5 dB 48,9% → 51,5%, +10 dB 52,3% → 53,2%, +15 dB 90,2% → 86,4% e eletrônica sintética +10 dB
+  41,1% → 45,2%: é a sonda nova, mais conservadora com fala curta sem referência.
+- **Limites da v2:** voz cantada sem instrumentos (a cappella) não é detectada (o YAMNet dá canto ≈ 0,02 nas vozes
+  do MUSDB): são os 4 falsos negativos que sobraram; a letra passa sem marca. Professor que só fala sob música alta
+  não tem referência (fica com a sonda, como na v1). Mais fala marcada como dúvida no balanceado (925 → 1119
+  palavras; chega à IA como “(?)”, não some). Rap com o professor junto (+5 dB) ainda deixa 16 palavras de letra sem
+  marca (37 sem filtro). Spoken word por cima da aula não melhora (47 → 47). O Whisper às vezes entra em repetição
+  com a entrada mudada: num caso de professor novo sob música, +100 palavras inseridas (nos outros 3, menos erros
+  que na v1).
+
 ## Limitações conhecidas
 
 - O áudio inteiro é decodificado em memória: ≈ 230 MB por hora de aula (o dobro em 2× desacelerado).
@@ -447,3 +711,45 @@ echo "isto nao e um video" > falso.mp4
 - Publicar num workspace real do Notion depende do seu token: os testes automáticos usam um Notion simulado.
 - Assistir a tela junto: DRM aparece preto; com vários monitores, só o da janela em uso; tempo das telas de um
   arquivo limitado aos quadros-chave; aulas reais (não sintéticas) ainda não foram medidas com gabarito.
+
+### Pausar captura e Pomodoro (21/10/2026; `lumen/record.py`, `lumen/pomodoro.py`, `lumen/web/pomodoro.js`)
+
+- Pausa = flag em `record` (`_pause`), não um estado novo: a sessão continua `active`. O laço de áudio segue lendo do
+  driver (senão o Windows acumula e devolve áudio velho ao retomar) e descarta os trechos lidos durante a pausa,
+  conferindo antes e depois da leitura. `vision.Watch(hold=...)` não copia a tela; ao pausar, guarda a tela que
+  esperava ficar parada e recomeça a comparação do zero ao retomar.
+- Linha do tempo: o tempo gravado (frames do WAV) é o relógio das telas, então a pausa some da aula sem silêncio. O
+  tempo real (`elapsed`) e as pausas (`at`, `from`, `to`) vão para `<gravação>.session`.
+- Recuperação: um `.session` por gravação (um arquivo único era sobrescrito pela gravação seguinte e perdia a guardada).
+  Sair do app com gravação usa `stop(keep=True)` e oferece a gravação na próxima abertura.
+- Pomodoro no servidor (não no navegador): um estado para as três janelas, persistido, com `ends_at`; a interface só
+  desenha `ends_at − agora` (relógio do servidor corrigido). Etapas vencidas durante suspensão são contadas de uma vez;
+  um fim com mais de 90 s não toca nem avisa.
+- Som: `winsound` com um tom gerado (sem arquivo), bloqueado com a captura gravando (o loopback gravaria o aviso).
+  Notificação: balão da bandeja com `NIIF_NOSOUND` (via `Shell_NotifyIcon` com o id/janela do `NotifyIcon` por
+  reflexão), uma vez por evento mesmo com várias janelas.
+- “Pausar a captura durante os intervalos” não foi implementado; o ponto de entrada é `pomodoro._next`.
+
+### Minha compreensão: uma nota, um status (22/10/2026; `lumen/understanding.py`, `lumen/web/understanding-editor.js`)
+
+- **Causa da divergência.** A nota já era um documento só por aula (`Notes`, espelhado por BroadcastChannel, com o
+  servidor ordenando por horário): com a mesma aula, as três janelas nunca divergiam (medido com as três abertas e
+  digitação alternada). O que divergia era *qual aula* cada janela mostrava: a flutuante ficava presa na chave da URL ao
+  trocar de aula na principal; a barra lateral usava `notes[0]` quando a aula em foco não estava na lista, e a aula
+  recém-criada (sem texto, ainda preparando) não estava; e a nota sumia da barra ao entrar em análise.
+  Agora há uma “aula em foco” (`Notes.setActive`, transmitida às janelas) que as três seguem; a barra só troca de
+  aula depois de duas leituras seguidas sem ela e nunca ao receber o aviso (a lista pode ser a anterior).
+- **Corrida corrigida.** `analyzing` só era marcado dentro do job, depois de `require` e do plano de tempo: nesse
+  intervalo a nota aceitava texto que a análise não leria, e um erro cedo deixava a nota travada. O servidor trava no
+  instante do pedido (`begin_analysis`) e o job solta em qualquer saída (`finally`); se o job nem começa, `_submit` solta.
+- **Versões.** `rev` por escrita aceita; um autosave com horário menor que o do servidor volta `stale` com o texto novo e
+  não cria revisão; `submit` leva o horário da versão que a interface tem e recusa se outra janela já gravou mais nova;
+  a análise grava `submitted_rev`/`analyzed_rev`. Escolhi **bloquear a edição durante a análise** (em vez de editar com
+  *snapshot*): é o mesmo resultado seguro e sem duas versões em disputa.
+- **Prontidão** (`understanding.readiness`): fases preparing, prep_failed, recording, busy, writing, ready, processing,
+  interrupted, completed, synced. O servidor decide o que bloqueia fora da nota (gravação, tarefa, preparação); o
+  cliente (`Notes.ready`) soma o texto de agora e o estado do salvamento. `processing_since` persiste o pedido: se o
+  app fechar ou a análise falhar, a nota volta como “Não foi possível analisar”, com tentar de novo.
+- **Sem polling novo.** A barra e a flutuante já consultavam `/api/widget` (a flutuante agora usa ele no lugar de
+  `/api/record`); o `notes` dele leva estado, prontidão e horário de cada aula, e `Notes.merge` aplica. O recarregamento
+  de 3 s de antes continua como reserva se um aviso entre janelas se perder.

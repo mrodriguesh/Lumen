@@ -5,6 +5,7 @@ import urllib.error
 import urllib.request
 
 from . import AppError
+from .understanding import check as require_understanding
 
 OLLAMA = "http://127.0.0.1:11434"
 SINGLE_PASS_CHARS = 40_000   # ~12k tokens: cabe em num_ctx 20k com folga para a resposta
@@ -66,6 +67,9 @@ Regras:
   children: fatos, termos, exemplos ou passos concretos ditos na aula, em até 8 palavras. Aula curta = mapa pequeno:
   nunca complete com frases genéricas ("impacto global", "importância do tema", "foco da aula"), nem repita itens
   entre ramos.
+- O aluno estudou a aula e escreveu primeiro o que entendeu (no fim do pedido, "Compreensão do aluno"). Este
+  material complementa a compreensão dele, não a substitui: dê mais espaço e clareza ao que ele não mencionou,
+  entendeu em parte ou pode ter confundido. Não copie, não resuma e não reescreva a nota dele.
 {lang}
 Responda somente com JSON neste formato: {schema}"""
 
@@ -73,6 +77,45 @@ NOTES = """Você está lendo a parte {i} de {n} da transcrição de uma aula. Es
 tópicos, definições, exemplos, procedimentos e nomes próprios citados. Mantenha os marcadores [mm:ss] dos
 momentos importantes e o conteúdo das linhas "(na tela)" (slides, fórmulas, código). Use somente o que está no
 texto; não invente. {lang}"""
+
+_LIST = {"type": "array", "items": {"type": "string"}}
+ANALYSIS_SCHEMA = {  # a ordem é a ordem em que o modelo pensa: com as confusões depois dos acertos e das ideias
+    "type": "object",  # parciais, uma frase meio certa e meio errada ia sempre para “parciais” (3 de 3 no qwen3:8b)
+    "properties": {
+        "confusoes": {"type": "array", "items": {"type": "object", "properties": {
+            "trecho": {"type": "string"}, "correcao": {"type": "string"}}, "required": ["trecho", "correcao"]}},
+        "acertos": _LIST, "parciais": _LIST, "lacunas": _LIST, "complementos": _LIST, "conexoes": _LIST,
+        "perguntas": _LIST,
+    },
+    "required": ["confusoes", "acertos", "parciais", "lacunas", "complementos", "conexoes", "perguntas"],
+}
+
+ANALYSIS = """Você é um assistente de aprendizagem.
+O estudante primeiro estudou a aula e depois escreveu, com as próprias palavras, o que entendeu. Seu trabalho não é
+substituir a compreensão dele, e sim analisá-la em comparação com o conteúdo original da aula, para ele aprender mais.
+
+Regras:
+- A nota do estudante é a fonte principal. A aula (transcrição e o que apareceu na tela) é a referência para conferir.
+- Preserve a interpretação dele. Não reescreva a nota, não a resuma e não a apresente como sua.
+- Não faça um resumo genérico da aula. Cada item precisa dizer respeito ao que ELE escreveu ou deixou de escrever.
+- Use só o que a aula diz. Não invente fatos. Linhas marcadas com (?) podem ter sido mal transcritas: não aponte um
+  erro do estudante com base nelas. Se a aula não trata de algo que ele escreveu, não diga que está errado.
+- Fale com o estudante em "você", com frases curtas, claras e gentis. Sem elogios vazios.
+- confusoes (comece por aqui): confira cada frase da nota contra a aula. Toda afirmação que contradiz a aula entra
+  aqui (até 4): troca de conceitos, de etapa ou fase (o que acontece onde e quando), de origem (de onde algo vem),
+  causa e efeito invertidos, números, nomes ou definições diferentes da aula. Uma frase meio certa e meio errada
+  também entra aqui. trecho = as palavras exatas dele, copiadas da nota; correcao = o que a aula diz de fato.
+  Lista vazia se não houver.
+- Em acertos e parciais, só o que a nota diz: nunca atribua a ele algo que ele não escreveu (isso é lacuna).
+- acertos: o que ele entendeu corretamente segundo a aula (até 5), em poucas palavras, sem copiar a frase inteira.
+- parciais: ideias certas, mas incompletas: o que está certo e o que falta (até 4). Nada que já esteja em confusoes.
+- lacunas: pontos importantes da aula que a nota não menciona, do mais importante ao menos (até 5).
+- complementos: informações da aula que completam exatamente o que ele escreveu (até 4).
+- conexoes: relações entre conceitos da aula que ele deixou passar (até 3).
+- perguntas: 3 a 5 perguntas para ele aprofundar, baseadas no que escreveu e no que faltou (sem as respostas).
+- Cada ponto aparece numa lista só. Listas vazias quando não houver nada útil. Prefira menos itens, mais úteis.
+{lang}
+Responda somente com JSON neste formato: {schema}"""
 
 
 def fmt_time(seconds):
@@ -179,7 +222,7 @@ def pull(model, progress, check):
 
 # Teto de cada resposta (tokens), ~3× o normal: sem ele, a IA às vezes repete texto até encher o contexto e o
 # Ollama segue gerando (notas de uma aula longa passaram de 9 min numa só parte). As notas cabem juntas numa leitura.
-MAX_OUT = {"notes": 2500, "lesson": 6000, "charts": 2048}
+MAX_OUT = {"notes": 2500, "lesson": 6000, "charts": 2048, "analysis": 2500}
 MAX_SPLITS = 2  # partes que generate relê em dois pedaços quando as notas são cortadas no teto
 
 
@@ -264,33 +307,51 @@ def validate(data, duration=None, has_times=True):
     return lesson
 
 
-def calls(segments, model, screens=()):
-    """As respostas que generate vai pedir à IA, [(tipo, caracteres do pedido)], para estimar o tempo: aula longa
-    é lida por partes (notas) antes da página. As partes são as de verdade (o corte é por linha); nas rodadas
-    seguintes, o texto das notas do tamanho que a IA costuma escrever (eta.out_tokens), cortado do mesmo jeito."""
+def validate_analysis(data):
+    """Confere e limpa a análise da compreensão. Sem o que dizer ao estudante → AppError (nada é guardado)."""
+    if not isinstance(data, dict):
+        raise AppError("A IA devolveu uma análise incompleta.", "Tente de novo.")
+
+    def texts(key, cap):
+        return [_s(x, 600) for x in data.get(key) or [] if _s(x, 600)][:cap]
+    out = {"acertos": texts("acertos", 5), "parciais": texts("parciais", 4), "lacunas": texts("lacunas", 5),
+           "confusoes": [c for c in ({"trecho": _s(c.get("trecho"), 400), "correcao": _s(c.get("correcao"), 600)}
+                                     for c in data.get("confusoes") or [] if isinstance(c, dict))
+                         if c["trecho"] and c["correcao"]][:4],
+           "complementos": texts("complementos", 4), "conexoes": texts("conexoes", 3), "perguntas": texts("perguntas", 5)}
+    if not out["perguntas"] or not (out["acertos"] or out["parciais"] or out["lacunas"] or out["confusoes"]):
+        raise AppError("A IA devolveu uma análise incompleta.", "Tente de novo.")
+    return out
+
+
+def calls(segments, model, screens=(), final="lesson", extra=0):
+    """As respostas que generate (final="lesson") ou analyze (final="analysis") vão pedir à IA, [(tipo, caracteres
+    do pedido)], para estimar o tempo: aula longa é lida por partes (notas) antes. As partes são as de verdade (o
+    corte é por linha); nas rodadas seguintes, o texto das notas do tamanho que a IA costuma escrever
+    (eta.out_tokens), cortado do mesmo jeito. extra: caracteres da nota do estudante, que vão no mesmo pedido."""
     from . import eta
-    text, out, rnd = transcript_text(segments, screens), [], 0
+    text, out, rnd, budget = transcript_text(segments, screens), [], 0, SINGLE_PASS_CHARS - extra
     per = eta.value("chars_per_token", model)
-    while len(text) > SINGLE_PASS_CHARS:
+    while len(text) > budget:
         rnd += 1
         parts = chunks(text)
         out += [("notes", len(p) + len(NOTES)) for p in parts]
         text = "\n\n".join("n" * int(eta.out_tokens(model, "notes", (len(p) + len(NOTES)) / per) * per)
                            for p in parts)
         if rnd >= 3:
-            text = text[:SINGLE_PASS_CHARS]
-    return out + [("lesson", len(text) + len(SYSTEM) + len(json.dumps(SCHEMA, ensure_ascii=False)))]
+            text = text[:budget]
+    system, schema = (SYSTEM, SCHEMA) if final == "lesson" else (ANALYSIS, ANALYSIS_SCHEMA)
+    return out + [(final, len(text) + extra + len(system) + len(json.dumps(schema, ensure_ascii=False)))]
 
 
-def generate(segments, duration, model, language, check, status, redo=False, note="", screens=()):
-    """Transcrição → material de estudo validado. status(detail, progress).
-
-    redo: o aluno pediu para refazer a página; note: o que ele quer diferente (opcional).
-    screens: o que apareceu na tela (vision.screen_lines), intercalado na transcrição."""
-    lang = ("Escreva tudo em português do Brasil." if language == "pt"
+def _lang(language):
+    return ("Escreva tudo em português do Brasil." if language == "pt"
             else "Escreva no mesmo idioma em que a aula foi falada.")
-    text = transcript_text(segments, screens)
-    has_times = any(s.get("start") is not None for s in segments)
+
+
+def _condense(text, model, lang, check, status, budget):
+    """Aula longa: lida por partes (notas de cada parte) até caber num pedido junto da nota do estudante.
+    Devolve (texto, partes que a IA não terminou de resumir)."""
     rnd, lost, splits = 0, [], [MAX_SPLITS]
 
     def read_part(part, i, n, again=True):
@@ -308,7 +369,7 @@ def generate(segments, duration, model, language, check, status, redo=False, not
         lost.append(i)
         return notes
 
-    while len(text) > SINGLE_PASS_CHARS:  # aula longa: resume por partes e junta as notas
+    while len(text) > budget:  # aula longa: resume por partes e junta as notas
         rnd += 1
         parts = chunks(text)
         notes = []
@@ -317,7 +378,22 @@ def generate(segments, duration, model, language, check, status, redo=False, not
             notes.append(read_part(part, i, len(parts)))
         text = "\n\n".join(notes)
         if rnd >= 3:
-            text = text[:SINGLE_PASS_CHARS]
+            text = text[:budget]
+    return text, lost
+
+
+def generate(segments, duration, model, language, check, status, redo=False, note="", screens=(), understanding=""):
+    """Transcrição + compreensão do aluno → material de estudo validado. status(detail, progress).
+
+    understanding: a nota que o aluno escreveu antes; sem ela (válida), nada é gerado (lumen/understanding.py).
+    redo: o aluno pediu para refazer a página; note: o que ele quer diferente (opcional).
+    screens: o que apareceu na tela (vision.screen_lines), intercalado na transcrição."""
+    require_understanding(understanding)
+    lang = _lang(language)
+    has_times = any(s.get("start") is not None for s in segments)
+    # ponytail: aula longa é lida por partes aqui e de novo em analyze; guardar as notas se o tempo incomodar
+    text, lost = _condense(transcript_text(segments, screens), model, lang, check, status,
+                           SINGLE_PASS_CHARS - len(understanding))
     system = SYSTEM.format(lang=lang, schema=json.dumps(SCHEMA, ensure_ascii=False))
     ask = ""
     if redo:
@@ -330,7 +406,8 @@ def generate(segments, duration, model, language, check, status, redo=False, not
     for attempt in (1, 2):
         status("Escrevendo o material de estudo…" + (" (2ª tentativa)" if attempt == 2 else ""), None)
         head = "Transcrição da aula, com o que apareceu na tela:" if screens else "Transcrição da aula:"
-        raw = _chat(model, system, ask + head + "\n\n" + text, check,
+        mine = "\n\n---\nCompreensão do aluno (escrita por ele antes deste material; complemente, não reescreva):\n\n"
+        raw = _chat(model, system, ask + head + "\n\n" + text + mine + understanding, check,
                     lambda n: status(f"Escrevendo o material de estudo… ({n} trechos gerados)", None),
                     schema=SCHEMA, temperature=0.6 if redo else 0.2, kind="lesson")
         try:
@@ -343,6 +420,28 @@ def generate(segments, duration, model, language, check, status, redo=False, not
         except (ValueError, AppError):
             if attempt == 2:
                 raise AppError("A IA devolveu um resultado malformado duas vezes.",
+                               "Tente de novo; se persistir, escolha outro modelo em Configurações.") from None
+
+
+def analyze(segments, model, language, understanding, check, status, screens=()):
+    """Aula + nota do estudante → análise da compreensão dele (acertos, lacunas, confusões…), não um resumo da aula.
+    A nota nunca é alterada: ela só entra no pedido. Sem nota válida, a IA não é chamada."""
+    require_understanding(understanding)
+    lang = _lang(language)
+    text, _ = _condense(transcript_text(segments, screens), model, lang, check, status,
+                        SINGLE_PASS_CHARS - len(understanding))
+    system = ANALYSIS.format(lang=lang, schema=json.dumps(ANALYSIS_SCHEMA, ensure_ascii=False))
+    user = ("Conteúdo original da aula" + (" (transcrição e o que apareceu na tela)" if screens else " (transcrição)")
+            + ":\n\n" + text + "\n\n---\nCompreensão escrita pelo estudante (o texto original dele; analise, não "
+            "reescreva):\n\n" + understanding)
+    for attempt in (1, 2):
+        status("Comparando sua compreensão com a aula…" + (" (2ª tentativa)" if attempt == 2 else ""), None)
+        raw = _chat(model, system, user, check, lambda n: None, schema=ANALYSIS_SCHEMA, kind="analysis")
+        try:
+            return validate_analysis(json.loads(raw))
+        except (ValueError, AppError):
+            if attempt == 2:
+                raise AppError("A IA devolveu uma análise malformada duas vezes.",
                                "Tente de novo; se persistir, escolha outro modelo em Configurações.") from None
 
 

@@ -27,6 +27,9 @@ class WidgetForm : Form
     bool expanded, dragging;
     float scale = 1;
     int collapsedWidth, collapsedHeight, targetWidth, targetHeight, openHeight;
+    // Tamanho do painel aberto (96 dpi): os controles de gravação ou, maior, “Minha compreensão”.
+    public static readonly Size MainPanel = new Size(304, 252), NotePanel = new Size(360, 440);
+    Size panel = MainPanel;
 
     public WidgetForm(string url, string data, Action<string> command)
     {
@@ -82,6 +85,7 @@ class WidgetForm : Form
             if (msg == "widget:expand") Expand(true);
             else if (msg == "widget:collapse") Expand(false);
             else if (msg == "widget:drag") Drag();
+            else if (msg == "widget:panel:note" || msg == "widget:panel:main") Panel(msg.EndsWith("note") ? NotePanel : MainPanel);
             else command(msg);
         };
         core.NavigationCompleted += (sender, ev) => SendSide();
@@ -121,8 +125,8 @@ class WidgetForm : Form
         Rectangle area = Screen.FromPoint(anchor).WorkingArea;
         Size peek = PeekSize(edge, scale, area);
         collapsedWidth = peek.Width; collapsedHeight = peek.Height;
-        openHeight = Math.Min(area.Height, (int)Math.Round(252 * scale));
-        targetWidth = expanded ? Math.Min(area.Width, (int)Math.Round(304 * scale)) : collapsedWidth;
+        openHeight = Math.Min(area.Height, (int)Math.Round(panel.Height * scale));
+        targetWidth = expanded ? Math.Min(area.Width, (int)Math.Round(panel.Width * scale)) : collapsedWidth;
         targetHeight = expanded ? openHeight : collapsedHeight;
         Size = new Size(targetWidth, targetHeight);
     }
@@ -224,11 +228,25 @@ class WidgetForm : Form
         if (WindowState != FormWindowState.Normal) WindowState = FormWindowState.Normal;
         expanded = value;
         Rectangle area = Screen.FromPoint(anchor).WorkingArea;
-        targetWidth = Math.Min(area.Width, value ? (int)Math.Round(304 * scale) : collapsedWidth);
+        targetWidth = Math.Min(area.Width, value ? (int)Math.Round(panel.Width * scale) : collapsedWidth);
         targetHeight = Math.Min(area.Height, value ? openHeight : collapsedHeight);
         bool animate;
         if (SystemParametersInfo(0x1042, 0, out animate, 0) && !animate) { Size = new Size(targetWidth, targetHeight); Place(); RoundCorners(); return; }
         animation.Start();
+    }
+
+    void Panel(Size size)
+    {
+        if (panel == size) return;
+        panel = size;
+        openHeight = Math.Min(Screen.FromPoint(anchor).WorkingArea.Height, (int)Math.Round(panel.Height * scale));
+        if (expanded) Expand(true);  // cresce (ou volta) para dentro da área útil, a partir da alça
+    }
+
+    // O app está saindo: a nota escrita aqui que ainda não foi salva vai agora.
+    public async Task Flush()
+    {
+        if (web.CoreWebView2 != null) { try { await web.ExecuteScriptAsync("window.Notes && Notes.flushAll()"); } catch (Exception) { } }
     }
 
     void SendSide()

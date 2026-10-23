@@ -7,7 +7,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from . import jobs, record, server, store
+from . import jobs, pomodoro, record, server, store
 
 
 def _edge():
@@ -27,6 +27,7 @@ def main():
     httpd = server.serve(int(os.environ.get("LUMEN_PORT", 0)))
     url = f"http://127.0.0.1:{httpd.server_port}/"
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    pomodoro.start()
     logging.info("Lumen iniciado")
 
     edge = _edge()

@@ -1,3 +1,5 @@
 # Opcional: bibliotecas CUDA 12 da NVIDIA para transcrever na GPU (≈ 1 GB). Sem elas, usa a CPU.
 nvidia-cublas-cu12==12.9.2.10
 nvidia-cudnn-cu12==9.27.0.42
+# O filtro de música separa a voz na GPU com o onnxruntime-directml (≈ 25 MB; qualquer GPU DirectX 12). Ele
+# substitui o onnxruntime de CPU (mesmo módulo): o Iniciar Lumen.bat desinstala um antes de instalar o outro.

@@ -14,7 +14,7 @@ import tests  # noqa: F401  (isola LUMEN_DATA antes do lumen, mesmo sem -t .)
 from lumen import AppError, jobs, llm, server, sources, store, vision
 from tests.fake_notion import Fake
 from tests.test_flow import wait
-from tests.test_llm import GOOD
+from tests.test_llm import GOOD, understood
 from tests.test_notion import flat
 
 
@@ -142,6 +142,7 @@ class Flow(unittest.TestCase):
         self.assertEqual([(s["titulo"], s["manual"]) for s in review["screens"]["items"]],
                          [("Preços do plano", True), ("Função soma", True), ("Foto do quadro", True)])
         self.assertEqual(self.read_calls, [True] * 3)  # leitura própria para capturas escolhidas
+        understood(review["key"])
         jobs.start("process", jobs.finish, self.spec(screens_off=[review["screens"]["items"][2]["id"]]))
         j = wait()
         self.assertEqual(j["status"], "done", j.get("error"))
@@ -168,7 +169,9 @@ class Flow(unittest.TestCase):
 
     def test_retry_after_the_images_were_removed_still_works(self):
         jobs.start("process", jobs.process, self.spec())
-        self.assertEqual(wait()["status"], "done")
+        j = wait()
+        self.assertEqual(j["status"], "done")
+        understood(j["result"]["key"])
         jobs.start("process", jobs.finish, self.spec())
         self.assertEqual(wait()["status"], "done")
         jobs.start("process", jobs.finish, self.spec(mode="replace"))  # “Tentar de novo”: as imagens já foram apagadas
@@ -198,6 +201,9 @@ class Flow(unittest.TestCase):
             self.assertEqual(j["status"], "done", j.get("error"))
             key = j["result"]["key"]
             self.assertIsNone(j["result"]["screens"])
+            with self.assertRaises(AppError):  # antes da compreensão, nada da aula volta para a interface
+                jobs.add_captures(key, self.files[:2])
+            understood(key)
             out = jobs.add_captures(key, self.files[:2])
             self.assertEqual([(s["titulo"], s["manual"]) for s in out["items"]],
                              [("Preços do plano", True), ("Função soma", True)])
@@ -226,6 +232,7 @@ class Flow(unittest.TestCase):
             jobs.add_captures("x", self.files * 5)  # 15 > 12
         jobs.start("process", jobs.process, self.spec())
         key = wait()["result"]["key"]
+        understood(key)
         vision.ready.return_value = False
         with self.assertRaises(AppError) as e:
             jobs.add_captures(key, self.files[:1])

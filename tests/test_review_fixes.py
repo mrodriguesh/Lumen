@@ -11,7 +11,7 @@ from lumen import __main__ as app_main
 from lumen import jobs, llm, server, sources, store
 from tests.fake_notion import Fake
 from tests.test_flow import CAPTIONS, SPEC, wait
-from tests.test_llm import GOOD
+from tests.test_llm import GOOD, understood
 
 
 def _texts(blocks):
@@ -43,6 +43,7 @@ class Review(unittest.TestCase):
         jobs.start("process", jobs.process, spec)
         j = wait()
         self.assertEqual(j["status"], "done", j.get("error"))
+        understood(j["result"]["key"])  # o estudante escreveu a compreensão: dá para salvar no Notion
         return j["result"]["segments"]
 
     def test_retry_reapplies_deletion_to_the_same_segments(self):

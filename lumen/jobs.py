@@ -1,4 +1,5 @@
-"""Uma tarefa por vez: preparar → transcrever → gerar → publicar. Guarda etapas concluídas para retomar."""
+"""Uma tarefa por vez: preparar → transcrever → (o estudante escreve a compreensão) → analisar → gerar → publicar.
+Guarda etapas concluídas para retomar. Nada de IA sobre o conteúdo antes da nota (lumen/understanding.py)."""
 import errno
 import hashlib
 import json
@@ -9,7 +10,8 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from . import AppError, Cancelled, charts, eta, llm, mindmap, notion, sources, store, transcribe, vision
+from . import AppError, Cancelled, charts, eta, llm, mindmap, notion, sources, store, transcribe, understanding, vision
+from . import music as _music  # só rótulos e regras; nenhum modelo é carregado sem o filtro ligado
 
 log = logging.getLogger("lumen")
 _lock = threading.Lock()
@@ -33,6 +35,14 @@ def _set(**kw):
 
 def busy():
     return _job.get("status") == "running"
+
+
+def running_info():
+    """O que a tarefa atual diz sobre si, sem o resultado (que pode trazer a transcrição inteira): para o status."""
+    with _lock:
+        key = _job.get("key") or (_job.get("spec") or {}).get("key")
+        return {"running": _job.get("status") == "running", "kind": _job.get("kind"), "key": key,
+                "detail": _job.get("detail"), "progress": _job.get("progress")}
 
 
 def check():
@@ -147,6 +157,8 @@ def _flags(seg):
         f.append("trecho incerto")
     if seg.get("diverges"):
         f.append("modelos discordam")
+    if seg.get("music"):
+        f.append("música ao fundo")
     if re.search(r"\d", seg["text"]):
         f.append("número")
     if _NAME.search(seg["text"]):
@@ -155,10 +167,13 @@ def _flags(seg):
 
 
 def process(spec):
-    """Fase 1: fonte → transcrição. Termina em “revisão”; nada vai para o Notion ainda."""
+    """Fase 1: fonte → transcrição (preparação técnica, sem IA de texto). Termina esperando a compreensão do
+    estudante; nada vai para o Notion e nenhum material é escrito ainda."""
     cfg, _ = _need_notion()
     _set(stage="prepare", detail="Verificando a fonte…")
     src = _cached_source(spec) or sources.resolve(spec)
+    understanding.start(src["key"], src["title"], src["label"], spec)
+    _set(key=src["key"], title=src["title"])  # a interface já abre “Minha compreensão” enquanto isto continua
     work = work_dir(src["key"])
     work.mkdir(parents=True, exist_ok=True)
     _save(work / "source.json", src)
@@ -185,6 +200,8 @@ def process(spec):
     dur = src.get("duration") or 0
     steps = []
     if not tr and not src.get("captions") and src.get("path"):
+        if cfg["music_filter"]:
+            steps.append(("music", dur * eta.value("music_rtf")))
         steps.append(("transcribe", eta.transcribe_seconds(dur, transcribe.pick(cfg["quality"])[1]["name"])))
     screen_s = _screens_estimate(src, work, cfg)
     if screen_s is not None:
@@ -208,6 +225,8 @@ def process(spec):
             speed = float(requested) if requested in ("1", "2", "4") else None
             estimate, unsure, auto_note, vram_warning = None, False, None, None
             name = m["name"]
+            # Filtro de música (opcional): o ASR recebe um áudio derivado; o arquivo da aula não é tocado
+            asr_path, music = _filter_music(src["path"], work, dur, cfg["music_mode"]) if cfg["music_filter"] else (src["path"], None)
             if eta.current:
                 eta.current.at("transcribe")
             # Automático: mede a fala antes só se a velocidade mudar a transcrição. No large-v3 não muda, e a medida
@@ -215,7 +234,7 @@ def process(spec):
             while True:
                 if speed is None and not transcribe.same_at_2x(name):
                     _set(stage="transcribe", detail="Medindo a velocidade da fala…", progress=None)
-                    estimate = transcribe.speech_rate(src["path"], name, check)
+                    estimate = transcribe.speech_rate(asr_path, name, check)
                     speed, unsure, auto_note = transcribe.suggest_speed(estimate)
                 name, warning = transcribe.for_speed(name, speed or 1.0)
                 transcribe.make_room(name, llm.release_vram)  # antes de decidir trocar de modelo por falta de VRAM
@@ -224,14 +243,26 @@ def process(spec):
                 if speed is not None or transcribe.same_at_2x(name):
                     break
             _set(stage="transcribe", detail=detail, progress=0)
-            tr = transcribe.transcribe(src["path"], name, _progress("transcribe", detail), check, speed=speed or 1.0,
+            tr = transcribe.transcribe(asr_path, name, _progress("transcribe", detail), check, speed=speed or 1.0,
                                        release=llm.release_vram)
+            if music is not None:
+                n = len(tr["segments"])
+                tr["segments"] = _music.mark(tr["segments"], music)
+                log.info("filtro de música: %d trechos do ASR, %d de letra descartados, %d com música ao fundo, "
+                         "%d incertos (asrConfidence baixa)", n, n - len(tr["segments"]),
+                         sum(1 for s in tr["segments"] if s.get("music")),
+                         sum(1 for s in tr["segments"] if s.get("uncertain")))
+                tr["music"] = {k: music.get(k) for k in ("filtered", "music_detected", "removed_s", "separated_s",
+                                                         "doubt_s", "error")}
             if eta.current and dur > 20:
                 eta.learn("transcribe_rtf", eta.current.elapsed() / dur, m["name"])
             if speed is None:
                 estimate = transcribe.rate(tr["segments"])
                 speed, unsure, auto_note = transcribe.suggest_speed(estimate)
             warning = " ".join(w for w in (auto_note, warning, vram_warning) if w) or None
+            if not tr["segments"] and music and music.get("removed_s"):
+                raise AppError("Só foi encontrada música neste arquivo: o filtro de música não achou fala da aula.",
+                               "Se havia fala, desligue “Filtrar música externa” em Ajustes e transcreva de novo.")
             if not tr["segments"]:
                 raise AppError("Não foi detectada fala neste arquivo.", "Confira se o vídeo tem narração audível.")
             tr["model"] = name
@@ -241,7 +272,8 @@ def process(spec):
                 f"Transcrição local ({name}, {'GPU' if tr['device'] == 'cuda' else 'CPU'} {tr.get('compute')}"
                 + (f", fala acelerada {int(speed)}× tratada" if speed > 1 else "")
                 + (", conferida por um segundo modelo" if tr.get("second_opinion") else "")
-                + "); pode conter erros de reconhecimento.")
+                + "); pode conter erros de reconhecimento."
+                + (" Música externa filtrada antes da transcrição." if music and music.get("filtered") else ""))
         else:
             raise AppError("Falta a transcrição deste vídeo.",
                            "Cole a transcrição do YouTube, importe um .srt/.vtt ou escolha uma cópia local autorizada.")
@@ -261,11 +293,73 @@ def process(spec):
         _save(work / "transcript.json", tr)
         _save(work / "transcript_original.json", tr)
     (work / "transcript_review.json").unlink(missing_ok=True)
+    understanding.prepared(src["key"])
+    return _review(src, tr, screens)
+
+
+def _review(src, tr, screens):
+    """O que a revisão mostra. A interface só recebe transcrição e telas depois da nota (understanding.guard)."""
     engine = (f"{tr['model']} na {'GPU (CUDA, ' if tr.get('device') == 'cuda' else 'CPU ('}{tr.get('compute')})"
               if tr.get("model") else None)
     return {"review": True, "key": src["key"], "title": src["title"], "segments": tr["segments"], "engine": engine,
             "speed": tr.get("speed"), "duration": tr.get("duration"), "language": tr.get("language"),
-            "can_retranscribe": bool(src.get("path")), "screens": screens}
+            "can_retranscribe": bool(src.get("path")), "screens": screens, "music": tr.get("music")}
+
+
+def review(key):
+    """A revisão (transcrição e telas) de uma aula já preparada, lida do disco; só depois da compreensão enviada."""
+    understanding.reveal(key)
+    work = work_dir(key)
+    src, tr = _load(work / "source.json"), _load(work / "transcript.json")
+    if not (src and tr):
+        raise AppError("A transcrição desta aula não foi encontrada.", "Escolha a aula de novo para prepará-la.")
+    folder = work / "screens"
+    (work / "transcript_review.json").unlink(missing_ok=True)  # como em process: as edições valem sobre esta versão
+    return _review(src, tr, _summary(folder) if (folder / "index.json").exists() else None)
+
+
+def analyze(key):
+    """“Processar minha compreensão”: a IA compara a nota do estudante com a aula (o conteúdo original + a nota;
+    a nota tem prioridade). A nota não é tocada: a análise é guardada à parte."""
+    understanding.begin_analysis(key)  # já marcada pelo servidor ao receber o pedido; aqui vale para quem chama direto
+    try:
+        rec = understanding.require(key)
+        work = work_dir(key)
+        tr = _load(work / "transcript.json")
+        if not tr:
+            raise AppError("A transcrição desta aula não foi encontrada.", "Escolha a aula de novo para prepará-la.")
+        cfg = store.load_config()
+        model, lang = cfg["ollama_model"], (rec.get("spec") or {}).get("language") or cfg["page_language"]
+        note = rec["current_understanding"]  # a versão enviada: edições posteriores ficam para outra análise
+        lines = vision.screen_lines(vision.select(vision.Shots(work / "screens").items))
+        eta.current = eta.Plan([(k, eta.llm_seconds(model, n, k))
+                                for k, n in llm.calls(tr["segments"], model, lines, "analysis", len(note))])
+        _set(stage="analyze", detail="Lendo sua compreensão…", progress=None)
+        result = llm.analyze(tr["segments"], model, lang, note, check,
+                             lambda d, p: _set(stage="analyze", detail=d, progress=p), screens=lines)
+    finally:
+        understanding.end_analysis()  # qualquer saída (erro, cancelamento) solta a nota; nunca fica travada
+    understanding.save_analysis(key, result, note, model)
+    log.info("compreensão analisada")
+    return {"analysis": True, "key": key}
+
+
+def _filter_music(path, work, dur, mode):
+    """“Filtrar música externa”: (áudio para o ASR, relatório). Qualquer falha cai no áudio original (music.prepare)."""
+    detail = "Filtrando música externa…"
+    _set(stage="transcribe", detail=detail, progress=None)
+    plan = eta.current
+    if plan:
+        plan.at("music")
+
+    def status(p):
+        _set(stage="transcribe", detail=detail, progress=p)
+        if plan:
+            plan.progress(p)
+    asr_path, rep = _music.prepare(path, work, check, status, mode)
+    if plan and dur > 20 and not rep.get("error") and not rep.get("cached"):
+        eta.learn("music_rtf", plan.elapsed() / dur)
+    return asr_path, rep
 
 
 def _make_shots(src, work):
@@ -292,6 +386,7 @@ def add_captures(key, paths):
     work = work_dir(str(key))
     if not (work / "transcript.json").exists():
         raise AppError("Esta aula não está mais na revisão.", "Gere a transcrição de novo.")
+    understanding.reveal(str(key))  # devolve o que as telas mostram: só depois da compreensão
     if busy() or not _adding.acquire(blocking=False):
         raise AppError("Já existe uma tarefa em andamento.", "Aguarde terminar para adicionar capturas.")
     try:
@@ -382,9 +477,11 @@ def _summary(folder, warning=None, watched=True):
 
 
 def finish(spec):
-    """Fase 2: usa exatamente a transcrição revisada → material de estudo → página no Notion."""
+    """Fase 2: compreensão analisada + transcrição revisada → material de estudo → página no Notion, com a
+    subpágina “Minha compreensão”. Sem a nota do estudante (e a análise dela), nada é gerado nem publicado."""
     cfg, token = _need_notion()
     src = _cached_source(spec) or sources.resolve(spec)
+    mine = understanding.require(src["key"], analyzed=True)
     work = work_dir(src["key"])
     tr = _load(work / "transcript.json")
     if not tr:
@@ -407,6 +504,8 @@ def finish(spec):
         _save(work / "transcript.json", tr)
     if not cfg["keep_temp"]:
         _drop_upload(src)  # revisão confirmada: a gravação/cópia não é mais necessária
+        for f in work.glob("music-*.wav"):  # nem o áudio derivado do filtro de música (o original é do usuário)
+            f.unlink(missing_ok=True)
     check()
 
     shots = vision.Shots(work / "screens")  # “Assistir a tela junto”: as telas que o usuário manteve na revisão
@@ -414,20 +513,21 @@ def finish(spec):
     screens = [s for s in vision.select(shots.items) if s["id"] not in off]
     lines, chosen = vision.screen_lines(screens), {s["id"] for s in screens}
     model, lang = cfg["ollama_model"], spec.get("language") or cfg["page_language"]
-    digest = hashlib.sha256(json.dumps([s["text"] for s in tr["segments"]] + [x for _, x in lines],
+    note = mine["current_understanding"]
+    digest = hashlib.sha256(json.dumps([s["text"] for s in tr["segments"]] + [x for _, x in lines] + [note],
                                        ensure_ascii=False).encode()).hexdigest()
     redo = spec.get("mode") == "redo"  # “Refazer página”: material novo, versão anterior removida
     saved = _load(work / "lesson.json")
     cached = saved and not redo and saved.get("model") == model and saved.get("language") == lang \
         and saved.get("transcript") == digest
-    plan = eta.current = eta.Plan(_page_steps(tr, screens, lines, model, cached, saved, spec))
+    plan = eta.current = eta.Plan(_page_steps(tr, screens, lines, model, cached, saved, spec, len(note)))
     if cached:
         lesson, found = saved["lesson"], saved.get("charts")
     else:
-        _set(stage="generate", detail="Escrevendo o material de estudo…", progress=None, eta=None)
+        _set(stage="generate", detail="Escrevendo o material a partir da sua compreensão…", progress=None, eta=None)
         lesson = llm.generate(tr["segments"], tr.get("duration"), model, lang, check,
                               lambda d, p: _set(stage="generate", detail=d, progress=p),
-                              redo=redo, note=spec.get("redo_note") or "", screens=lines)
+                              redo=redo, note=spec.get("redo_note") or "", screens=lines, understanding=note)
         saved, found = {"model": model, "language": lang, "transcript": digest, "lesson": lesson}, None
         _save(work / "lesson.json", saved)
     check()
@@ -450,7 +550,8 @@ def finish(spec):
             "source": f"{src['label']} — {src['title']}", "duration": tr.get("duration"),
             "language": tr.get("language"), "model": model,
             "transcript_origin": tr["origin"] + (f" {edited} trecho(s) corrigido(s) pelo usuário." if edited else ""),
-            "uncertain": sum(1 for s in tr["segments"] if s.get("uncertain") and not s.get("edited"))}
+            "uncertain": sum(1 for s in tr["segments"] if s.get("uncertain") and not s.get("edited")),
+            "understanding": True}
     if mind_png:
         try:
             meta["mind_map_upload"] = notion.upload_image(token, mind_png, "mapa-mental.png")
@@ -480,10 +581,12 @@ def finish(spec):
     title, blocks = notion.build_page(lesson, meta)
     transcript = llm.transcript_text(tr["segments"]).split("\n") if spec.get("include_transcript") else None
     check()
-    requests = _requests(blocks, transcript)
+    sub = notion.understanding_page(mine, title)
+    requests = _requests(blocks, transcript) + len(notion.batches(sub))
     plan.at("publish", requests * eta.value("request_s"))
-    pid, url, block_ids = notion.publish(token, course_id, title, blocks, check, transcript=transcript)
+    pid, url, block_ids = notion.publish(token, course_id, title, blocks, check, transcript=transcript, subpage=sub)
     eta.learn("request_s", plan.elapsed() / requests)
+    mine_url = "https://www.notion.so/" + block_ids[-1].replace("-", "")  # a subpágina é o último bloco publicado
     shown = meta.get("screens") or []
     logging.getLogger("lumen").info("página publicada: %d bloco(s); telas: %d no texto da IA, %d na página "
                                     "(%d sem imagem)", len(block_ids), len(lines), len(shown),
@@ -506,6 +609,7 @@ def finish(spec):
             note = "O material foi salvo no destino escolhido. A versão anterior foi preservada."
     store.remember(src["key"], {"page_id": pid, "block_ids": block_ids, "url": url, "title": title, "course": course,
                                 "created": datetime.now().isoformat(timespec="minutes")})
+    understanding.synced(src["key"], {"url": url, "understanding_url": mine_url, "title": title, "course": course})
     if not cfg["keep_temp"]:
         # Guarda só a transcrição da última aula publicada (para “Refazer página”); a anterior é apagada.
         for mark in store.WORK.glob("*/published"):
@@ -513,7 +617,7 @@ def finish(spec):
                 shutil.rmtree(mark.parent, ignore_errors=True)
         (work / "published").touch()
         shots.prune(chosen)  # só as imagens das telas escolhidas ficam (para “Refazer página”)
-    return {"url": url, "title": title, "course": course, "note": note}
+    return {"url": url, "title": title, "course": course, "note": note, "understanding_url": mine_url}
 
 
 MAX_SCREENS = 40
@@ -526,9 +630,10 @@ def _requests(blocks, transcript):
                                                                  for x in transcript])) if lines else 0)
 
 
-def _page_steps(tr, screens, lines, model, cached, saved, spec):
-    """As etapas de “gerar a página” com a estimativa de cada uma, antes de começar."""
-    steps = [] if cached else [(k, eta.llm_seconds(model, n, k)) for k, n in llm.calls(tr["segments"], model, lines)]
+def _page_steps(tr, screens, lines, model, cached, saved, spec, extra=0):
+    """As etapas de “gerar a página” com a estimativa de cada uma, antes de começar (extra: tamanho da nota)."""
+    steps = [] if cached else [(k, eta.llm_seconds(model, n, k))
+                               for k, n in llm.calls(tr["segments"], model, lines, extra=extra)]
     if not (cached and saved.get("charts") is not None):
         ctx = len(charts.context(charts.units(tr["segments"], screens)))
         steps.append(("charts", eta.llm_seconds(model, ctx + len(charts.SYSTEM) + 700, "charts") if ctx else 0.3))
@@ -589,6 +694,12 @@ def download_whisper(name):
     _set(stage="download", detail="Baixando o modelo de transcrição…")
     transcribe.download(name)
     return {"downloaded": name}
+
+
+def download_music():
+    _set(stage="download", detail=f"Baixando o filtro de música ({_music.SIZE})…")
+    _music.download()
+    return {"downloaded": "music"}
 
 
 def download_covers():

@@ -19,7 +19,7 @@ async function api(path, body) {
   }
   let r;
   try { r = await fetch(path, opt); } catch {
-    throw Object.assign(new Error("O Lumen parou de responder."), { action: "Abra o aplicativo de novo." });
+    throw Object.assign(new Error("O Lumen parou de responder."), { action: "Abra o aplicativo de novo.", offline: true });
   }
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(d.error?.message || "Erro"), { action: d.error?.action || "" });
@@ -73,6 +73,7 @@ async function refresh() {
   $("#formats").textContent = "Formatos testados: " + Object.values(S.formats).join(", ");
   renderChecks();
   renderSettings();
+  renderPending();
   return S;
 }
 
@@ -315,13 +316,25 @@ function renderRec(r) {
     const eye = !sc ? "" : !sc.seen ? (sc.refused ? ` · Sem capturas ainda: ${sc.why}.` : " · Assistindo a tela junto.")
       : ` · ${sc.seen} tela${sc.seen === 1 ? " nova" : "s novas"}`
       + (sc.read ? `, ${sc.kept} com conteúdo da aula.` : " (lidas ao processar).");
+    const mus = !r.music_filter ? "" : r.isolated ? ` · Filtro de música ativo: o som do ${r.isolated} fica fora da gravação.` : " · Filtro de música ativo.";
     $("#rec-hint").textContent = (r.level > 0.005 ? "Gravando o som da aula…"
-      : r.heard ? "Silêncio no momento." : "Nenhum som ainda: dê play na aula (volume ligado).") + eye;
+      : r.heard ? "Silêncio no momento." : "Nenhum som ainda: dê play na aula (volume ligado).") + eye + mus;
+    const paused = !!r.paused, label = paused ? "Retomar captura" : "Pausar captura";
+    recorder.dataset.paused = String(paused);
+    $("#rec-pause-icon").setAttribute("d", paused ? "M8 5.5v13l10.5-6.5Z" : "M9 6v12M15 6v12");
+    $("#rec-pause").setAttribute("aria-label", label);
+    $("#rec-pause").title = `${label} (${Shortcuts.capture.label})`;
+    if (paused) $("#rec-hint").textContent = `Captura pausada há ${mmss(r.paused_for)}: nada do som nem da tela é gravado. O vídeo continua; retome quando quiser.`;
     $("#watch").disabled = true;
   } else if (recorder.dataset.state === "live") {
     setRecState("idle", "Iniciar gravação");
     $("#rec-time").textContent = "00:00";
   }
+  if (!r.active) recorder.dataset.paused = "false";
+  // O app fechou no meio de uma gravação (ou saiu guardando): ela é oferecida, nunca usada nem apagada sozinha.
+  const lost = !r.active && r.recovered && recorder.dataset.state === "idle" ? r.recovered : null;
+  $("#rec-recover").hidden = !lost;
+  if (lost) $("#rec-recover-text").textContent = `Encontrei uma gravação que não terminou (${mmss(lost.seconds)}).`;
   if (!r.active) $("#watch").disabled = false;
   if (r.error) $("#rec-hint").textContent = r.error;
   updateGo();
@@ -351,6 +364,7 @@ async function stopRec() {
 }
 async function useRecording(r, secs) {
   showView(false);
+  if (step === "understand" || step === "analysis") { if (U) await Notes.flush(U.key); backToCompose(); }  // nova gravação parada na barra
   picked.recording = null; found = null;
   $("#tab-recording").click();
   picked.recording = r;
@@ -372,6 +386,27 @@ $("#rec-discard").addEventListener("click", async () => {
     $("#rec-hint").textContent = "Gravação descartada.";
   } catch (e) { fail(e); }
 });
+// Pausar captura: a mesma gravação continua depois; nada do intervalo entra na aula (nem como silêncio).
+async function toggleRecPause() {
+  if (!S.recording?.active || toggleRecPause.busy) return;
+  toggleRecPause.busy = true;
+  try { renderRec(await api(S.recording.paused ? "/api/record/resume" : "/api/record/pause", {})); }
+  catch (e) { fail(e); }
+  finally { toggleRecPause.busy = false; }
+}
+$("#rec-pause").addEventListener("click", toggleRecPause);
+document.addEventListener("keydown", (e) => { if (Shortcuts.capture.test(e) && S.recording?.active) { e.preventDefault(); toggleRecPause(); } });
+$("#rec-recover-use").addEventListener("click", async () => {
+  const secs = S.recording?.recovered?.seconds || 0;
+  try { const r = await api("/api/record/recover", { use: true }); $("#rec-recover").hidden = true; await useRecording(r, secs); }
+  catch (e) { fail(e); renderRec(await api("/api/record")); }
+});
+$("#rec-recover-drop").addEventListener("click", async () => {
+  if (!confirm("Descartar a gravação que não terminou?")) return;
+  try { renderRec(await api("/api/record/recover", { use: false })); toast("Gravação descartada."); } catch (e) { fail(e); }
+});
+Pomodoro.mount($("#u-pomo"), { sheet: true });
+Pomodoro.watch();
 $("#lesson-link").addEventListener("change", () => currentSpec() && inspect());
 
 // ---------- cursos ----------
@@ -752,9 +787,10 @@ function updateGo() {
   const local = found?.has_captions || found?.resumable ? "Material escrito pela IA local (Ollama)."
     : "Transcrição (Whisper) e material (Ollama) feitos no seu PC.";
   const watching = S?.config.watch_screen && !$("#watch-row").hidden;
+  rows.push(["Antes da IA", "Você escreve o que entendeu. Só depois a IA analisa a sua nota e complementa."]);
   rows.push(["No seu PC", local + (watching ? " A tela é lida por IA local." : "") + " O vídeo e o áudio não são enviados."]);
-  rows.push(["Enviado ao Notion", "Somente o texto da página gerada (título, resumo, tópicos, perguntas)"
-    + (watching ? " e as imagens das telas que você mantiver na revisão." : ".")]);
+  rows.push(["Enviado ao Notion", "A página da aula e a subpágina “Minha compreensão” (sua nota e a análise)"
+    + (watching ? ", com as imagens das telas que você mantiver." : ".")]);
   $("#summary").replaceChildren(...rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
 
   let why = "";
@@ -803,15 +839,20 @@ let lastUrl = "/api/start";
 async function start(spec, url = "/api/start") {
   lastUrl = url;
   try { await api(url, spec); } catch (e) { return fail(e); }
-  $("#compose").hidden = true; $("#review").hidden = true; $("#run").hidden = false; $("#redo").hidden = true;
+  showStep("run"); $("#redo").hidden = true; prepKey = null;
+  $("#run-h").textContent = url === "/api/start" ? "Preparando a aula" : "Criando a página no Notion";
   $("#result").replaceChildren(); $("#result").className = "result";
   $("#run-h").focus();
   poll();
 }
 
 const ORDER = ["prepare", "transcribe", "screen", "generate", "publish"];
+let lastJob = null;
 function renderJob(j) {
+  lastJob = j;
   if (j.kind === "download") return renderDownload(j);
+  if (j.kind === "analyze") return renderAnalyzing(j);
+  if (j.kind === "process" && lastUrl === "/api/start" && j.key && followPrep(j)) return;
   const cur = ORDER.indexOf(j.stage);
   for (const li of $$("#stages li")) {
     const i = ORDER.indexOf(li.dataset.stage);
@@ -838,14 +879,17 @@ function renderJob(j) {
   const back = el("button", { class: "btn", type: "button", onclick: backToCompose }, "Nova aula");
   if (j.status === "running") {
     act.replaceChildren(el("button", { class: "btn", type: "button", onclick: cancelJob }, "Cancelar"));
-  } else if (j.status === "done" && j.result.review) {
-    return showReview(j.result);
+  } else if (j.status === "done" && j.result.review) {  // aula preparada: agora é a vez do estudante
+    if (step === "run") return openUnderstanding(j.result.key).catch(fail);
+    return refresh().catch(() => {});  // saiu para “Escrever depois”: a aula aparece em Continuar aprendendo
   } else if (j.status === "done") {
     res.className = "result ok";
-    res.replaceChildren(el("strong", {}, "Material salvo na página escolhida"), el("span", {}, `“${j.result.title}” em ${j.result.course}.`));
+    res.replaceChildren(el("strong", {}, "Página criada no Notion"),
+      el("span", {}, `“${j.result.title}” em ${j.result.course}, com a subpágina “Minha compreensão”: sua nota original e a análise.`));
     if (j.result.note) res.append(el("span", {}, j.result.note));
-    act.replaceChildren(el("a", { class: "btn primary", href: j.result.url, target: "_blank", rel: "noopener" }, "Abrir no Notion"),
-      lastSpec ? el("button", { class: "btn", type: "button", onclick: openRedo }, "Refazer página") : null, back);
+    act.replaceChildren(...[el("a", { class: "btn primary", href: j.result.url, target: "_blank", rel: "noopener" }, "Abrir no Notion"),
+      j.result.understanding_url && el("a", { class: "btn", href: j.result.understanding_url, target: "_blank", rel: "noopener" }, "Abrir minha compreensão"),
+      lastSpec && el("button", { class: "btn", type: "button", onclick: openRedo }, "Refazer página"), back].filter(Boolean));
     act.querySelector("a").focus();
   } else if (j.status === "error") {
     res.className = "result err";
@@ -876,6 +920,266 @@ async function cancelJob() {
   try { await api("/api/cancel", {}); } catch (e) { fail(e); }
 }
 
+// ---------- telas do fluxo: fonte → minha compreensão → análise + salvar no Notion ----------
+const STEPS = ["compose", "understand", "analysis", "run", "review"];
+let step = "compose";
+function showStep(...names) {  // a primeira é a principal; a análise e “Salvar no Notion” aparecem juntas
+  if (step !== names[0]) $("#content").scrollTop = 0;
+  step = names[0];
+  for (const s of STEPS) $("#" + s).hidden = !names.includes(s);
+  $("#view-new").dataset.step = step;  // o CSS esconde o título da fonte e “Antes de começar” fora da escolha
+}
+// ---------- Minha compreensão (a IA só trabalha depois desta nota) ----------
+// Texto, autosave e sincronização entre janelas são do componente compartilhado (understanding-editor.js): este
+// editor, o da barra lateral e o da janela flutuante são o mesmo documento. A regra de verdade está no servidor.
+const noteProblem = Notes.problem;
+const day = (iso) => iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) : "";
+const WRITING = ["studying", "waiting_for_understanding", "understanding_written"];
+
+let U = null;  // a compreensão aberta (GET /api/understanding): estado e análise; nunca a transcrição
+let prepKey = null;
+const uEditor = new UnderstandingEditor({ text: $("#u-text"), save: $("#u-save"), count: $("#u-count"), grow: true,
+  onChange: (d) => {
+    if (U?.key !== d.key) return;
+    const was = U.state;
+    if (d.view && U.state !== "processing_with_ai") U.state = d.view.state;  // escrita ↔ pronta, vindo do autosave
+    if (d.view?.state === "processing_with_ai") U.state = d.view.state;       // enviada por outra janela
+    if (step === "understand") {
+      if (was !== U.state) { $("#understand").dataset.state = U.state; renderUStatus(); }
+      noteState();
+    }
+  } });
+// Enviada ou analisada em outra janela (barra lateral, flutuante): esta acompanha a tarefa até o fim.
+Notes.on("state", (key) => { if (U?.key === key && !polling) poll(); });
+const mineEditor = new UnderstandingEditor({ text: $("#mine-text"), save: $("#mine-save"), grow: true,
+  onChange: (d) => { if (U?.key === d.key && step === "analysis") mineChanged(); } });
+
+async function openUnderstanding(key, { resume = false } = {}) {
+  const { doc, recovered } = await Notes.load(key);
+  if (resume || !lastSpec) lastSpec = doc.view.spec;
+  U = { ...doc.view };
+  Notes.setActive(key);  // a barra lateral acompanha a aula aberta aqui
+  if (recovered) toast("Recuperamos o texto que você tinha escrito.");
+  renderUnderstanding();
+  // na última vez a nota estava destacada: volta a abrir a janela flutuante (preferência lembrada neste PC)
+  if (Notes.pref("Mode") === "floating" && Notes.pref("Key") === key && WRITING.includes(U.state) && !Notes.floating(key))
+    detach(key);
+}
+
+function renderUnderstanding() {
+  if (["completed", "synced_to_notion"].includes(U.state)) return renderAnalysis();
+  const first = step !== "understand";
+  showStep("understand");
+  $("#understand").dataset.state = U.state;
+  $("#u-lesson").textContent = [U.label, U.title].filter(Boolean).join(" · ");
+  const t = $("#u-text");
+  uEditor.bind(U.key);
+  uEditor.lock(U.state === "processing_with_ai");
+  if (first && t.value && !$("#u-save").textContent) { $("#u-save").textContent = "Rascunho salvo"; $("#u-save").dataset.s = "saved"; }
+  noteState();
+  renderUStatus();
+  renderFloat();
+  if (first && !t.readOnly) { t.focus({ preventScroll: true }); t.setSelectionRange(t.value.length, t.value.length); }
+}
+function noteState() {  // a regra de “posso processar?” é uma só (Notes.ready), a mesma da barra e da janela flutuante
+  const r = Notes.ready(U.key), busy = U.state === "processing_with_ai" || r.phase === "processing";
+  $("#u-go").hidden = busy;
+  $("#u-go").disabled = !r.can;
+  $("#u-go").textContent = r.action || "Processar minha compreensão";
+  $("#u-later").textContent = busy ? "Voltar ao início" : "Escrever depois";
+  const hint = $("#u-hint");
+  hint.dataset.tone = busy ? "" : r.tone;
+  const end = (t) => (/[.…?!]$/.test(t) ? t : t + ".");
+  hint.textContent = busy ? "" : [r.label, r.detail || (r.phase === "ready" || r.phase === "completed" ? "A IA só lê a sua nota quando você pedir" : "")]
+    .filter(Boolean).map(end).join(" ");
+}
+function renderUStatus(j = lastJob) {  // o que acontece por trás do papel: a preparação da aula ou a IA lendo a nota
+  const box = $("#u-status");
+  const mine = j && (j.key || j.spec?.key) === U?.key, running = mine && j.status === "running";
+  if (U.state === "processing_with_ai" || (running && j.kind === "analyze")) {
+    box.hidden = false;
+    const parts = running && /partes/.test(j.detail || "") ? j.detail : "";  // aula longa: “Lendo a aula por partes (1 de 3)…”
+    return box.replaceChildren(...[el("span", { class: "u-pulse", "aria-hidden": "true" }),
+      el("strong", {}, "Analisando sua compreensão…"), parts && el("span", {}, parts),
+      running && Number.isFinite(j.eta_total) && el("span", {}, etaText(j.eta_total, "Análise pronta"))].filter(Boolean));
+  }
+  box.hidden = U.state !== "studying";
+  if (box.hidden) return;
+  const again = el("button", { class: "btn small-btn", type: "button", onclick: () => prepare(U.spec) }, "Preparar de novo");
+  if (running) {
+    const bar = el("span", { class: "u-mini", "aria-hidden": "true" }, el("span"));
+    bar.firstChild.style.width = Math.round((j.progress || 0) * 100) + "%";
+    box.replaceChildren(...[el("span", { class: "u-pulse", "aria-hidden": "true" }),
+      el("span", {}, "Preparando a aula em segundo plano" + (j.detail ? " · " + j.detail : "")),
+      Number.isFinite(j.progress) && bar].filter(Boolean));
+  } else if (mine && j.status === "error") box.replaceChildren(el("strong", {}, j.error.message), el("span", {}, j.error.action), again);
+  else box.replaceChildren(el("span", {}, "A preparação desta aula não terminou."), again);
+}
+async function prepare(spec) {  // prepara de novo sem sair do editor
+  lastUrl = "/api/start"; lastSpec = spec;
+  try { await api("/api/start", spec); } catch (e) { return fail(e); }
+  poll();
+}
+// Preparação em andamento: assim que a aula tem nome, o editor abre e ela segue em segundo plano.
+function followPrep(j) {
+  if (step === "understand" && U?.key === j.key) {
+    if (j.status === "done") openUnderstanding(j.key).catch(fail);
+    else renderUStatus(j);
+    return true;
+  }
+  if (step === "run" && j.status === "running" && prepKey !== j.key) {
+    prepKey = j.key;
+    api("/api/understanding?key=" + encodeURIComponent(j.key)).then((r) => {
+      // aula já analisada (ex.: “Transcrever de novo”): segue no cartão de progresso até ficar pronta
+      if (step === "run" && !["completed", "synced_to_notion"].includes(r.state)) return openUnderstanding(j.key);
+    }).catch(() => {});
+  }
+  return false;
+}
+
+$("#u-text").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !$("#u-go").disabled) { e.preventDefault(); $("#u-go").click(); }
+});
+$("#u-go").addEventListener("click", () => submitNote());
+$("#u-later").addEventListener("click", async () => { await Notes.flush(U.key); backToCompose(); });
+async function submitNote() {
+  // Notes.process grava a versão mais recente, confere os pré-requisitos e envia exatamente essa versão; o servidor
+  // confere tudo de novo e trava a nota para edição até a análise terminar.
+  try { await Notes.process(U.key); } catch (e) { return fail(e); }
+  U.state = "processing_with_ai";
+  lastJob = null;
+  renderUnderstanding();
+  poll();
+}
+function renderAnalyzing(j) {
+  const key = j.spec?.key;
+  if (j.status === "running") {
+    if (U?.key === key && step === "understand") {
+      U.state = "processing_with_ai"; $("#understand").dataset.state = U.state; uEditor.lock(true);
+      noteState(); renderUStatus(j);
+    }
+    return;
+  }
+  if (U?.key !== key || !["understand", "analysis"].includes(step)) return refresh().catch(() => {});
+  if (j.status === "done") return openUnderstanding(key).then(() => toast("Análise concluída.")).catch(fail);
+  openUnderstanding(key).catch(() => {});  // erro ou cancelado: a nota continua guardada e o botão volta
+  if (j.status === "error") fail(Object.assign(new Error(j.error.message), { action: j.error.action }));
+}
+
+// ---------- análise: a nota (intacta) e, à parte, o que a IA observou ----------
+const SECTIONS = [["acertos", "O que eu compreendi corretamente"], ["parciais", "O que entendi em parte"],
+  ["lacunas", "O que faltou"], ["confusoes", "Possíveis confusões"], ["complementos", "Complementos importantes"],
+  ["conexoes", "Conexões"], ["perguntas", "Perguntas para aprofundar"]];
+async function renderAnalysis() {
+  const a = U.analysis, synced = U.state === "synced_to_notion";
+  $("#a-lesson").textContent = [U.label, U.title].filter(Boolean).join(" · ");
+  $("#a-title").textContent = synced ? "Salvo no Notion" : "Análise concluída";
+  $("#a-sub").textContent = synced ? "A página da aula e a subpágina “Minha compreensão” estão no seu Notion."
+    : "A IA comparou sua nota com a aula. Sua compreensão original continua exatamente como você escreveu.";
+  mineEditor.bind(U.key);
+  mineEditor.lock(true);
+  $("#mine-edit").textContent = "Editar"; $("#mine-edit").hidden = synced; $("#mine-foot").hidden = true;
+  $("#mine-when").textContent = U.submitted ? "em " + day(U.submitted) : "";
+  mineChanged();
+  const of = (U.analyzed_text || "").trim() === (U.original || "").trim() ? "" : " · da sua versão atual";
+  $("#ai").replaceChildren(el("p", { class: "ai-label" }, "Análise da IA local" + (U.model ? " · " + U.model : "") + of),
+    ...SECTIONS.filter(([k]) => a[k]?.length).map(([k, title], i) => {
+      const sec = el("section", { class: "ai-sec " + k }, el("h3", {}, title),
+        k === "confusoes" ? el("div", {}, ...a[k].map((c) => el("div", { class: "conf" }, el("q", {}, c.trecho),
+          el("p", {}, el("b", {}, "Na aula: "), c.correcao))))
+          : el(k === "perguntas" ? "ol" : "ul", {}, ...a[k].map((x) => el("li", {}, x))));
+      sec.style.animationDelay = `${i * 70}ms`;
+      return sec;
+    }));
+  const fk = U.final_knowledge;
+  $("#a-actions").replaceChildren(...(synced ? [
+    el("a", { class: "btn primary", href: fk.url, target: "_blank", rel: "noopener" }, "Abrir no Notion"),
+    fk.understanding_url && el("a", { class: "btn", href: fk.understanding_url, target: "_blank", rel: "noopener" }, "Abrir minha compreensão"),
+    el("button", { class: "btn", type: "button", onclick: backToCompose }, "Nova aula")].filter(Boolean) : []));
+  $("#a-actions").hidden = !synced;
+  if (synced) showStep("analysis");
+  else {
+    let r;
+    try { r = await api("/api/review?key=" + encodeURIComponent(U.key)); } catch (e) { showStep("analysis"); return fail(e); }
+    showReview(r);
+  }
+  requestAnimationFrame(() => mineEditor.grow());
+  $("#a-title").focus({ preventScroll: true });
+}
+function mineChanged() {  // editada depois da análise: a original aparece à parte e dá para analisar de novo
+  const text = $("#mine-text").value, changed = (U.original || "").trim() !== text.trim();
+  $("#mine-label").textContent = changed ? "Sua versão atual" : "Você escreveu";
+  $("#mine-original").hidden = !changed;
+  $("#mine-original-text").textContent = U.original || "";
+  $("#mine-again").hidden = text.trim() === (U.analyzed_text || "").trim() || !!noteProblem(text);
+}
+$("#mine-edit").addEventListener("click", async () => {
+  const editing = mineEditor.locked;
+  mineEditor.lock(!editing);
+  $("#mine-edit").textContent = editing ? "Concluir" : "Editar";
+  $("#mine-foot").hidden = false;
+  if (editing) { $("#mine-save").textContent = "A versão original fica guardada à parte."; $("#mine-text").focus(); }
+  else await Notes.flush(U.key);
+});
+$("#mine-again").addEventListener("click", async () => { await Notes.flush(U.key); submitNote(); });
+
+// ---------- destacar a nota: janela flutuante, sempre por cima do vídeo da aula ----------
+// No Lumen.exe é uma janela nativa (launcher/NoteForm.cs); no navegador comum, um popup. É o mesmo documento: o que
+// se escreve lá aparece aqui na hora, e vice-versa.
+async function detach(key) {
+  await Notes.flush(key);
+  Notes.setPref("Mode", "floating"); Notes.setPref("Key", key);
+  if (host) return host.postMessage("note:float:" + key);
+  const size = Notes.pref("Size") || { w: 420, h: 520 }, pos = Notes.pref("Position");
+  const w = Math.min(Math.max(size.w, 320), screen.availWidth), h = Math.min(Math.max(size.h, 260), screen.availHeight);
+  const x = Math.min(Math.max(pos ? pos.x : screen.availWidth - w - 24, 0), screen.availWidth - w);
+  const y = Math.min(Math.max(pos ? pos.y : screen.availHeight - h - 24, 0), screen.availHeight - h);
+  if (!window.open("/note?key=" + encodeURIComponent(key), "lumen-note", `popup,width=${w},height=${h},left=${x},top=${y}`))
+    toast("O navegador bloqueou a janela flutuante. Permita pop-ups para o Lumen.", true);
+}
+function attach(key) {  // “Trazer de volta”: a janela flutuante salva e fecha; aqui o texto já é o mesmo
+  Notes.setPref("Mode", "docked");
+  Notes.requestClose(key);
+}
+function renderFloat() {
+  const on = !!U && Notes.floating(U.key);
+  $("#u-float").hidden = !on || step !== "understand";
+  $("#u-detach").setAttribute("aria-pressed", String(on));
+  const label = on ? "Trazer de volta para cá" : "Destacar numa janela flutuante";
+  $("#u-detach").setAttribute("aria-label", label);
+  $("#u-detach").title = `${label} (${Notes.shortcutLabel})`;
+}
+Notes.on("panel", renderFloat);
+Notes.on("dock", (key) => {  // “Voltar para o Lumen” na janela flutuante: o editor volta para esta tela
+  Notes.setPref("Mode", "docked");
+  showView(false);
+  if (step === "understand" && U?.key === key) renderFloat();
+  else openUnderstanding(key, { resume: U?.key !== key }).catch(fail);
+});
+$("#u-detach").addEventListener("click", () => (Notes.floating(U.key) ? attach : detach)(U.key));
+$("#u-float-back").addEventListener("click", () => attach(U.key));
+document.addEventListener("keydown", (e) => {
+  if (Notes.isShortcut(e) && step === "understand" && U) { e.preventDefault(); $("#u-detach").click(); }
+});
+
+// ---------- Continuar aprendendo: aulas que esperam a compreensão (ou só salvar no Notion) ----------
+const PENDING = { studying: "Preparação não terminou", waiting_for_understanding: "Aguardando compreensão",
+  understanding_written: "Compreensão escrita · falta processar", processing_with_ai: "Analisando sua compreensão…",
+  completed: "Análise pronta · falta salvar no Notion" };
+function renderPending() {
+  const items = S?.pending || [];
+  $("#pending").hidden = !items.length;
+  $("#pending-list").replaceChildren(...items.map((p) => {
+    const prepping = p.state === "studying" && S.job?.status === "running" && S.job.key === p.key;
+    return el("div", { class: "lib-row", role: "listitem" },
+      el("span", { class: "pend-dot " + p.state, "aria-hidden": "true" }),
+      el("span", { class: "lib-text" }, el("span", { class: "lib-title" }, p.title || "Aula"),
+        el("span", { class: "lib-meta" }, [prepping ? "Preparando…" : PENDING[p.state], p.label, day(p.updated)].filter(Boolean).join(" · "))),
+      el("button", { class: "btn", type: "button", onclick: () => openUnderstanding(p.key, { resume: true }).catch(fail) },
+        p.state === "completed" ? "Ver análise" : "Continuar"));
+  }));
+}
+
 // ---------- revisão da transcrição ----------
 let review = null, edits = {}, shotsOff = new Set();
 function renderShots(r, keepOff = false) {
@@ -899,12 +1203,21 @@ function renderShots(r, keepOff = false) {
     return card;
   }));
 }
-function showReview(r) {
+function musicNote(m) {  // “Filtrar música externa”: uma linha discreta na revisão, nunca um aviso que interrompe
+  if (!m) return "";
+  if (m.error) return ` Filtro de música não aplicado (${m.error}): foi transcrito o áudio original.`;
+  if (!m.filtered) return " Filtro de música ativo: nenhuma música externa detectada.";
+  const min = (s) => s >= 90 ? `${Math.round(s / 60)} min` : `${Math.round(s)} s`;
+  return " Música externa detectada e filtrada" + (m.removed_s ? ` (${min(m.removed_s)} só de música ficaram fora)` : "")
+    + "." + (m.doubt_s ? ` Trechos com voz e música juntas estão marcados como “música ao fundo”.` : "");
+}
+function showReview(r) {  // “Salvar no Notion”, abaixo da análise (só existe depois da compreensão)
   review = r; edits = {};
   renderShots(r);
   $("#review-link-row").hidden = lastSpec?.kind === "youtube";
   $("#review-link").value = lastSpec?.link || "";
-  $("#run").hidden = true; $("#review").hidden = false; dockDest($("#review-dest"));
+  showStep("analysis", "review"); dockDest($("#review-dest"));
+  $("#review-more").open = false;
   const flagged = r.segments.filter((s) => s.flags && s.flags.length).length;
   const sp = r.speed;
   const how = !sp ? "transcrição importada"
@@ -913,10 +1226,10 @@ function showReview(r) {
     : "velocidade escolhida por você";
   $("#review-info").textContent = `${r.segments.length} trechos · ${flagged} marcados para revisão · ${how}.`
     + (sp && sp.warning ? " " + sp.warning : "")
-    + (r.engine ? ` Transcrito com ${r.engine}.` : "");
+    + (r.engine ? ` Transcrito com ${r.engine}.` : "") + musicNote(r.music);
   $("#speed-row").hidden = !r.can_retranscribe;
   const caps = lastSpec?.kind === "captures";  // revisão de capturas: o que vale são as telas, não os trechos
-  $("#review-title").textContent = caps ? "Revise as capturas" : "Revise a transcrição";
+  $("#review-title").firstChild.textContent = caps ? "Revisar as capturas " : "Revisar a transcrição e as telas ";
   if (caps) $("#review-info").textContent = `${r.screens?.items?.length || 0} capturas lidas pelo Lumen no seu PC. Confira abaixo e desmarque o que não deve ir para a página.`;
   $("#segments").hidden = caps; $("#only-flagged").closest("label, .switch-row, div")?.toggleAttribute("hidden", caps);
   for (const i of $$("input[name=rspeed]")) i.checked = sp && String(sp.used) === i.value;
@@ -937,7 +1250,6 @@ function showReview(r) {
       el("span", { class: "seg-time" }, s.start != null ? mmss(s.start) : "—"), body);
     return row;
   }));
-  $("#review-title").focus();
 }
 $("#only-flagged").addEventListener("change", (e) => $("#segments").classList.toggle("only-flagged", e.target.checked));
 $("#review-speed").addEventListener("change", (e) => { $("#retranscribe").disabled = !review || String(review.speed?.used) === e.target.value; });
@@ -949,6 +1261,9 @@ $("#retranscribe").addEventListener("click", () => {
   lastSpec = { ...lastSpec, retranscribe: false };
 });
 $("#review-go").addEventListener("click", () => {
+  if (!U || U.key !== review.key || !["completed", "synced_to_notion"].includes(U.state)) {  // o servidor confere de novo
+    $("#review-hint").textContent = "Escreva e processe sua compreensão antes de salvar no Notion."; return;
+  }
   const changed = Object.fromEntries(Object.entries(edits).filter(([i, t]) => t.trim() !== review.segments[i].text));
   const dest = chosenDest();
   if (!dest) { $("#review-hint").textContent = "Escolha onde salvar (ou termine de criar a página nova)."; return; }
@@ -964,11 +1279,13 @@ $("#review-go").addEventListener("click", () => {
   if (lastSpec.kind === "recording" && !S.config.keep_temp) picked.recording = null;
   start(lastSpec, "/api/finish");
 });
-$("#review-cancel").addEventListener("click", () => { $("#review").hidden = true; backToCompose(); });
+$("#review-cancel").addEventListener("click", async () => { if (U) await Notes.flush(U.key); backToCompose(); });
 
 function backToCompose() {
-  $("#run").hidden = true; $("#review").hidden = true; $("#compose").hidden = false; $("#redo").hidden = true;
+  showStep("compose"); $("#redo").hidden = true;
   dockDest(null);
+  $("#pending").hidden = true;  // sem mostrar estados antigos: a lista volta quando chegar a atualização
+  refresh().catch(() => {});
   found = null; renderSource(); renderCaps();
   if (currentSpec()) inspect();
   else if (kind === "recording" && recorder.dataset.state === "done") {  // a gravação já virou aula
@@ -1035,6 +1352,15 @@ function renderSettings() {
   $("#covers-dl").textContent = `Baixar ${S.covers.label} (${S.covers.size})`;
   $("#lang").value = $("#lang").dataset.touched ? $("#lang").value : S.config.page_language;
   renderWatch();
+  const mu = S.music;
+  $("#music-set").checked = S.config.music_filter;
+  $("#music-mode").hidden = !S.config.music_filter;
+  for (const r of $("#music-mode").querySelectorAll("input")) r.checked = r.value === S.config.music_mode;
+  $("#music-status").textContent = !S.config.music_filter ? "Desligado: a transcrição usa o áudio como ele é."
+    : !mu.ready ? `Falta baixar o filtro (${mu.size}). Sem ele, a transcrição segue sem filtrar.`
+    : "Ativo. Na gravação, o som de apps de música (Spotify, Deezer…) fica de fora. Música que ainda chegar é detectada e separada da fala no seu PC antes da transcrição. O vídeo e o arquivo originais não são alterados.";
+  $("#music-dl").hidden = !S.config.music_filter || mu.ready;
+  $("#music-dl").textContent = `Baixar filtro de música (${mu.size})`;
 }
 
 function renderWatch() {  // “Assistir a tela junto”: chave no cartão da fonte e nos Ajustes
@@ -1105,25 +1431,30 @@ $("#lang").addEventListener("change", (e) => { e.target.dataset.touched = "1"; }
 $("#whisper-dl").addEventListener("click", () => download({ what: "whisper", quality: S.whisper.active }));
 $("#ollama-dl").addEventListener("click", () => download({ what: "ollama" }));
 $("#covers-dl").addEventListener("click", () => download({ what: "covers" }));
+$("#music-set").addEventListener("change", (e) => saveSettings({ music_filter: e.target.checked },
+  e.target.checked ? "Filtro de música ativo." : "Filtro de música desligado."));
+$("#music-mode").addEventListener("change", (e) => saveSettings({ music_mode: e.target.value }));
+$("#music-dl").addEventListener("click", () => download({ what: "music" }));
 async function download(body) {
   try { await api("/api/download", body); poll(); } catch (e) { fail(e); }
 }
 function renderDownload(j) {
   const target = (j.detail || "").includes("capas") ? $("#covers-status")
+    : (j.detail || "").includes("filtro de música") ? $("#music-status")
     : S && (j.detail || "").includes(S.vision.model) ? $("#vision-status")
     : $("#ollama-dl").hidden ? $("#whisper-status") : $("#ollama-status");
   if (target.id === "vision-status" && j.status === "running") $("#watch-status").textContent = j.detail + (j.progress ? ` ${Math.round(j.progress * 100)}%` : "");
   if (j.status === "running") target.textContent = j.detail + (j.progress ? ` ${Math.round(j.progress * 100)}%` : "");
   else if (j.status === "done") toast("Download concluído.");
   else if (j.status === "error") fail(Object.assign(new Error(j.error.message), { action: j.error.action }));
-  for (const b of [$("#whisper-dl"), $("#ollama-dl"), $("#covers-dl"), $("#vision-dl"), $("#vision-dl-set")]) b.disabled = j.status === "running";
+  for (const b of [$("#whisper-dl"), $("#ollama-dl"), $("#covers-dl"), $("#vision-dl"), $("#vision-dl-set"), $("#music-dl")]) b.disabled = j.status === "running";
 }
 $("#clear").addEventListener("click", async () => {
-  if (!confirm("Apagar o histórico de aulas, transcrições guardadas e arquivos temporários deste PC? As páginas no Notion não são afetadas.")) return;
+  if (!confirm("Apagar o histórico de aulas, transcrições guardadas, suas notas de compreensão guardadas neste PC (inclusive as que ainda não foram para o Notion) e arquivos temporários? As páginas no Notion não são afetadas.")) return;
   try { S = await api("/api/clear", {}); toast("Dados locais apagados."); } catch (e) { fail(e); }
 });
 $("#forget").addEventListener("click", async () => {
-  if (!confirm("Desconectar o Notion? O token será removido do cofre do Windows e o histórico local será apagado.")) return;
+  if (!confirm("Desconectar o Notion? O token será removido do cofre do Windows e o histórico local (com as notas de compreensão guardadas neste PC) será apagado.")) return;
   try { localStorage.removeItem("lumen.pages"); } catch {}
   try { S = await api("/api/clear", { forget_token: true }); $("#root").replaceChildren(); renderSettings(); renderChecks(); toast("Notion desconectado."); } catch (e) { fail(e); }
 });
@@ -1201,16 +1532,26 @@ if (!host) window.addEventListener("pagehide", () => navigator.sendBeacon("/api/
   try {
     await refresh();
     desktopPrefs();
+    renderRec(S.recording);  // antes dos cursos (que falham sem o Notion): gravação, pausa e gravação a recuperar
+    if (S.recording.active) watchRec();
     await loadCourses();
-    if (S.recording.active) { renderRec(S.recording); watchRec(); }
-    if (S.job.status === "done" && S.job.result && S.job.result.review) {  // janela reaberta no meio da revisão
-      lastSpec = S.job.spec; $("#compose").hidden = true; showReview(S.job.result);
+    const key = S.job.result?.key || S.job.spec?.key;
+    if (S.job.status === "done" && (S.job.result?.review || S.job.result?.analysis)) {  // janela reaberta no meio
+      lastSpec = S.job.kind === "process" ? S.job.spec : null;
+      await openUnderstanding(key, { resume: !lastSpec }).catch(fail);
       if (lastSpec?.course_id) renderCourses(lastSpec.course_id);
     }
     if (S.job.status === "running") {
-      if (S.job.spec) lastSpec = S.job.spec;
-      if (lastSpec?.course_id) renderCourses(lastSpec.course_id);
-      if (S.job.kind === "process") { $("#compose").hidden = true; $("#run").hidden = false; }
+      if (S.job.kind === "analyze") await openUnderstanding(key, { resume: true }).catch(fail);
+      else {
+        if (S.job.spec) lastSpec = S.job.spec;
+        if (lastSpec?.course_id) renderCourses(lastSpec.course_id);
+        if (S.job.kind === "process") {  // a preparação já tem a chave da aula; a publicação não
+          lastUrl = S.job.key ? "/api/start" : "/api/finish";
+          $("#run-h").textContent = S.job.key ? "Preparando a aula" : "Criando a página no Notion";
+          showStep("run");
+        }
+      }
       poll();
     }
   } catch (e) { fail(e); }

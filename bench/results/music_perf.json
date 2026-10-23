@@ -1,0 +1,19 @@
+{
+ "audio_min": 10,
+ "wall_s": 155.7,
+ "rtf": 3.9,
+ "cpu_s": 860.5,
+ "cpu_cores_avg": 5.5,
+ "threads": 6,
+ "peak_ram_mb_before": 425,
+ "peak_ram_mb": 1053,
+ "wav_mb": 0.0,
+ "models_mb": 45.8,
+ "cache_hit_s": 0.16,
+ "cached": true,
+ "rep": {
+  "removed_s": 0.0,
+  "separated_s": 0.0,
+  "doubt_s": 36.0
+ }
+}

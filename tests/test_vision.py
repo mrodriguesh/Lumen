@@ -18,7 +18,7 @@ import tests  # noqa: F401  (isola LUMEN_DATA antes do lumen, mesmo sem -t .)
 from lumen import jobs, llm, notion, record, server, sources, store, transcribe, vision
 from tests.fake_notion import Fake
 from tests.test_flow import wait
-from tests.test_llm import GOOD
+from tests.test_llm import GOOD, understood
 
 RNG = np.random.default_rng(7)
 
@@ -820,6 +820,7 @@ class Flow(unittest.TestCase):
         work = jobs.work_dir(j["result"]["key"])
         self.assertFalse(self.wav.with_suffix(".screens").exists())  # foi para a pasta da aula
         code_id = sc["items"][2]["id"]
+        understood(j["result"]["key"])
         jobs.start("process", jobs.finish, {**spec, "screens_off": [code_id]})  # o usuário desmarcou o código
         j = wait()
         self.assertEqual(j["status"], "done", j.get("error"))
@@ -861,6 +862,7 @@ class ScreenEndpoint(unittest.TestCase):
             folder = jobs.work_dir("file:abc") / "screens"
             shots = vision.Shots(folder)
             shots.add(1.0, b"\xff\xd8 jpeg")
+            understood("file:abc")  # as telas da aula só aparecem depois da compreensão (test_understanding)
 
             def get(path, token=True):
                 c = http.client.HTTPConnection("127.0.0.1", httpd.server_port)

@@ -11,13 +11,17 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import AppError, cover, eta, imagegen, jobs, llm, notion, record, sources, store, transcribe, vision
+from . import (AppError, cover, eta, imagegen, jobs, llm, music, notion, pomodoro, record, sources, store, transcribe,
+               understanding, vision)
 
 log = logging.getLogger("lumen")
 WEB = Path(__file__).parent / "web"
 STATIC = {"/": ("index.html", "text/html"), "/app.css": ("app.css", "text/css"),
           "/app.js": ("app.js", "text/javascript"), "/widget": ("widget.html", "text/html"),
           "/widget.css": ("widget.css", "text/css"), "/widget.js": ("widget.js", "text/javascript"),
+          "/note": ("note.html", "text/html"), "/note.js": ("note.js", "text/javascript"),
+          "/understanding-editor.js": ("understanding-editor.js", "text/javascript"),
+          "/pomodoro.js": ("pomodoro.js", "text/javascript"),
           "/fonts/inter-latin.woff2": ("fonts/inter-latin.woff2", "font/woff2"),
           "/fonts/inter-latin-ext.woff2": ("fonts/inter-latin-ext.woff2", "font/woff2")}
 TOKEN = secrets.token_urlsafe(24)
@@ -90,12 +94,19 @@ def state():
                    "installed": om is not None and any(x == cfg["ollama_model"] or x == cfg["ollama_model"] + ":latest"
                                                        for x in om)},
         "sources": {k: {"id": v[0], "label": v[1]} for k, v in sources.STATUS.items()},
-        "formats": sources.MEDIA, "images": sources.IMAGES, "job": jobs.snapshot(), "recording": record.status(),
+        "formats": sources.MEDIA, "images": sources.IMAGES, "job": job_view(), "recording": record.status(),
+        "pending": understanding.pending(),
         "covers": {"ready": imagegen.ready(), "label": imagegen.ENGINES[imagegen.DEFAULT_ENGINE]["label"],
                    "size": imagegen.ENGINES[imagegen.DEFAULT_ENGINE]["size"]},
         "vision": {"model": vision.MODEL, "size": vision.SIZE,
                    "installed": om is not None and any(x in (vision.MODEL, vision.MODEL + ":latest") for x in om)},
+        "music": {"ready": music.ready(), "size": music.SIZE},  # só confere os arquivos; nenhum modelo é carregado
     }
+
+
+def job_view():
+    """A tarefa como a interface a vê: o conteúdo da aula só depois da compreensão (understanding.guard)."""
+    return understanding.guard(jobs.snapshot())
 
 
 def inspect(spec):
@@ -169,7 +180,7 @@ class Handler(BaseHTTPRequestHandler):
             if method == "GET" and path in STATIC:
                 name, ctype = STATIC[path]
                 body = (WEB / name).read_bytes()
-                if name in ("index.html", "widget.html"):
+                if name.endswith(".html"):
                     body = body.replace(b"{{TOKEN}}", TOKEN.encode())
                 return self._send(200, body, ctype)
             if (method, path) == ("POST", "/api/bye"):  # janela fechada (sendBeacon)
@@ -221,6 +232,10 @@ def _apply_settings(body):
         cfg["keep_temp"] = bool(body["keep_temp"])
     if "watch_screen" in body:
         cfg["watch_screen"] = body["watch_screen"] is True
+    if "music_filter" in body:
+        cfg["music_filter"] = body["music_filter"] is True
+    if body.get("music_mode") in music.MODES:
+        cfg["music_mode"] = body["music_mode"]
     if body.get("widget") in ("off", "left", "right", "top", "bottom", "free"):
         cfg["widget"] = body["widget"]
     if "autostart" in body:
@@ -266,7 +281,11 @@ def _widget(h):
     job["title"] = res.get("title") or (j.get("spec") or {}).get("title") or ""
     job["url"] = res.get("url") or ""
     job["review"] = bool(res.get("review"))  # transcrição pronta, esperando revisão no app
-    return {"job": job, "recording": record.status(), "watch": bool(store.load_config()["watch_screen"])}
+    # notas que ainda estão sendo escritas: a barra lateral mostra “Minha compreensão” da aula ativa
+    writing = understanding.pending(extra=j.get("key") if j.get("status") == "running" else None)  # escrevendo, analisando ou analisada (ainda não salva no Notion): a nota segue visível
+    cfg = store.load_config()
+    return {"job": job, "recording": record.status(), "watch": bool(cfg["watch_screen"]), "music": cfg["music_filter"],
+            "notes": writing, "pomodoro": pomodoro.view()}
 
 
 def _need_token():
@@ -365,7 +384,10 @@ def _download(h):
     body = h._json()
     if body.get("what") == "covers":
         jobs.start("download", jobs.download_covers)
-        return jobs.snapshot()
+        return job_view()
+    if body.get("what") == "music":
+        jobs.start("download", jobs.download_music)
+        return job_view()
     if body.get("what") in ("ollama", "vision"):
         if llm.models() is None:
             raise AppError("O Ollama não está rodando.", "Instale/abra o Ollama (ollama.com) e tente de novo.")
@@ -374,7 +396,7 @@ def _download(h):
     else:
         q = body.get("quality")
         jobs.start("download", jobs.download_whisper, transcribe.pick(q)[1]["name"])
-    return jobs.snapshot()
+    return job_view()
 
 
 def _clear(h):
@@ -395,6 +417,7 @@ def _clear(h):
 def _screen(h):
     """Miniatura de uma tela capturada, para a revisão (só de dentro da pasta de trabalho da aula)."""
     q = h._query()
+    understanding.reveal(str(q["key"]))  # as telas da aula também seriam cola antes da compreensão
     folder = jobs.work_dir(str(q["key"])) / "screens"
     try:
         return vision.Shots(folder).image(int(q["id"]))
@@ -417,18 +440,55 @@ def _capture_thumb(h):
 def _start(h):
     body = h._json()
     jobs.start("process", jobs.process, body, spec=body)
-    return jobs.snapshot()
+    return job_view()
 
 
 def _finish(h):
     body = h._json()
     jobs.start("process", jobs.finish, body, spec=body)
-    return jobs.snapshot()
+    return job_view()
+
+
+def _draft(h):
+    """Autosave de “Minha compreensão” (também por sendBeacon ao fechar a janela, com o token na URL)."""
+    body = h._json()
+    return understanding.save_draft(str(body.get("key") or ""), body.get("text"), body.get("at"))
+
+
+def _context():
+    """O que bloqueia “Processar” além da nota: gravação em andamento e outra tarefa rodando (understanding.readiness)."""
+    return {"recording": record.active(), "job": jobs.running_info()}
+
+
+understanding.context = _context
+
+
+def _submit(h):
+    """“Processar minha compreensão”: confere os pré-requisitos (a mesma regra que as interfaces mostram), guarda a
+    nota e só então começa a análise da IA, com a nota já travada para edição."""
+    body = h._json()
+    key = str(body.get("key") or "")
+    rec = understanding.load(key)
+    if rec and understanding.readiness(rec)["phase"] in ("recording", "busy", "preparing", "prep_failed"):
+        r = understanding.readiness(rec)
+        raise AppError(r["label"], r["detail"] or "Sua compreensão continua salva.")
+    understanding.submit(key, body.get("text"), body.get("at"))
+    understanding.begin_analysis(key)
+    try:
+        jobs.start("analyze", jobs.analyze, key, spec={"key": key})
+    except Exception:
+        understanding.end_analysis()  # o job não começou: a nota não pode ficar travada
+        raise
+    return job_view()
 
 
 ROUTES = {
     ("GET", "/api/state"): lambda h: state(),
-    ("GET", "/api/job"): lambda h: jobs.snapshot(),
+    ("GET", "/api/job"): lambda h: job_view(),
+    ("GET", "/api/understanding"): lambda h: understanding.get(h._query()["key"]),
+    ("POST", "/api/understanding/draft"): _draft,
+    ("POST", "/api/understanding/submit"): _submit,
+    ("GET", "/api/review"): lambda h: jobs.review(h._query()["key"]),
     ("GET", "/api/widget"): _widget,
     ("POST", "/api/settings"): _settings,
     ("GET", "/api/notion/pages"): lambda h: {"pages": notion.list_pages(_need_token()[0])},
@@ -443,14 +503,19 @@ ROUTES = {
     ("GET", "/api/screen"): _screen,
     ("GET", "/api/capture"): _capture_thumb,
     ("POST", "/api/finish"): _finish,
-    ("POST", "/api/cancel"): lambda h: (jobs.cancel(), jobs.snapshot())[1],
+    ("POST", "/api/cancel"): lambda h: (jobs.cancel(), job_view())[1],
     ("POST", "/api/download"): _download,
     ("POST", "/api/clear"): _clear,
     ("GET", "/api/record"): lambda h: record.status(),
     ("GET", "/api/history"): lambda h: {"items": sorted(store.history().values(), key=lambda x: x.get("created", ""), reverse=True)},
     ("POST", "/api/record/start"): lambda h: (record.start(h._json().get("title")), record.status())[1],
-    ("POST", "/api/record/stop"): lambda h: record.stop(),
+    ("POST", "/api/record/stop"): lambda h: record.stop(keep=h._json().get("exit") is True),
     ("POST", "/api/record/discard"): lambda h: (record.discard(), record.status())[1],
+    ("POST", "/api/record/pause"): lambda h: (record.pause(), record.status())[1],
+    ("POST", "/api/record/resume"): lambda h: (record.resume(), record.status())[1],
+    ("POST", "/api/record/recover"): lambda h: record.recover(h._json().get("use") is True) or record.status(),
+    ("GET", "/api/pomodoro"): lambda h: pomodoro.view(),
+    ("POST", "/api/pomodoro"): lambda h: (lambda b: pomodoro.act(b.get("action"), b.get("settings")))(h._json()),
 }
 
 

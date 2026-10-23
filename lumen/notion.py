@@ -480,12 +480,62 @@ def build_page(lesson, meta):
     if meta.get("screens"):
         notes.append(f"{len(meta['screens'])} tela(s) da aula lidas por um modelo de visão local ({meta['vision_model']}); "
                      "confira números e fórmulas nas imagens.")
+    if meta.get("understanding"):
+        notes.append(f"Escrito depois da sua compreensão, para complementá-la. Sua nota original e a análise da IA "
+                     f"estão na subpágina “{UNDERSTANDING}”, logo abaixo.")
     blocks += [{"object": "block", "type": "divider", "divider": {}}, _b("heading_3", _rt("Sobre esta página"))]
     if lesson["caveats"]:  # o que a aula não deixou claro: à vista, em destaque
         blocks.append(_callout(_rt("Pontos de atenção", bold=True), "⚠️", "orange_background",
                                children=[_b("bulleted_list_item", _rt(c)) for c in lesson["caveats"]]))
     blocks.append(_callout(_rt("\n".join(notes), color="gray"), "🔎"))
     return lesson["title"], blocks
+
+
+UNDERSTANDING = "Minha compreensão"
+
+
+def _quote(text):
+    return {"object": "block", "type": "quote", "quote": {"rich_text": _rt(text), "color": "default"}}
+
+
+def _day(iso):
+    return f"{iso[8:10]}/{iso[5:7]}/{iso[:4]}" if iso and len(iso) >= 10 else "data desconhecida"
+
+
+def understanding_page(rec, lesson_title):
+    """Blocos da subpágina “Minha compreensão” (rec: lumen/understanding.py). Primeiro o que o estudante escreveu,
+    como escreveu, em citação; depois de um divisor, a análise da IA, rotulada. As duas nunca se misturam."""
+    a, gray = rec["ai_analysis"], lambda t: _b("paragraph", _rt(t, italic=True, color="gray"))  # noqa: E731
+    blocks = [gray(f"Aula: {lesson_title}"), _h2("✍️ Minha nota original"), _quote(rec["original_understanding"]),
+              gray(f"Escrita por você em {_day(rec.get('submitted'))}, antes da análise da IA. O Lumen nunca altera "
+                   "este texto.")]
+    if rec["current_understanding"].strip() != rec["original_understanding"].strip():
+        blocks += [_b("heading_3", _rt("Minha versão atual (editada depois da análise)")),
+                   _quote(rec["current_understanding"])]
+    if rec.get("earlier"):
+        older = [x for e in rec["earlier"][-49:] for x in (gray(f"Escrita em {_day(e.get('at'))}"), _quote(e["text"]))]
+        blocks.append(_b("toggle", _rt("Compreensões anteriores desta aula", color="gray"), children=older))
+    which = ("a sua nota" if (rec.get("analyzed_text") or "").strip() == rec["original_understanding"].strip()
+             else "a sua versão atual")
+    blocks += [{"object": "block", "type": "divider", "divider": {}},
+               _callout(_rt(f"Daqui para baixo: análise da IA local ({rec.get('model') or 'Ollama'}), que comparou "
+                            f"{which} com a aula. Ela complementa o que você escreveu; não substitui.", color="gray"),
+                        "🤖")]
+
+    def items(title, values, kind="bulleted_list_item"):
+        return [_h2(title), *[_b(kind, _rt(v)) for v in values]] if values else []
+    blocks += items("✅ O que eu compreendi corretamente", a["acertos"])
+    blocks += items("🌓 O que entendi em parte", a["parciais"])
+    blocks += items("🧩 O que faltou", a["lacunas"])
+    if a["confusoes"]:
+        blocks.append(_h2("⚠️ Possíveis confusões"))
+        blocks += [_callout(_rt("Você escreveu: ", color="gray") + _rt(f"“{c['trecho']}”", italic=True) + _rt("\n")
+                            + _rt("Na aula: ", bold=True) + _rt(c["correcao"]), "⚠️", "orange_background")
+                   for c in a["confusoes"]]
+    blocks += items("➕ Complementos", a["complementos"])
+    blocks += items("🔗 Conexões", a["conexoes"])
+    blocks += items("❓ Perguntas para aprofundar", a["perguntas"], "numbered_list_item")
+    return blocks
 
 
 def transcript_section(lines):
@@ -517,11 +567,12 @@ def batches(blocks):
     return out + ([cur] if cur else [])
 
 
-def publish(token, parent, title, blocks, check, transcript=None):
+def publish(token, parent, title, blocks, check, transcript=None, subpage=None):
     """Acrescenta a aula à página escolhida, preservando seus enfeites e conteúdo.
 
     `transcript` (opcional): linhas “[mm:ss] texto”; vão dentro de um título recolhível, em lotes de 100
-    (limite de filhos por requisição da API)."""
+    (limite de filhos por requisição da API). `subpage` (opcional): blocos da subpágina “Minha compreensão”,
+    criada por último, logo abaixo do material da aula; o id dela entra nos blocos publicados (desfeita junto)."""
     parent = page_id(parent)
     check()
     page = request("GET", f"/pages/{parent}", token)
@@ -545,6 +596,16 @@ def publish(token, parent, title, blocks, check, transcript=None):
             for batch in more:
                 check()
                 request("PATCH", f"/blocks/{toggle_id}/children", token, {"children": batch})
+        if subpage:
+            check()
+            first, *more = batches(subpage)
+            sub = request("POST", "/pages", token, {"parent": {"page_id": parent}, "icon": {"type": "emoji", "emoji": "🧠"},
+                                                    "properties": {"title": {"title": _rt(UNDERSTANDING)}},
+                                                    "children": first})
+            added.append(sub["id"])  # a subpágina é um bloco child_page da página: removida como os outros
+            for batch in more:
+                check()
+                request("PATCH", f"/blocks/{sub['id']}/children", token, {"children": batch})
         check()
     except BaseException:
         incomplete = False

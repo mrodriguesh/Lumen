@@ -6,7 +6,7 @@ import json
 
 import tests  # noqa: F401  (isola LUMEN_DATA antes do lumen, mesmo sem -t .)
 from lumen import eta, llm, store
-from tests.test_llm import GOOD
+from tests.test_llm import GOOD, NOTE
 
 
 class Learn(unittest.TestCase):
@@ -69,8 +69,8 @@ class Learn(unittest.TestCase):
             # notas do tamanho que a estimativa espera de cada parte (a IA escrevendo o que se prevê dela)
             return "n" * int(eta.out_tokens("m", "notes", (len(user) + len(llm.NOTES)) / 3) * 3)
         with mock.patch.object(llm, "_chat", side_effect=fake):
-            llm.generate(segs, 400, "m", "pt", lambda: None, lambda *a: None)
-        self.assertEqual([k for k, _ in llm.calls(segs, "m")], made)
+            llm.generate(segs, 400, "m", "pt", lambda: None, lambda *a: None, understanding=NOTE)
+        self.assertEqual([k for k, _ in llm.calls(segs, "m", extra=len(NOTE))], made)
         self.assertGreater(made.count("notes"), 10)
         self.assertEqual(len(llm.calls(segs[:40], "m")), 1)
 

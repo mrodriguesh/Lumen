@@ -47,7 +47,8 @@ static class Program
     static void Main(string[] args)
     {
         bool created;
-        using (var mutex = new Mutex(true, "Lumen.App.SingleInstance", out created))
+        string isolated = Environment.GetEnvironmentVariable("LUMEN_DATA");  // testes: outra pasta de dados, outra instância
+        using (var mutex = new Mutex(true, "Lumen.App.SingleInstance" + (isolated == null ? "" : "." + isolated.ToLowerInvariant().GetHashCode()), out created))
         {
             if (!created)  // já aberto: traz a janela para a frente
             {
@@ -86,6 +87,16 @@ class MainForm : Form
 
     [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] struct NCCALCSIZE_PARAMS { public RECT r0, r1, r2; public IntPtr pos; }
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)] static extern bool Shell_NotifyIcon(int msg, ref NOTIFYICONDATA data);
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] struct NOTIFYICONDATA {
+        public int cbSize; public IntPtr hWnd; public int uID, uFlags, uCallbackMessage; public IntPtr hIcon;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string szTip;
+        public int dwState, dwStateMask;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)] public string szInfo;
+        public int uVersion;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string szInfoTitle;
+        public int dwInfoFlags; public Guid guidItem; public IntPtr hBalloonIcon;
+    }
 
     // Barra de título desenhada pela página (botões estilo Mac). Exige WebView2 123+ (regiões arrastáveis).
     readonly bool customFrame;
@@ -96,8 +107,10 @@ class MainForm : Form
     readonly bool dark;
     readonly NotifyIcon tray;
     WidgetForm widget;
+    NoteForm note;
     bool exiting;
     bool ready;
+    int lastNotice;  // último aviso do Pomodoro mostrado (as janelas abertas avisam todas; o Windows mostra uma vez)
 
     public MainForm(string py, bool background)
     {
@@ -129,7 +142,7 @@ class MainForm : Form
         }
         catch (Exception) { customFrame = false; }
 
-        int port = FreePort();
+        int port = FreePort(Path.Combine(Program.Data, "port.txt"));
         url = "http://127.0.0.1:" + port + "/";
         var psi = new ProcessStartInfo(py, "-m lumen") { WorkingDirectory = Program.Root, UseShellExecute = false, CreateNoWindow = true };
         psi.EnvironmentVariables["LUMEN_PORT"] = port.ToString();
@@ -141,7 +154,7 @@ class MainForm : Form
             try { await Init(); }
             catch (Exception) { ShowMain(false); MessageBox.Show(this, "Não foi possível abrir a interface do Lumen. Confira o WebView2 e tente novamente.", "Lumen", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         };
-        FormClosed += (s, e) => { if (widget != null) widget.Dispose(); tray.Dispose(); StopServer(); };
+        FormClosed += (s, e) => { if (note != null) note.Dispose(); if (widget != null) widget.Dispose(); tray.Dispose(); StopServer(); };
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -164,6 +177,7 @@ class MainForm : Form
     async Task ExitApp()
     {
         if (exiting) return;
+        await FlushNotes();
         // Finaliza o WAV antes de encerrar o Python; a gravação fica guardada no disco.
         if (ready) {
             await web.ExecuteScriptAsync("(async()=>{try {const r=await api('/api/widget'); host.postMessage('desktop:exit-state:' + (r.recording.active || r.job.status === 'running'));} catch(e) {host.postMessage('desktop:exit-error');}})()");
@@ -174,10 +188,47 @@ class MainForm : Form
 
     async Task FinishExit(bool busy)
     {
-        if (busy && MessageBox.Show(this, "Há uma gravação ou tarefa em andamento. Sair encerra a tarefa e guarda o áudio captado no PC. Deseja sair?", "Sair do Lumen", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        if (busy && MessageBox.Show(this, "Há uma gravação ou tarefa em andamento. Sair encerra a tarefa e guarda o áudio captado no PC (a gravação aparece ao abrir o Lumen de novo). Deseja sair?", "Sair do Lumen", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         if (ready) {
-            await web.ExecuteScriptAsync("(async()=>{try { const r=await api('/api/record'); if(r.active) await api('/api/record/stop', {}); host.postMessage('desktop:exit-ready'); } catch(e) { host.postMessage('desktop:exit-error'); }})()");
+            await web.ExecuteScriptAsync("(async()=>{try { const r=await api('/api/record'); if(r.active) await api('/api/record/stop', {exit:true}); host.postMessage('desktop:exit-ready'); } catch(e) { host.postMessage('desktop:exit-error'); }})()");
         } else { exiting = true; Close(); }
+    }
+
+    // “Minha compreensão” destacada: a mesma nota numa janela sempre por cima do vídeo (NoteForm).
+    void Float(string key)
+    {
+        if (string.IsNullOrEmpty(key)) return;
+        if (note == null || note.IsDisposed) note = new NoteForm(url, Program.Data, dark, (msg) => {
+            if (msg == "note:dock") ShowMain(false);
+            else if (msg.StartsWith("notify:")) Notify(msg);
+        });
+        note.Open(key);
+    }
+
+    // Fim de uma etapa do Pomodoro ("notify:pomodoro:<id>:<texto>"): notificação do Windows sem som (NIIF_NOSOUND),
+    // para não entrar na gravação; o som do Pomodoro é do Lumen e não toca enquanto a captura grava.
+    void Notify(string msg)
+    {
+        string[] p = msg.Split(new[] { ':' }, 4);
+        int id;
+        if (p.Length < 4 || !int.TryParse(p[2], out id) || id <= lastNotice) return;
+        lastNotice = id;
+        try {
+            var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+            var window = (NativeWindow)typeof(NotifyIcon).GetField("window", flags).GetValue(tray);
+            var d = new NOTIFYICONDATA { hWnd = window.Handle, uID = (int)typeof(NotifyIcon).GetField("id", flags).GetValue(tray),
+                uFlags = 0x10, szInfo = p[3].Length > 255 ? p[3].Substring(0, 255) : p[3], szInfoTitle = "Pomodoro", dwInfoFlags = 0x10 };
+            d.cbSize = Marshal.SizeOf(typeof(NOTIFYICONDATA));
+            Shell_NotifyIcon(1, ref d);  // NIM_MODIFY + NIF_INFO
+        } catch (Exception) { }  // sem o aviso do Windows, fica o destaque discreto do Pomodoro nas janelas do Lumen
+    }
+
+    // Antes de sair: as janelas mandam ao Lumen o texto das notas que ainda não foi salvo.
+    async Task FlushNotes()
+    {
+        if (ready) { try { await web.ExecuteScriptAsync("window.Notes && Notes.flushAll()"); } catch (Exception) { } }
+        if (note != null && !note.IsDisposed) await note.Flush();
+        if (widget != null && !widget.IsDisposed) await widget.Flush();
     }
 
     void ApplyWidget(string mode)
@@ -193,6 +244,8 @@ class MainForm : Form
                 else if (msg == "widget:reset" && widget != null) widget.ResetPosition();
                 else if (msg == "widget:preferences") web.CoreWebView2.PostWebMessageAsString("desktop:preferences-updated");
                 else if (msg.StartsWith("window:external:")) OpenExternal(msg.Substring("window:external:".Length));
+                else if (msg.StartsWith("note:float:")) Float(msg.Substring("note:float:".Length));
+                else if (msg.StartsWith("notify:")) Notify(msg);
                 else if (msg == "record:started" || msg.StartsWith("record:ready:")) {
                     web.CoreWebView2.PostWebMessageAsString(msg);
                     if (msg.StartsWith("record:ready:")) ShowMain(false);
@@ -267,6 +320,8 @@ class MainForm : Form
                 WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
             else if (msg.StartsWith("desktop:prefs:")) ApplyWidget(msg.Substring("desktop:prefs:".Length));
             else if (msg == "widget:reset" && widget != null) widget.ResetPosition();
+            else if (msg.StartsWith("note:float:")) Float(msg.Substring("note:float:".Length));
+            else if (msg.StartsWith("notify:")) Notify(msg);
             else if (msg.StartsWith("desktop:exit-state:")) await FinishExit(msg.EndsWith("true"));
             else if (msg == "desktop:exit-ready") { exiting = true; Close(); }
             else if (msg == "desktop:exit-error") MessageBox.Show(this, "Não foi possível finalizar a gravação. Pare a gravação no Lumen antes de sair.", "Lumen", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -317,12 +372,23 @@ class MainForm : Form
         try { if (!server.HasExited && !server.WaitForExit(800)) server.Kill(); } catch (InvalidOperationException) { }
     }
 
-    static int FreePort()
+    // A porta da última vez, se estiver livre: o navegador guarda os dados da página (cópia do rascunho da nota,
+    // preferências da janela flutuante, páginas recentes) por endereço, e uma porta nova a cada abertura os perdia.
+    static int FreePort(string file)
     {
+        int last;
+        try {
+            if (int.TryParse(File.ReadAllText(file).Trim(), out last) && last > 1024 && last < 65536) {
+                var t = new TcpListener(System.Net.IPAddress.Loopback, last);
+                try { t.Start(); t.Stop(); return last; } catch (SocketException) { }
+            }
+        } catch (IOException) { } catch (UnauthorizedAccessException) { }
         var l = new TcpListener(System.Net.IPAddress.Loopback, 0);
         l.Start();
         int p = ((System.Net.IPEndPoint)l.LocalEndpoint).Port;
         l.Stop();
+        try { Directory.CreateDirectory(Program.Data); File.WriteAllText(file, p.ToString()); }
+        catch (IOException) { } catch (UnauthorizedAccessException) { }
         return p;
     }
 

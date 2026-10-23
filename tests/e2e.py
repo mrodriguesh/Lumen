@@ -12,8 +12,12 @@ import time
 from pathlib import Path
 
 import tests  # noqa: F401  (isola LUMEN_DATA)
-from lumen import AppError, jobs, llm, notion, sources, store, transcribe
+from lumen import AppError, jobs, llm, notion, sources, store, transcribe, understanding
 from tests.fake_notion import Fake
+
+# A compreensão do “estudante” (escrita antes de qualquer IA, como no app): genérica, porque a amostra pode ser outra.
+NOTE = ("Entendi que a aula apresenta um assunto novo, explica as ideias principais com exemplos e mostra como elas se "
+        "ligam. Ainda não sei explicar bem os detalhes do meio da aula e quero revisar essa parte com calma.")
 
 
 def main(folder):
@@ -64,13 +68,18 @@ def main(folder):
     print(f"ok  revisão: {len(review['segments'])} trechos, {len(flagged)} marcados, velocidade {review['speed']}")
     first = review["segments"][0]["text"]
     edit = {"0": first + " (corrigido na revisão)"}
+    understanding.submit(review["key"], NOTE)
+    jobs.start("analyze", jobs.analyze, review["key"])
+    wait()
+    print("ok  análise da compreensão:", json.dumps(understanding.get(review["key"])["analysis"], ensure_ascii=False))
     jobs.start("process", jobs.finish, {**spec, "edits": edit, "include_transcript": True})
     j = wait()
     print(f"done em {time.time() - t0:.0f}s", j["result"])
     if fake:
         assert not fake.violations, fake.violations
         page = fake.pages[chosen["id"]]
-        assert len(fake.pages) == 2, "a publicação não deveria criar uma subpágina"
+        subs = [p for p in fake.pages.values() if p["title"] == "Minha compreensão"]
+        assert len(fake.pages) == 3 and subs[0]["parent"] == chosen["id"], "só a subpágina “Minha compreensão”, nela"
         assert store.history()[review["key"]]["page_id"] == chosen["id"], "o material deveria ficar na página escolhida"
         toggles = [b for b in page["blocks"] if b["type"] == "toggle"]
         print(f"ok  página “{page['title']}”: {len(page['blocks'])} blocos, {len(toggles)} perguntas com resposta recolhida")

@@ -101,7 +101,7 @@ class RecordingFlow(unittest.TestCase):
         from lumen import jobs, llm, notion, store, transcribe
         from tests.fake_notion import Fake
         from tests.test_flow import wait
-        from tests.test_llm import GOOD
+        from tests.test_llm import GOOD, understood
         r = run(0.3)
         fake = Fake()
         root = fake.add_page("Estudos")
@@ -115,7 +115,9 @@ class RecordingFlow(unittest.TestCase):
                 mock.patch.object(llm, "_chat", return_value=json.dumps(GOOD)):
             with mock.patch.object(notion, "API", "http://127.0.0.1:9/v1"), mock.patch("lumen.notion.time", mock.Mock()):
                 jobs.start("process", jobs.process, spec)
-                self.assertTrue(wait()["result"]["review"])
+                j = wait()
+                self.assertTrue(j["result"]["review"])
+                understood(j["result"]["key"])
                 self.assertTrue(Path(r["path"]).exists())  # mantida durante a revisão (permite retranscrever)
                 jobs.start("process", jobs.finish, spec)
                 self.assertEqual(wait()["status"], "error")  # Notion fora do ar

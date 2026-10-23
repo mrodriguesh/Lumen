@@ -689,8 +689,9 @@ class Watch:
     outros programas), e o modelo recebe o título e o programa dessa janela: o player da aula conta; as suas
     anotações, o seu editor ou um chat não, mesmo falando da matéria."""
 
-    def __init__(self, folder, clock, model, paused=lambda: False, live=True, grabber=None):
+    def __init__(self, folder, clock, model, paused=lambda: False, live=True, grabber=None, hold=lambda: False):
         self.shots, self.clock, self.model, self.paused, self.live = Shots(folder), clock, model, paused, live
+        self.hold = hold  # True = captura pausada pelo estudante: nenhuma cópia da tela até retomar
         self.picker, self.grabber, self.stop_ev, self.q = Picker(), grabber, threading.Event(), queue.Queue()
         self.smalls, self.mask, self.read_n, self.failed = {}, np.zeros(GRID, bool), 0, False
         self.refused, self.why = 0, ""  # capturas não guardadas e o último motivo (aparece durante a gravação)
@@ -731,12 +732,22 @@ class Watch:
         except (OSError, AttributeError):
             self._refuse("este PC não deixou o Lumen ver a tela")
             return  # sem Windows/GDI: grava só o áudio
+        held = False
         while not self.stop_ev.is_set():
+            if self.hold():
+                if not held:  # a tela que esperava ficar parada antes da pausa entra; depois, compara do zero
+                    self._keep(self.picker.flush())
+                    self.picker.scenes.prev, held = None, True
+                self.stop_ev.wait(0.25)
+                continue
+            held = False
             start = time.monotonic()
             try:
                 got = self.screen.grab()
             except OSError:
                 got = None
+            if self.hold():
+                continue  # pausou durante a cópia: ela não conta
             if not got:
                 self._refuse("o Windows não deixou copiar a tela")
             else:
