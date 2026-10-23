@@ -135,12 +135,14 @@ def build(pkg, note_path, files=None):
             y += t["h"] + GAP_Y
 
     # relações da aula entre cards do mapa, com o rótulo do tipo (validadas em package.validate)
-    cross = []
+    cross, linked = [], set()
     for r in lesson.get("relations") or []:
         a, b = by_label.get(norm(r["from"])), by_label.get(norm(r["to"]))
-        if not (a and b) or a is b:
+        pair = frozenset((a["id"], b["id"])) if a and b else None
+        if not pair or a is b or pair in linked:  # um par, uma relação (a IA às vezes dá a mesma nos dois sentidos)
             continue
-        e = tree.get(frozenset((a["id"], b["id"])))
+        linked.add(pair)
+        e = tree.get(pair)
         if e:  # pai e filho: a seta que já existe ganha o rótulo, com a ponta em quem recebe a relação
             if "label" not in e:
                 e["label"] = r["type"]
@@ -148,6 +150,10 @@ def build(pkg, note_path, files=None):
                     e.update(fromEnd="arrow", toEnd="none")
         elif "center" not in (side[a["id"]], side[b["id"]]) and side[a["id"]] != side[b["id"]]:
             cross.append(r)  # lados opostos: a seta cruzaria a nota central; vira um card no grupo Relações
+        elif a["x"] == b["x"] and a["width"] == LEAF_W:
+            # filhos na mesma coluna (a de fora): a seta contorna por fora do mapa, onde o rótulo tem espaço
+            out = "left" if side[a["id"]] == "left" else "right"
+            edge(a, b, out, out, label=r["type"])
         else:
             edge(a, b, *_sides(a, b), label=r["type"])
 

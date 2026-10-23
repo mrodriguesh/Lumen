@@ -65,7 +65,10 @@ def shot(tag):
 
 try:
     cmd(op="open", name="m", url=url, w=1120, h=900)
-    time.sleep(2.5)
+    for _ in range(60):  # o estado (/api/state) pode demorar com o Ollama ocupado
+        if ev("typeof S !== 'undefined' && !!S"):
+            break
+        time.sleep(0.5)
     ev("document.querySelector('#open-settings').click()")
     time.sleep(0.6)
     opts = ev("[...document.querySelectorAll('#vault option')].map(o => [o.value, o.textContent, o.disabled])")
