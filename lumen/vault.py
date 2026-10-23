@@ -76,9 +76,16 @@ def inside(vault, rel):
 def default_folder(vault):
     """Pasta padrão das notas do Lumen: dentro da área da IA do cofre (a pasta de topo com “Claude” no nome), com o
     próximo número livre da numeração dela; sem essa área, “Lumen” na raiz."""
-    for d in sorted(vault.iterdir(), key=lambda x: x.name):
+    try:
+        tops = sorted(vault.iterdir(), key=lambda x: x.name)
+    except OSError:  # cofre sem permissão de leitura ou drive desconectado: a tela de Ajustes não pode quebrar
+        return "Lumen"
+    for d in tops:
         if d.is_dir() and not d.name.startswith(".") and "claude" in d.name.casefold():
-            kids = [c.name for c in d.iterdir() if c.is_dir()]
+            try:
+                kids = [c.name for c in d.iterdir() if c.is_dir()]
+            except OSError:
+                kids = []
             mine = [c for c in kids if re.fullmatch(r"\d{2} Lumen", c)]
             if mine:
                 return f"{d.name}/{mine[0]}"
