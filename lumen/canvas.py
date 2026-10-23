@@ -18,8 +18,8 @@ COLORS = ["5", "4", "6", "2", "3", "1"]  # cores do próprio Obsidian (ciano, ve
 CHAR_W, LINE_H, PAD = 8.6, 26, 34       # texto de um card: largura média de um caractere, altura da linha, margens
 CENTER_W, CENTER_H = 440, 300           # a nota no centro (mostra o começo dela)
 BRANCH_W, LEAF_W, GROUP_W = 280, 260, 280
-GAP_X, LEAF_X, GAP_Y, LEAF_GAP = 150, 90, 56, 24
-GROUP_PAD, GROUP_GAP, ROW_GAP = 40, 90, 170
+GAP_X, LEAF_X, GAP_Y, LEAF_GAP = 150, 140, 56, 24  # LEAF_X: cabe um rótulo de relação na seta
+GROUP_PAD, GROUP_GAP, ROW_GAP = 40, 90, 240  # ROW_GAP: espaço para as relações que contornam o mapa por baixo
 
 
 def md(text, table=False):
@@ -57,7 +57,7 @@ def build(pkg, note_path, files=None):
     """Canvas da aula. note_path: a nota (caminho no cofre); files: {nome da nota conectada: caminho no cofre}."""
     files = files or {}
     m, lesson, lid, seen = pkg["map"], pkg["lesson"], pkg["lumen_id"], {}
-    nodes, edges, by_label, groups = [], [], {}, []
+    nodes, edges, by_label, groups, tree, side = [], [], {}, [], {}, {}
 
     def node(kind, role, label, x, y, w, h, **extra):
         n = {"id": _id(lid, role, label, seen), "type": kind, "x": round(x), "y": round(y), "width": round(w),
@@ -71,8 +71,15 @@ def build(pkg, note_path, files=None):
         edges.append(e)
         return e
 
-    center = node("file", "center", "center", -CENTER_W / 2, -CENTER_H / 2, CENTER_W, CENTER_H, file=note_path)
+    def branch_edge(a, b, right, color):
+        tree[frozenset((a["id"], b["id"]))] = edge(a, b, "right" if right else "left", "left" if right else "right",
+                                                   color=color)
+
+    # o centro é a própria nota, aberta na Visão geral (o resumo), não no frontmatter
+    center = node("file", "center", "center", -CENTER_W / 2, -CENTER_H / 2, CENTER_W, CENTER_H, file=note_path,
+                  subpath="#Visão geral")
     by_label[norm(m["center"])] = center
+    side[center["id"]] = "center"
 
     # ramos: altura de cada subárvore e o lado (o mais vazio recebe o próximo; empate vai para a direita)
     trees = []
@@ -83,9 +90,28 @@ def build(pkg, note_path, files=None):
         kh = sum(h for _, h in kids) + LEAF_GAP * max(len(kids) - 1, 0)
         trees.append({"b": b, "text": label, "bh": bh, "kids": kids, "kh": kh, "h": max(bh, kh),
                       "color": COLORS[i % len(COLORS)]})
-    sides, total = {"right": [], "left": []}, {"right": 0, "left": 0}
-    for t in trees:
+    # ramos relacionados (llm: relations) ficam do mesmo lado quando isso não desequilibra o mapa: uma relação
+    # entre lados opostos teria de passar perto da nota central
+    owner = {}
+    for i, b in enumerate(m["branches"]):
+        owner[norm(b["label"])] = i
+        for k in b["children"]:
+            owner.setdefault(norm(k), i)
+    near = {i: set() for i in range(len(trees))}
+    for r in lesson.get("relations") or []:
+        a, b = owner.get(norm(r["from"])), owner.get(norm(r["to"]))
+        if a is not None and b is not None and a != b:
+            near[a].add(b)
+            near[b].add(a)
+    sides, total, placed = {"right": [], "left": []}, {"right": 0, "left": 0}, {}
+    for i, t in enumerate(trees):
         s = "right" if total["right"] <= total["left"] else "left"
+        votes = [placed[j] for j in sorted(near[i]) if j in placed]
+        if votes:
+            want = max(("right", "left"), key=votes.count)
+            if total[want] - total["left" if want == "right" else "right"] <= t["h"] + GAP_Y:
+                s = want
+        placed[i] = s
         sides[s].append(t)
         total[s] += t["h"] + GAP_Y
     for s, items in sides.items():
@@ -97,19 +123,32 @@ def build(pkg, note_path, files=None):
             br = node("text", "branch", t["b"]["label"], bx, y + (t["h"] - t["bh"]) / 2, BRANCH_W, t["bh"],
                       text=t["text"], color=t["color"])
             by_label.setdefault(norm(t["b"]["label"]), br)
-            edge(center, br, "right" if right else "left", "left" if right else "right", color=t["color"])
+            side[br["id"]] = s
+            branch_edge(center, br, right, t["color"])
             ky = y + (t["h"] - t["kh"]) / 2
             for k, h in t["kids"]:
                 leaf = node("text", "leaf:" + norm(t["b"]["label"]), k, kx, ky, LEAF_W, h, text=md(k), color=t["color"])
                 by_label.setdefault(norm(k), leaf)
-                edge(br, leaf, "right" if right else "left", "left" if right else "right", color=t["color"])
+                side[leaf["id"]] = s
+                branch_edge(br, leaf, right, t["color"])
                 ky += h + LEAF_GAP
             y += t["h"] + GAP_Y
 
     # relações da aula entre cards do mapa, com o rótulo do tipo (validadas em package.validate)
+    cross = []
     for r in lesson.get("relations") or []:
         a, b = by_label.get(norm(r["from"])), by_label.get(norm(r["to"]))
-        if a and b and a is not b:
+        if not (a and b) or a is b:
+            continue
+        e = tree.get(frozenset((a["id"], b["id"])))
+        if e:  # pai e filho: a seta que já existe ganha o rótulo, com a ponta em quem recebe a relação
+            if "label" not in e:
+                e["label"] = r["type"]
+                if e["fromNode"] != a["id"]:
+                    e.update(fromEnd="arrow", toEnd="none")
+        elif "center" not in (side[a["id"]], side[b["id"]]) and side[a["id"]] != side[b["id"]]:
+            cross.append(r)  # lados opostos: a seta cruzaria a nota central; vira um card no grupo Relações
+        else:
             edge(a, b, *_sides(a, b), label=r["type"])
 
     top = min([n["y"] for n in nodes])
@@ -118,7 +157,7 @@ def build(pkg, note_path, files=None):
     # vídeo original em cima do centro
     link = pkg["source"].get("link")
     if link and re.match(r"^https?://", link):
-        src = node("link", "source", link, -CENTER_W / 2, top - 260 - ROW_GAP / 2, CENTER_W, 260, url=link)
+        src = node("link", "source", link, -CENTER_W / 2, top - 260 - ROW_GAP, CENTER_W, 260, url=link)
         edge(src, center, "bottom", "top", label="aula original")
 
     # linha de grupos embaixo: Processo | Conexões (sob o centro) | Exemplos
@@ -135,14 +174,20 @@ def build(pkg, note_path, files=None):
                                         for i, s in enumerate(lesson.get("steps") or [], 1)][:12])
     links = [c for c in pkg.get("connections") or [] if c["note"] in files]
     anchors = [a for a in pkg.get("anchors") or [] if a in files and a not in {c["note"] for c in links}]
-    conns = column("conn", "Conexões com o segundo cérebro",
-                   [("file", c["note"], 120, {"file": files[c["note"]]}) for c in links][:8]
-                   + [("file", a, 120, {"file": files[a]}) for a in anchors][:3], "6")
+    # cada conexão é um card com o link (clicar abre a nota) e o porquê; um card de arquivo mostraria só o topo
+    # da nota (as propriedades), que não diz nada sobre a relação
+    conns = column("conn", "Conexões", [
+        ("text", c["note"], _height(f"{c['note']}\n{c.get('relation')} — {c['reason']}", GROUP_W),
+         {"text": f"**[[{c['note']}]]**\n*{md(c.get('relation') or 'relacionado')}* — {md(c['reason'])}"}) for c in links][:8]
+        + [("text", a, 80, {"text": f"**[[{a}]]**\n*Anchor Topic*"}) for a in anchors][:3], "6")
     examples = column("example", "Exemplos", [
         ("text", e["text"], _height(("Da aula: " if e["origin"] == "aula" else "Analogia (IA): ") + e["text"], GROUP_W),
          {"text": ("**Da aula:** " if e["origin"] == "aula" else "**Analogia (IA):** ") + md(e["text"])})
         for e in lesson.get("examples") or []][:6])
-    row = [g for g in (steps, conns, examples) if g]
+    rels = column("relation", "Relações", [
+        ("text", f"{r['from']}|{r['type']}|{r['to']}", _height(f"{r['from']} {r['type']} {r['to']}", GROUP_W),
+         {"text": f"**{md(r['from'])}** *{md(r['type'])}* **{md(r['to'])}**"}) for r in cross][:8], "4")
+    row = [g for g in (steps, conns, examples, rels) if g]
     if row:
         width = GROUP_W + 2 * GROUP_PAD
         mid = row.index(conns) if conns else (len(row) - 1) / 2
@@ -157,11 +202,8 @@ def build(pkg, note_path, files=None):
         if steps:
             for a, b in zip(steps["members"], steps["members"][1:]):
                 edge(a, b, "bottom", "top")
-        if conns:
-            why = {c["note"]: c.get("relation") or "relacionado" for c in links}
-            for n in conns["members"]:
-                name = next(k for k, v in files.items() if v == n["file"])
-                edge(center, n, "bottom", "top", label=why.get(name, "Anchor Topic"), color="6")
+        if conns:  # uma seta só, da nota para o grupo: sem rótulos empilhados
+            edge(center, groups[row.index(conns)], "bottom", "top", color="6")
     return {"nodes": groups + nodes, "edges": edges}
 
 
