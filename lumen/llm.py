@@ -5,6 +5,7 @@ import urllib.error
 import urllib.request
 
 from . import AppError
+from .package import QUESTION_KINDS, RELATIONS
 from .understanding import check as require_understanding
 
 OLLAMA = "http://127.0.0.1:11434"
@@ -12,6 +13,8 @@ SINGLE_PASS_CHARS = 40_000   # ~12k tokens: cabe em num_ctx 20k com folga para a
 CHUNK_CHARS = 20_000
 
 _TS = {"type": "string"}
+_LIST = {"type": "array", "items": {"type": "string"}}
+MAP_KINDS = ["conceitual", "tutorial", "argumentacao", "sistema", "livro"]
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -19,8 +22,8 @@ SCHEMA = {
         "summary": {"type": "string"},
         "simple_explanation": {"type": "string"},
         "topics": {"type": "array", "items": {"type": "object", "properties": {
-            "title": {"type": "string"}, "explanation": {"type": "string"}, "timestamp": _TS},
-            "required": ["title", "explanation", "timestamp"]}},
+            "title": {"type": "string"}, "explanation": {"type": "string"}, "why": {"type": "string"},
+            "timestamp": _TS}, "required": ["title", "explanation", "why", "timestamp"]}},
         "glossary": {"type": "array", "items": {"type": "object", "properties": {
             "term": {"type": "string"}, "definition": {"type": "string"}}, "required": ["term", "definition"]}},
         "examples": {"type": "array", "items": {"type": "object", "properties": {
@@ -28,10 +31,12 @@ SCHEMA = {
             "required": ["text", "origin"]}},
         "steps": {"type": "array", "items": {"type": "string"}},
         "review_questions": {"type": "array", "items": {"type": "object", "properties": {
-            "question": {"type": "string"}, "answer": {"type": "string"}}, "required": ["question", "answer"]}},
+            "kind": {"type": "string", "enum": list(QUESTION_KINDS)},
+            "question": {"type": "string"}, "answer": {"type": "string"}}, "required": ["kind", "question", "answer"]}},
         "key_moments": {"type": "array", "items": {"type": "object", "properties": {
             "timestamp": _TS, "label": {"type": "string"}}, "required": ["timestamp", "label"]}},
         "caveats": {"type": "array", "items": {"type": "string"}},
+        "map_kind": {"type": "string", "enum": MAP_KINDS},
         "mind_map": {"type": "object", "properties": {
             "center": {"type": "string"},
             "branches": {"type": "array", "items": {"type": "object", "properties": {
@@ -39,9 +44,14 @@ SCHEMA = {
                 "children": {"type": "array", "items": {"type": "string"}}},
                 "required": ["label", "emoji", "children"]}}},
             "required": ["center", "branches"]},
+        "relations": {"type": "array", "items": {"type": "object", "properties": {
+            "from": {"type": "string"}, "type": {"type": "string", "enum": list(RELATIONS)}, "to": {"type": "string"}},
+            "required": ["from", "type", "to"]}},
+        "mistakes": _LIST, "applications": _LIST, "open_questions": _LIST, "permanent_ideas": _LIST,
     },
     "required": ["title", "summary", "simple_explanation", "topics", "glossary", "examples", "steps",
-                 "review_questions", "key_moments", "caveats", "mind_map"],
+                 "review_questions", "key_moments", "caveats", "map_kind", "mind_map", "relations", "mistakes",
+                 "applications", "open_questions", "permanent_ideas"],
 }
 
 SYSTEM = """Você é um professor que prepara material de estudo a partir da transcrição de uma aula.
@@ -55,18 +65,35 @@ Regras:
 - title: título claro e específico do assunto da aula.
 - summary: 3 a 6 frases com as ideias centrais.
 - simple_explanation: explique o assunto para um iniciante, em linguagem simples. Pode usar analogias, sem acrescentar fatos novos.
-- topics: principais tópicos na ordem da aula. timestamp = um marcador [mm:ss] existente na transcrição onde o tópico começa, ou "" se não houver marcadores.
+- topics: principais tópicos na ordem da aula. why = por que esse tópico importa, em 1 frase. timestamp = um marcador
+  [mm:ss] existente na transcrição onde o tópico começa, ou "" se não houver marcadores.
 - glossary: termos técnicos citados e o significado dado na aula (lista vazia se não houver).
 - examples: exemplos citados na aula (origin "aula") e, só se ajudarem, analogias suas (origin "didatico").
 - steps: passo a passo apenas se a aula ensinar um procedimento; senão, lista vazia.
-- review_questions: 4 a 8 perguntas que testem a compreensão, com respostas baseadas na aula.
+- review_questions: 6 a 12 perguntas com respostas baseadas na aula, de tipos variados (kind): recordacao ("O que é
+  X?"), compreensao ("Por que X acontece?"), relacao ("Qual a relação entre X e Y?"), aplicacao ("Como você aplicaria
+  X neste cenário?"), diagnostico ("O que aconteceria se Y fosse removido?"), sintese ("Como X, Y e Z formam um
+  todo?"). No máximo metade de recordacao. Nada de pergunta trivial, de sim ou não, ou respondida no próprio enunciado.
 - key_moments: até 10 momentos úteis para revisar, com marcador [mm:ss] existente (lista vazia se não houver marcadores).
 - caveats: trechos confusos ou possivelmente mal transcritos e pontos que a aula não deixou claros (lista vazia se não houver).
-- mind_map: mapa mental fiel à aula. center = o tema central em até 5 palavras. branches = as grandes ideias da
+- map_kind: o tipo de aula, que decide a forma do mind_map: conceitual (ramos = conceitos, com propriedades,
+  exemplos e relações), tutorial (objetivo, pré-requisitos, passos, resultado), argumentacao (tese, argumentos,
+  evidências, contra-argumentos, conclusão), sistema (componentes, fluxo, dependências, dados, riscos) ou livro
+  (capítulos ou partes, ideias, evidências, aplicações).
+- mind_map: mapa mental fiel à aula, com a forma do map_kind. center = o tema central em até 5 palavras. branches = as grandes ideias da
   aula, de 2 a 7 conforme o conteúdo (label com até 5 palavras e um emoji que represente o ramo), cada uma com 1 a 4
   children: fatos, termos, exemplos ou passos concretos ditos na aula, em até 8 palavras. Aula curta = mapa pequeno:
   nunca complete com frases genéricas ("impacto global", "importância do tema", "foco da aula"), nem repita itens
   entre ramos.
+- relations: até 8 relações que a aula afirma entre itens do mind_map. from e to são exatamente o texto do center, de
+  um label ou de um children; type: causa, depende de, exemplo de, contrasta com, leva a, parte de, usado em. Lista
+  vazia se a aula não relacionar os itens.
+- mistakes: erros e confusões prováveis de quem estuda este assunto, ligados ao que a aula explica (até 5).
+- applications: onde este conhecimento se aplica na prática, sem inventar fatos (até 5).
+- open_questions: o que a aula deixou sem resposta ou vale pesquisar depois (até 5).
+- permanent_ideas: até 5 ideias da aula que valem virar nota permanente do aluno, cada uma uma afirmação curta,
+  completa e com sentido sozinha.
+- A profundidade acompanha a aula: aula curta, material curto; aula densa, mais tópicos e perguntas. Não encha listas.
 - O aluno estudou a aula e escreveu primeiro o que entendeu (no fim do pedido, "Compreensão do aluno"). Este
   material complementa a compreensão dele, não a substitui: dê mais espaço e clareza ao que ele não mencionou,
   entendeu em parte ou pode ter confundido. Não copie, não resuma e não reescreva a nota dele.
@@ -78,7 +105,6 @@ tópicos, definições, exemplos, procedimentos e nomes próprios citados. Mante
 momentos importantes e o conteúdo das linhas "(na tela)" (slides, fórmulas, código). Use somente o que está no
 texto; não invente. {lang}"""
 
-_LIST = {"type": "array", "items": {"type": "string"}}
 ANALYSIS_SCHEMA = {  # a ordem é a ordem em que o modelo pensa: com as confusões depois dos acertos e das ideias
     "type": "object",  # parciais, uma frase meio certa e meio errada ia sempre para “parciais” (3 de 3 no qwen3:8b)
     "properties": {
@@ -222,7 +248,7 @@ def pull(model, progress, check):
 
 # Teto de cada resposta (tokens), ~3× o normal: sem ele, a IA às vezes repete texto até encher o contexto e o
 # Ollama segue gerando (notas de uma aula longa passaram de 9 min numa só parte). As notas cabem juntas numa leitura.
-MAX_OUT = {"notes": 2500, "lesson": 6000, "charts": 2048, "analysis": 2500}
+MAX_OUT = {"notes": 2500, "lesson": 6000, "charts": 2048, "analysis": 2500, "refine": 6000, "connect": 1200}
 MAX_SPLITS = 2  # partes que generate relê em dois pedaços quando as notas são cortadas no teto
 
 
@@ -272,12 +298,12 @@ def validate(data, duration=None, has_times=True):
     if not isinstance(data, dict):
         raise bad
 
-    def items(key, fields, cap):
+    def items(key, fields, cap, optional=("timestamp",)):
         out = []
         for it in data.get(key) or []:
             if isinstance(it, dict):
                 it = {f: _s(it.get(f)) for f in fields}
-                if all(it[f] for f in fields if f not in ("timestamp",)):
+                if all(it[f] for f in fields if f not in optional):
                     out.append(it)
         return out[:cap]
 
@@ -290,16 +316,21 @@ def validate(data, duration=None, has_times=True):
         "summary": _s(data.get("summary")),
         "simple_explanation": _s(data.get("simple_explanation")),
         "topics": [{**t, "timestamp": ts(t["timestamp"])}
-                   for t in items("topics", ("title", "explanation", "timestamp"), 15)],
+                   for t in items("topics", ("title", "explanation", "timestamp", "why"), 15, ("timestamp", "why"))],
         "glossary": items("glossary", ("term", "definition"), 25),
         "examples": [e for e in items("examples", ("text", "origin"), 12) if e["origin"] in ("aula", "didatico")],
         "steps": [_s(x) for x in data.get("steps") or [] if _s(x)][:20],
-        "review_questions": items("review_questions", ("question", "answer"), 10),
+        "review_questions": [{**q, "kind": q["kind"] if q["kind"] in QUESTION_KINDS else ""} for q in items(
+            "review_questions", ("question", "answer", "kind"), 14, ("kind",))],
         "key_moments": [m for m in ({**m, "timestamp": ts(m["timestamp"])}
                                     for m in items("key_moments", ("timestamp", "label"), 15))
                         if m["timestamp"] is not None],
         "caveats": [_s(x, 500) for x in data.get("caveats") or [] if _s(x)][:10],
         "mind_map": data.get("mind_map") if isinstance(data.get("mind_map"), dict) else None,  # limpo em mindmap.data
+        "map_kind": data.get("map_kind") if data.get("map_kind") in MAP_KINDS else "conceitual",
+        "relations": [r for r in items("relations", ("from", "type", "to"), 8) if r["type"] in RELATIONS],
+        **{k: [_s(x, 500) for x in data.get(k) or [] if _s(x)][:5]
+           for k in ("mistakes", "applications", "open_questions", "permanent_ideas")},
     }
     if not (lesson["title"] and lesson["summary"] and lesson["simple_explanation"]
             and lesson["topics"] and lesson["review_questions"]):
@@ -382,12 +413,14 @@ def _condense(text, model, lang, check, status, budget):
     return text, lost
 
 
-def generate(segments, duration, model, language, check, status, redo=False, note="", screens=(), understanding=""):
+def generate(segments, duration, model, language, check, status, redo=False, note="", screens=(), understanding="",
+             deep=False):
     """Transcrição + compreensão do aluno → material de estudo validado. status(detail, progress).
 
     understanding: a nota que o aluno escreveu antes; sem ela (válida), nada é gerado (lumen/understanding.py).
     redo: o aluno pediu para refazer a página; note: o que ele quer diferente (opcional).
-    screens: o que apareceu na tela (vision.screen_lines), intercalado na transcrição."""
+    screens: o que apareceu na tela (vision.screen_lines), intercalado na transcrição.
+    deep: modo Profundo, uma 2ª passada critica e melhora o material (_refine), com a mesma aula já condensada."""
     require_understanding(understanding)
     lang = _lang(language)
     has_times = any(s.get("start") is not None for s in segments)
@@ -416,11 +449,103 @@ def generate(segments, duration, model, language, check, status, redo=False, not
                 lesson["caveats"] = ["Parte da aula foi lida de forma incompleta (a IA não terminou o resumo da "
                                      "parte " + ", ".join(map(str, sorted(set(lost)))) + "); confira a aula original "
                                      "nesses trechos."] + lesson["caveats"][:9]
-            return lesson
         except (ValueError, AppError):
             if attempt == 2:
                 raise AppError("A IA devolveu um resultado malformado duas vezes.",
                                "Tente de novo; se persistir, escolha outro modelo em Configurações.") from None
+            continue
+        return _refine(lesson, text, model, lang, check, status, understanding, duration, has_times) if deep else lesson
+
+
+REFINE = """Você revisa um material de estudo gerado por IA a partir de uma aula, conferindo com a própria aula, e devolve
+uma versão melhor no mesmo formato. Corrija:
+- conceitos importantes da aula que ficaram de fora (tópicos, glossário, mapa);
+- resumo genérico ou que não bate com a aula;
+- perguntas fracas (triviais, ambíguas, respondidas no enunciado), respostas erradas e falta de variedade de tipos;
+- relações que a aula não sustenta, itens repetidos entre seções e listas cheias de frases vagas;
+- qualquer afirmação que não esteja na aula: tire.
+Use só o que está na aula. Não invente fatos, números, nomes nem referências. Mantenha os marcadores [mm:ss]
+existentes. A compreensão do aluno continua sendo dele: complemente o que ele não mencionou, não a reescreva.
+{lang}
+Responda somente com JSON neste formato: {schema}"""
+
+
+def _refine(lesson, text, model, lang, check, status, understanding, duration, has_times):
+    """Modo Profundo: crítica do material contra a aula, devolvendo o mesmo esquema. Resposta inútil → fica a 1ª
+    versão (a crítica nunca impede a página)."""
+    status("Revisando o material (modo profundo)…", None)
+    draft = {**lesson, "topics": [{**t, "timestamp": f"[{fmt_time(t['timestamp'])}]" if t["timestamp"] is not None else ""}
+                                  for t in lesson["topics"]],
+             "key_moments": [{**m, "timestamp": f"[{fmt_time(m['timestamp'])}]"} for m in lesson["key_moments"]]}
+    system = REFINE.format(lang=lang, schema=json.dumps(SCHEMA, ensure_ascii=False))
+    user = ("Aula:\n\n" + text + "\n\n---\nMaterial gerado (revise e melhore):\n\n" + json.dumps(draft, ensure_ascii=False)
+            + "\n\n---\nCompreensão do aluno:\n\n" + understanding)
+    need = int((len(system) + len(user)) / 2.6) + MAX_OUT["refine"]
+    try:
+        raw = _chat(model, system, user, check, lambda n: status(f"Revisando o material (modo profundo)… ({n} trechos)",
+                                                                  None),
+                    schema=SCHEMA, num_ctx=min(max(20480, need), 32768), kind="refine")
+        better = validate(json.loads(raw), duration, has_times)
+    except (ValueError, AppError):
+        return lesson
+    lost = [c for c in lesson["caveats"] if c.startswith("Parte da aula foi lida")]
+    better["caveats"] = list(dict.fromkeys(lost + better["caveats"]))[:10]
+    return {**better, "refined": True}
+
+
+LINK_RELATIONS = ["fundamenta", "aprofunda", "aplica", "exemplo de", "contrasta com", "depende de", "usado no projeto",
+                  "relacionado"]
+CONNECT = """Você ajuda um estudante a ligar uma aula nova às notas que ele já tem no Obsidian (o segundo cérebro dele).
+Regras:
+- links: entre as notas candidatas, só as que têm relação conceitual real com a aula. Palavra igual não é conexão.
+  Poucas e boas (até 6); lista vazia se nenhuma servir. Nunca cite nota fora da lista.
+- relation: fundamenta, aprofunda, aplica, exemplo de, contrasta com, depende de, usado no projeto (só para projetos) ou
+  relacionado.
+- reason: uma frase com a relação concreta entre a aula e aquela nota.
+- anchors: os Anchor Topics (mapas de assunto do cofre) a que a aula claramente pertence, de 0 a 2.
+- anchor_suggestion: se nenhum Anchor Topic servir, o nome curto de um tema que serviria; senão "".
+{lang}
+Responda somente com JSON neste formato: {schema}"""
+
+
+def connect(lesson, candidates, anchors, model, language, check, status):
+    """Conexões com o cofre. candidates/anchors: [{name, kind, excerpt}] (vault.search, só no PC). Os nomes vão num
+    enum do JSON Schema: o Ollama não consegue responder com uma nota que não existe."""
+    names, tops = [c["name"] for c in candidates], [a["name"] for a in anchors]
+    if not (names or tops):
+        return {"links": [], "anchors": [], "anchor_suggestion": ""}
+    schema = {"type": "object", "properties": {
+        "links": {"type": "array", "items": {"type": "object", "properties": {
+            "note": {"type": "string", "enum": names or [""]}, "relation": {"type": "string", "enum": LINK_RELATIONS},
+            "reason": {"type": "string"}}, "required": ["note", "relation", "reason"]}},
+        "anchors": {"type": "array", "items": {"type": "string", "enum": tops or [""]}},
+        "anchor_suggestion": {"type": "string"}}, "required": ["links", "anchors", "anchor_suggestion"]}
+    system = CONNECT.format(lang=_lang(language), schema=json.dumps(schema, ensure_ascii=False))
+    terms = [t["title"] for t in lesson["topics"]] + [g["term"] for g in lesson.get("glossary") or []]
+    user = (f"Aula: {lesson['title']}\nResumo: {lesson['summary'][:1200]}\nConceitos: {'; '.join(terms)[:1200]}\n\n"
+            "Notas candidatas do cofre:\n" + "\n".join(f"- {c['name']} ({c['kind']}): {c['excerpt']}" for c in candidates)
+            + "\n\nAnchor Topics do cofre:\n" + "\n".join(f"- {a['name']}: {a['excerpt']}" for a in anchors))
+    for attempt in (1, 2):
+        status("Encontrando conexões no seu cofre…", None)
+        raw = _chat(model, system, user, check, lambda n: None, schema=schema, num_ctx=8192, temperature=0.1,
+                    kind="connect")
+        try:
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                break
+        except ValueError:
+            pass
+        if attempt == 2:
+            raise AppError("A IA não conseguiu sugerir conexões com o cofre.", "Tente de novo.")
+    links, seen = [], set()
+    for x in data.get("links") or []:
+        if isinstance(x, dict) and x.get("note") in names and x["note"] not in seen and _s(x.get("reason")):
+            seen.add(x["note"])
+            links.append({"note": x["note"], "reason": _s(x["reason"], 300),
+                          "relation": x.get("relation") if x.get("relation") in LINK_RELATIONS else "relacionado"})
+    picked = list(dict.fromkeys(a for a in data.get("anchors") or [] if a in tops))[:2]
+    return {"links": links[:6], "anchors": picked,
+            "anchor_suggestion": "" if picked else " ".join(_s(data.get("anchor_suggestion"), 60).split())}
 
 
 def analyze(segments, model, language, understanding, check, status, screens=()):

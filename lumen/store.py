@@ -25,6 +25,18 @@ DEFAULTS = {
     "music_mode": "balanceado",  # conservador | balanceado | agressivo (music.MODES)
     "widget": "left",           # off | left | right | top | bottom | free
     "autostart": False,         # abrir com o Windows (chave Run do usuário)
+    # Destinos do material (o mesmo StudyPackage para os dois; lumen/package.py)
+    "destinations": "notion",   # notion | obsidian | both
+    "study_level": "balanceado",  # rapido (1 passada) | balanceado (+ conexões) | profundo (+ crítica do material)
+    "obsidian_vault": "",       # pasta do cofre (escolhida pelo usuário; vault.vaults() só sugere)
+    "obsidian_folder": "",      # pasta das notas dentro do cofre; vazio = vault.default_folder
+    "obsidian_canvas_folder": "",  # pasta dos mapas (.canvas); vazio = a mesma das notas
+    "obsidian_canvas": True,    # mapa mental como Canvas
+    "obsidian_connections": True,  # procurar conexões no cofre (IA local, só no PC)
+    "obsidian_review": True,    # revisões espaçadas na nota e no painel
+    "obsidian_attachments": True,  # telas e gráficos copiados para o cofre (nunca o vídeo)
+    "obsidian_open": False,     # abrir a nota no Obsidian ao terminar
+    "review_intervals": [1, 3, 7, 14, 30, 60],  # dias depois do estudo
 }
 
 
@@ -57,9 +69,10 @@ def history():
 
 
 def remember(key, entry):
+    """Manifesto de sincronização: uma entrada por aula (Notion, Obsidian, pacote). Junta ao que já havia."""
     with LOCK:
         h = history()
-        h[key] = entry
+        h[key] = {**(h.get(key) or {}), **entry}
         _write("history.json", h)
 
 
@@ -99,6 +112,7 @@ def clear_local_data():
     nem no token). A interface avisa das notas antes de confirmar."""
     shutil.rmtree(WORK, ignore_errors=True)
     shutil.rmtree(DATA / "understanding", ignore_errors=True)
+    shutil.rmtree(DATA / "packages", ignore_errors=True)
     (DATA / "history.json").unlink(missing_ok=True)
     try:  # o log fica aberto pelo app; esvaziar funciona no Windows, apagar não
         open(DATA / "lumen.log", "w").close()

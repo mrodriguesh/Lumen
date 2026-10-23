@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -11,8 +12,8 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (AppError, cover, eta, imagegen, jobs, llm, music, notion, pomodoro, record, sources, store, transcribe,
-               understanding, vision)
+from . import (AppError, cover, eta, imagegen, jobs, llm, music, notion, obsidian, pomodoro, record, sources, store,
+               transcribe, understanding, vault, vision)
 
 log = logging.getLogger("lumen")
 WEB = Path(__file__).parent / "web"
@@ -33,6 +34,12 @@ from tkinter import filedialog as f
 r = t.Tk(); r.withdraw(); r.attributes('-topmost', 1)
 print(f.askopenfilename(title=sys.argv[1], filetypes=[(sys.argv[2], sys.argv[3]), ('Todos', '*.*')],
                         initialdir=sys.argv[4] or None) or '')"""
+
+
+_PICK_DIR = """import sys, tkinter as t
+from tkinter import filedialog as f
+r = t.Tk(); r.withdraw(); r.attributes('-topmost', 1)
+print(f.askdirectory(title=sys.argv[1], initialdir=sys.argv[2] or None, mustexist=True) or '')"""
 
 
 _PICK_MANY = """import sys, tkinter as t
@@ -62,6 +69,12 @@ def pick_images():
 def pick_file(kind):
     if kind == "images":
         return pick_images()
+    if kind == "vault":  # pasta do cofre do Obsidian (validada ao salvar em Ajustes)
+        r = subprocess.run([sys.executable, "-c", _PICK_DIR, "Escolher o cofre do Obsidian", str(Path.home())],
+                           capture_output=True, text=True, encoding="utf-8",
+                           env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return {"path": str(Path(r.stdout.strip())) if r.stdout.strip() else ""}
     if kind == "captions":
         title, label, exts, start = "Importar transcrição", "Legendas e texto", sources.CAPTIONS, ""
     else:
@@ -101,7 +114,21 @@ def state():
         "vision": {"model": vision.MODEL, "size": vision.SIZE,
                    "installed": om is not None and any(x in (vision.MODEL, vision.MODEL + ":latest") for x in om)},
         "music": {"ready": music.ready(), "size": music.SIZE},  # só confere os arquivos; nenhum modelo é carregado
+        "obsidian": obsidian_view(cfg),
     }
+
+
+def obsidian_view(cfg):
+    """Cofres detectados (o usuário escolhe; nunca em silêncio) e a pasta onde as notas vão ficar."""
+    out = {"vaults": [{**v, "folder": vault.default_folder(Path(v["path"])) if v["ok"] else ""} for v in vault.vaults()],
+           "folder": "", "error": None}
+    if cfg["obsidian_vault"]:
+        try:
+            root, notes, _ = obsidian.folders(cfg)
+            out["folder"] = notes.relative_to(root).as_posix()
+        except AppError as e:
+            out["error"] = f"{e} {e.action}".strip()
+    return out
 
 
 def job_view():
@@ -114,8 +141,10 @@ def inspect(spec):
     cfg, token = store.load_config(), store.get_token()
     _, m = transcribe.pick(cfg["quality"])
     dup = store.history().get(src["key"])
-    if dup and token and not notion.page_url(token, dup["page_id"]):
-        dup = None  # página foi apagada no Notion
+    if dup and dup.get("page_id") and token and not notion.page_url(token, dup["page_id"]):
+        dup = {k: v for k, v in dup.items() if k not in ("page_id", "url", "block_ids")}  # página apagada no Notion
+    if dup and not (dup.get("page_id") or (dup.get("obsidian") or {}).get("status") == "ok"):
+        dup = None
     resumable = (jobs.work_dir(src["key"]) / "transcript.json").exists()
     needs_tr = not src.get("captions") and bool(src.get("path")) and not resumable
     return {
@@ -238,6 +267,30 @@ def _apply_settings(body):
         cfg["music_mode"] = body["music_mode"]
     if body.get("widget") in ("off", "left", "right", "top", "bottom", "free"):
         cfg["widget"] = body["widget"]
+    if body.get("destinations") in ("notion", "obsidian", "both"):
+        cfg["destinations"] = body["destinations"]
+    if body.get("study_level") in ("rapido", "balanceado", "profundo"):
+        cfg["study_level"] = body["study_level"]
+    if "obsidian_vault" in body:
+        raw = str(body["obsidian_vault"] or "").strip()
+        cfg["obsidian_vault"] = str(vault.check(raw)) if raw else ""
+    for k in ("obsidian_folder", "obsidian_canvas_folder"):
+        if k in body:
+            rel = str(body[k] or "").strip().replace("\\", "/").strip("/")[:200]
+            vault.inside(Path(cfg["obsidian_vault"] or "."), rel)  # recusa “..”, caminho absoluto e pasta oculta
+            cfg[k] = rel
+    for k in ("obsidian_canvas", "obsidian_connections", "obsidian_review", "obsidian_attachments", "obsidian_open"):
+        if k in body:
+            cfg[k] = body[k] is True
+    if "review_intervals" in body:
+        iv = body["review_intervals"]
+        days = [int(x) for x in re.findall(r"\d+", iv)] if isinstance(iv, str) else iv
+        if not (isinstance(days, list) and 1 <= len(days) <= 10
+                and all(isinstance(d, int) and 1 <= d <= 365 for d in days) and days == sorted(set(days))):
+            raise AppError("Intervalos de revisão inválidos.", "Use dias crescentes entre 1 e 365, como 1, 3, 7, 14, 30, 60.")
+        cfg["review_intervals"] = days
+    if ("destinations" in body or "obsidian_vault" in body) and cfg["destinations"] != "notion":
+        obsidian.folders(cfg)  # Obsidian ligado sem cofre válido: diz o que falta antes de salvar
     if "autostart" in body:
         if not isinstance(body["autostart"], bool):
             raise AppError("Opção de inicialização inválida.", "Escolha ligar ou desligar.")
@@ -437,6 +490,41 @@ def _capture_thumb(h):
     return vision.image_jpeg(p)
 
 
+def _deliver(h):
+    """“Tentar de novo só o Obsidian/Notion”, “Substituir mesmo assim” e “Salvar no Obsidian” da Biblioteca."""
+    body = h._json()
+    jobs.start("process", jobs.deliver, body, spec=body)
+    return job_view()
+
+
+def _open(h):
+    """Abre no Obsidian a nota, o mapa ou o painel de uma aula. Só arquivos do cofre configurado, achados pelo
+    manifesto; o endereço obsidian:// é montado aqui (nenhum vem da interface)."""
+    body = h._json()
+    root, folder, _ = obsidian.folders(store.load_config())
+    if body.get("what") == "dashboard":
+        path = folder / "Lumen Dashboard.md"
+    else:
+        ob = (store.history().get(str(body.get("key") or "")) or {}).get("obsidian") or {}
+        rel = ob.get("canvas" if body.get("what") == "canvas" else "note")
+        if not rel:
+            raise AppError("Esta aula ainda não foi salva no Obsidian.", "Use “Salvar no Obsidian”.")
+        path = root / rel
+    path = path.resolve()
+    if root not in path.parents or not path.is_file():
+        raise AppError("O arquivo não foi encontrado no cofre.", "Ele pode ter sido movido para fora da pasta ou apagado.")
+    obsidian.open_path(path)
+    return {}
+
+
+def _history():
+    """Biblioteca: aulas salvas em algum destino, com a chave (para abrir no Obsidian ou salvar de novo)."""
+    items = [{**v, "key": k} for k, v in store.history().items()
+             if v.get("url") or (v.get("obsidian") or {}).get("status") == "ok"]
+    when = lambda x: x.get("created") or (x.get("obsidian") or {}).get("at") or ""  # noqa: E731
+    return {"items": sorted(items, key=when, reverse=True)}
+
+
 def _start(h):
     body = h._json()
     jobs.start("process", jobs.process, body, spec=body)
@@ -507,7 +595,9 @@ ROUTES = {
     ("POST", "/api/download"): _download,
     ("POST", "/api/clear"): _clear,
     ("GET", "/api/record"): lambda h: record.status(),
-    ("GET", "/api/history"): lambda h: {"items": sorted(store.history().values(), key=lambda x: x.get("created", ""), reverse=True)},
+    ("GET", "/api/history"): lambda h: _history(),
+    ("POST", "/api/deliver"): _deliver,
+    ("POST", "/api/open"): _open,
     ("POST", "/api/record/start"): lambda h: (record.start(h._json().get("title")), record.status())[1],
     ("POST", "/api/record/stop"): lambda h: record.stop(keep=h._json().get("exit") is True),
     ("POST", "/api/record/discard"): lambda h: (record.discard(), record.status())[1],

@@ -7,7 +7,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from . import jobs, pomodoro, record, server, store
+from . import AppError, jobs, obsidian, pomodoro, record, server, store
 
 
 def _edge():
@@ -16,6 +16,16 @@ def _edge():
         if base and exe.is_file():
             return exe
     return None
+
+
+def _reviews():
+    """Revisões marcadas nas notas do Obsidian → próxima data no frontmatter (obsidian.sync_reviews)."""
+    try:
+        n = obsidian.sync_reviews(store.load_config())
+        if n:
+            logging.info("revisões: %d nota(s) atualizada(s)", n)
+    except (AppError, OSError, ValueError) as e:
+        logging.warning("revisões: %s", type(e).__name__)
 
 
 def main():
@@ -28,6 +38,7 @@ def main():
     url = f"http://127.0.0.1:{httpd.server_port}/"
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     pomodoro.start()
+    threading.Thread(target=_reviews, daemon=True).start()
     logging.info("Lumen iniciado")
 
     edge = _edge()

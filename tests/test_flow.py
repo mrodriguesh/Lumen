@@ -7,7 +7,7 @@ import unittest
 from unittest import mock
 
 import tests  # noqa: F401  (isola LUMEN_DATA antes do lumen, mesmo sem -t .)
-from lumen import jobs, llm, notion, server, sources, store
+from lumen import AppError, jobs, llm, notion, server, sources, store
 from tests.fake_notion import Fake
 from tests.test_llm import GOOD, understood
 
@@ -376,6 +376,126 @@ class Flow(unittest.TestCase):
         self.assertEqual(full({**SPEC, "course_id": "__none__"})["status"], "done")
         page = [p for p in self.fake.pages.values() if p["title"] == "Sem curso"][0]
         self.assertFalse(any(b["type"] == "heading_3" and b["heading_3"].get("is_toggleable") for b in page["blocks"]))
+
+
+class Destinations(unittest.TestCase):
+    """Um StudyPackage, dois destinos: a IA escreve o material uma vez; a falha de um destino não desfaz o outro e
+    “Tentar de novo” refaz só o que falhou, sem duplicar nada."""
+    tearDown = Flow.tearDown
+
+    def setUp(self):
+        Flow.setUp(self)
+        import shutil
+        import tempfile
+        from pathlib import Path
+        from tests.test_obsidian import make_vault
+        self.tmp = tempfile.mkdtemp(prefix="lumen-vault-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.vault = Path(self.tmp) / "Cofre"
+        self.vault.mkdir()
+        make_vault(self.vault)
+        store.save_config({**store.DEFAULTS, "root_page_id": self.root, "destinations": "both",
+                           "obsidian_vault": str(self.vault)})
+        self.lumen = self.vault / "C04 Claude Obsidian" / "16 Lumen"
+
+    def notes(self):
+        return sorted(p.name for p in self.lumen.glob("*.md") if p.name != "Lumen Dashboard.md")
+
+    def test_one_generation_feeds_both(self):
+        schemas = []
+
+        def chat(model, system, user, check, tokens, schema=None, **kw):
+            schemas.append(schema)
+            return json.dumps(GOOD)
+        with mock.patch.object(llm, "_chat", side_effect=chat):
+            j = full({**SPEC, "course_id": self.root, "course_title": "Biologia"})
+        self.assertEqual(j["status"], "done", j.get("error"))
+        res = j["result"]
+        self.assertEqual((res["notion"]["status"], res["obsidian"]["status"]), ("ok", "ok"))
+        self.assertEqual(sum(1 for s in schemas if s is llm.SCHEMA), 1)  # o material foi escrito UMA vez
+        self.assertEqual(self.notes(), ["2026-10-23 - Fotossíntese.md".replace("2026-10-23", self.today())])
+        text = (self.lumen / self.notes()[0]).read_text("utf-8")
+        self.assertIn('notion: "', text)  # a nota aponta para a página do Notion
+        self.assertIn("Plantas produzem glicose.", text)
+        blocks = json.dumps(self.fake.pages[self.root]["blocks"], ensure_ascii=False)
+        self.assertIn("Plantas produzem glicose.", blocks)  # o mesmo pacote nos dois
+        entry = store.history()["yt:dQw4w9WgXcQ"]
+        self.assertEqual(entry["obsidian"]["note"], "C04 Claude Obsidian/16 Lumen/" + self.notes()[0])
+        self.assertTrue(entry["page_id"] and entry["lumen_id"] and entry["content_hash"])
+        self.assertTrue((store.DATA / "packages" / f"{entry['lumen_id']}.json").exists())
+
+        # reprocessar: atualiza a página (replace) e não cria outra nota, canvas ou anexo
+        files = sorted(p.relative_to(self.vault).as_posix() for p in self.vault.rglob("*") if p.is_file())
+        self.assertEqual(full({**SPEC, "course_id": self.root, "mode": "replace"})["status"], "done")
+        self.assertEqual(sorted(p.relative_to(self.vault).as_posix() for p in self.vault.rglob("*") if p.is_file()), files)
+
+    def today(self):
+        from datetime import date
+        return date.today().isoformat()
+
+    def test_notion_failure_keeps_obsidian_and_retry_sends_only_notion(self):
+        self.fake.fail_append = True
+        j = full({**SPEC, "course_id": self.root})
+        self.assertEqual(j["status"], "done", j.get("error"))  # parcial: o que deu certo fica
+        self.assertEqual((j["result"]["obsidian"]["status"], j["result"]["notion"]["status"]), ("ok", "error"))
+        note = self.lumen / self.notes()[0]
+        before = note.read_bytes()
+        self.fake.fail_append = False
+        llm._chat.reset_mock()
+        jobs.start("process", jobs.deliver, {"key": "yt:dQw4w9WgXcQ", "only": ["notion"], "course_id": self.root})
+        j = wait()
+        self.assertEqual(j["status"], "done", j.get("error"))
+        self.assertEqual(j["result"]["notion"]["status"], "ok")
+        self.assertNotIn("obsidian", j["result"])
+        llm._chat.assert_not_called()  # sem IA: o pacote guardado
+        self.assertIn("Plantas produzem glicose.", json.dumps(self.fake.pages[self.root]["blocks"], ensure_ascii=False))
+        import re
+        self.assertEqual(re.sub(r'notion: ".*"\n', "", note.read_text("utf-8")), before.decode())  # só o link entrou
+
+    def test_obsidian_conflict_keeps_notion_and_retry_sends_only_obsidian(self):
+        self.assertEqual(full({**SPEC, "course_id": self.root})["status"], "done")
+        note = self.lumen / self.notes()[0]
+        edited = note.read_text("utf-8").replace("Plantas produzem glicose.", "Plantas produzem glicose (minha nota).")
+        note.write_text(edited, "utf-8")
+        j = full({**SPEC, "course_id": self.root, "mode": "replace", "url": SPEC["url"]})
+        self.assertEqual(j["status"], "done", j.get("error"))
+        self.assertEqual((j["result"]["notion"]["status"], j["result"]["obsidian"]["status"]), ("ok", "error"))
+        self.assertTrue(j["result"]["obsidian"]["conflict"])
+        self.assertEqual(note.read_text("utf-8"), edited)
+        pages = len(self.fake.pages)
+        blocks = len(self.fake.pages[self.root]["blocks"])
+        jobs.start("process", jobs.deliver, {"key": "yt:dQw4w9WgXcQ", "only": ["obsidian"], "force": True})
+        j = wait()
+        self.assertEqual(j["result"]["obsidian"]["status"], "ok", j)
+        self.assertNotIn("(minha nota)", note.read_text("utf-8"))
+        self.assertEqual(len(list(self.vault.rglob("*.canvas"))), 1)  # o mesmo canvas, nunca um segundo
+        self.assertEqual((len(self.fake.pages), len(self.fake.pages[self.root]["blocks"])), (pages, blocks))  # nada duplicado
+
+    def test_obsidian_only_without_notion(self):
+        store.save_config({**store.load_config(), "destinations": "obsidian"})
+        with mock.patch.object(store, "get_token", return_value=None):
+            j = full({**SPEC, "course_title": "Biologia"})
+        self.assertEqual(j["status"], "done", j.get("error"))
+        self.assertEqual(j["result"]["dests"], ["obsidian"])
+        self.assertEqual(self.fake.pages[self.root]["blocks"], [])
+        self.assertIn('course: "Biologia"', (self.lumen / self.notes()[0]).read_text("utf-8"))
+        info = server.inspect(SPEC)
+        self.assertEqual(info["duplicate"]["obsidian"]["status"], "ok")
+
+    def test_destination_not_ready_stops_before_any_work(self):
+        store.save_config({**store.load_config(), "obsidian_vault": str(self.vault / "nao-existe")})
+        jobs.start("process", jobs.process, {**SPEC, "course_id": self.root})
+        j = wait()
+        self.assertEqual(j["status"], "error")
+        self.assertIn("cofre do Obsidian", j["error"]["message"])
+
+    def test_both_fail_is_an_error_with_both_reasons(self):
+        self.fake.fail_append = True
+        with mock.patch("lumen.obsidian.deliver", side_effect=AppError("Cofre sem permissão.", "x")):
+            j = full({**SPEC, "course_id": self.root})
+        self.assertEqual(j["status"], "error")
+        self.assertIn("Notion:", j["error"]["message"])
+        self.assertIn("Obsidian: Cofre sem permissão", j["error"]["message"])
 
 
 class Server(unittest.TestCase):

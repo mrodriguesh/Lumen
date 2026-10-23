@@ -7,10 +7,12 @@ import logging
 import re
 import shutil
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
-from . import AppError, Cancelled, charts, eta, llm, mindmap, notion, sources, store, transcribe, understanding, vision
+from . import (AppError, Cancelled, charts, eta, llm, mindmap, notion, obsidian, package, sources, store, transcribe,
+               understanding, vault, vision)
 from . import music as _music  # só rótulos e regras; nenhum modelo é carregado sem o filtro ligado
 
 log = logging.getLogger("lumen")
@@ -140,13 +142,6 @@ def work_dir(key):
     return store.WORK / hashlib.sha256(key.encode()).hexdigest()[:16]
 
 
-def _need_notion():
-    cfg, token = store.load_config(), store.get_token()
-    if not token:
-        raise AppError("O Notion ainda não foi conectado.", "Abra Configurações e conecte o Notion.")
-    return cfg, token
-
-
 _NAME = re.compile(r"(?<=[a-záéíóúâêôãõç,;:]\s)[A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{2,}")
 
 
@@ -169,7 +164,8 @@ def _flags(seg):
 def process(spec):
     """Fase 1: fonte → transcrição (preparação técnica, sem IA de texto). Termina esperando a compreensão do
     estudante; nada vai para o Notion e nenhum material é escrito ainda."""
-    cfg, _ = _need_notion()
+    cfg = store.load_config()
+    _destinations(cfg)  # sem destino pronto, nem começa (a mensagem diz o que falta)
     _set(stage="prepare", detail="Verificando a fonte…")
     src = _cached_source(spec) or sources.resolve(spec)
     understanding.start(src["key"], src["title"], src["label"], spec)
@@ -477,9 +473,11 @@ def _summary(folder, warning=None, watched=True):
 
 
 def finish(spec):
-    """Fase 2: compreensão analisada + transcrição revisada → material de estudo → página no Notion, com a
-    subpágina “Minha compreensão”. Sem a nota do estudante (e a análise dela), nada é gerado nem publicado."""
-    cfg, token = _need_notion()
+    """Fase 2: compreensão analisada + transcrição revisada → StudyPackage (a IA trabalha UMA vez) → o mesmo pacote
+    para cada destino ligado (Obsidian e Notion; _deliver). Sem a nota do estudante (e a análise dela), nada é
+    gerado nem salvo."""
+    cfg = store.load_config()
+    dests, token = _destinations(cfg)
     src = _cached_source(spec) or sources.resolve(spec)
     mine = understanding.require(src["key"], analyzed=True)
     work = work_dir(src["key"])
@@ -507,6 +505,7 @@ def finish(spec):
         for f in work.glob("music-*.wav"):  # nem o áudio derivado do filtro de música (o original é do usuário)
             f.unlink(missing_ok=True)
     check()
+    _set(dests=dests)
 
     shots = vision.Shots(work / "screens")  # “Assistir a tela junto”: as telas que o usuário manteve na revisão
     off = {int(i) for i in spec.get("screens_off") or []}
@@ -517,84 +516,278 @@ def finish(spec):
     digest = hashlib.sha256(json.dumps([s["text"] for s in tr["segments"]] + [x for _, x in lines] + [note],
                                        ensure_ascii=False).encode()).hexdigest()
     redo = spec.get("mode") == "redo"  # “Refazer página”: material novo, versão anterior removida
+    deep = cfg["study_level"] == "profundo"
+    linking = "obsidian" in dests and cfg["obsidian_connections"] and cfg["study_level"] != "rapido"
     saved = _load(work / "lesson.json")
     cached = saved and not redo and saved.get("model") == model and saved.get("language") == lang \
-        and saved.get("transcript") == digest
-    plan = eta.current = eta.Plan(_page_steps(tr, screens, lines, model, cached, saved, spec, len(note)))
+        and saved.get("transcript") == digest and bool(saved.get("deep")) == deep
+    eta.current = eta.Plan(_page_steps(tr, screens, lines, model, cached, saved, spec, len(note), dests, deep, linking))
     if cached:
         lesson, found = saved["lesson"], saved.get("charts")
     else:
-        _set(stage="generate", detail="Escrevendo o material a partir da sua compreensão…", progress=None, eta=None)
+        _set(stage="generate", detail="Estruturando o conteúdo a partir da sua compreensão…", progress=None, eta=None)
         lesson = llm.generate(tr["segments"], tr.get("duration"), model, lang, check,
                               lambda d, p: _set(stage="generate", detail=d, progress=p),
-                              redo=redo, note=spec.get("redo_note") or "", screens=lines, understanding=note)
-        saved, found = {"model": model, "language": lang, "transcript": digest, "lesson": lesson}, None
+                              redo=redo, note=spec.get("redo_note") or "", screens=lines, understanding=note, deep=deep)
+        saved, found = {"model": model, "language": lang, "transcript": digest, "deep": deep, "lesson": lesson}, None
         _save(work / "lesson.json", saved)
     check()
     if found is None:
         found, ok = _find_charts(tr, screens, lesson, model)
         if ok:  # falha da IA não fica guardada: “Tentar novamente” procura de novo
-            _save(work / "lesson.json", {**saved, "charts": found})
+            saved = {**saved, "charts": found}
+            _save(work / "lesson.json", saved)
+    check()
+    links = saved.get("links") if linking else None
+    if linking and links is None:
+        links, ok = _find_links(lesson, cfg, model, lang, package.lumen_id(src["key"]))
+        if ok:
+            saved = {**saved, "links": links}
+            _save(work / "lesson.json", saved)
     check()
 
-    plan.set("draw", eta.value("chart_s") if found else 0)
-    plan.at("mindmap")
+    _set(stage="generate", detail="Validando o material…", progress=None)
+    step = -(-len(screens) // MAX_SCREENS) or 1  # aula com muitas telas: no máximo 40, espalhadas pela aula
+    pkg = package.build(src, tr, lesson, mine, screens[::step], found, links, spec.get("course_title") or "", model,
+                        vision.MODEL, cfg["review_intervals"] if cfg["obsidian_review"] else ())
+    pkg = package.validate(pkg, _vault_names(cfg) if "obsidian" in dests else None)
+    package.save(pkg)
+    log.info("pacote de estudo criado: versão %s, %d tópicos, %d perguntas, %d relações, %d conexões, %d telas",
+             pkg["processor_version"], len(lesson["topics"]), len(lesson["review_questions"]),
+             len(lesson.get("relations") or []), len(pkg["connections"]), len(pkg["screens"]))
+    out = _deliver(pkg, dests, spec, cfg, token, shots)
+    if not cfg["keep_temp"]:
+        # Guarda só a transcrição da última aula publicada (para “Refazer página”); a anterior é apagada.
+        for mark in store.WORK.glob("*/published"):
+            if mark.parent != work:
+                shutil.rmtree(mark.parent, ignore_errors=True)
+        (work / "published").touch()
+        shots.prune(chosen)  # só as imagens das telas escolhidas ficam (para “Refazer página”)
+    return out
+
+
+def deliver(spec):
+    """“Tentar de novo só o Obsidian/Notion” e “Salvar no Obsidian” (Biblioteca): o pacote guardado vai de novo aos
+    destinos pedidos, sem chamar a IA. force: substituir a nota editada à mão (com backup)."""
+    entry = store.history().get(str(spec.get("key"))) or {}
+    pkg = package.load(entry.get("lumen_id") or package.lumen_id(str(spec.get("key"))))
+    only = [d for d in ("obsidian", "notion") if d in (spec.get("only") or [])]
+    if not only:
+        raise AppError("Escolha o destino para salvar de novo.", "")
+    cfg = store.load_config()
+    dests, token = _destinations({**cfg, "destinations": "both" if len(only) == 2 else only[0]})
+    _set(dests=dests, key=pkg["key"], title=pkg["lesson"]["title"])
+    eta.current = eta.Plan([("obsidian", 1.5)] * ("obsidian" in dests) + [("publish", 10)] * ("notion" in dests))
+    log.info("nova tentativa: %s", "+".join(dests))
+    return _deliver(pkg, dests, spec, cfg, token, vision.Shots(work_dir(pkg["key"]) / "screens"),
+                    force=spec.get("force") is True)
+
+
+def _destinations(cfg):
+    """Os destinos ligados, conferidos antes de qualquer trabalho: o Notion pede o token; o Obsidian, um cofre válido
+    (com a mensagem do que falta). Ordem de entrega: Obsidian (local) e depois Notion."""
+    dests = {"notion": ["notion"], "obsidian": ["obsidian"]}.get(cfg["destinations"], ["obsidian", "notion"])
+    token = None
+    if "notion" in dests:
+        token = store.get_token()
+        if not token:
+            raise AppError("O Notion ainda não foi conectado.", "Abra Configurações e conecte o Notion, ou escolha "
+                                                                "salvar só no Obsidian em Destinos do material.")
+    if "obsidian" in dests:
+        obsidian.folders(cfg)
+    return dests, token
+
+
+def _vault_names(cfg):
+    root, _, _ = obsidian.folders(cfg)
+    return [n["name"] for n in vault.index(root)]
+
+
+def _find_links(lesson, cfg, model, lang, lid):
+    """(conexões, guardar?): notas do cofre parecidas com a aula (busca local) e, entre elas, as que a IA local vê
+    como relação real. Falha → sem conexões e nada guardado (“Tentar novamente” procura de novo); nunca impede."""
+    _set(stage="connect", detail="Encontrando conexões no seu cofre…", progress=None)
+    try:
+        root, _, _ = obsidian.folders(cfg)
+        notes = vault.index(root)
+        m = lesson.get("mind_map") or {}
+        query = [(lesson["title"], 2), (str(m.get("center") or ""), 2)]
+        query += [(str(b.get("label") or ""), 2) for b in m.get("branches") or [] if isinstance(b, dict)]
+        query += [(t["title"], 1) for t in lesson["topics"]] + [(g["term"], 1) for g in lesson.get("glossary") or []]
+        cands = [n for n in vault.search(notes, query, 12, exclude=lid) if n["type"] != "anchor"]
+        card = lambda n: {"name": n["name"], "kind": vault.KINDS.get(n["type"], "Nota"), "excerpt": vault.excerpt(n)}  # noqa: E731
+        out = llm.connect(lesson, [card(n) for n in cands], [card(n) for n in vault.anchors(notes)], model, lang, check,
+                          lambda d, p: _set(stage="connect", detail=d, progress=p))
+        log.info("conexões: %d candidatas, %d escolhidas, %d Anchor Topics", len(cands), len(out["links"]),
+                 len(out["anchors"]))
+        return out, True
+    except Cancelled:
+        raise
+    except Exception as e:  # noqa: BLE001 — opcional: sem conexões a nota sai do mesmo jeito
+        log.warning("conexões: falha (%s)", type(e).__name__)
+        return {"links": [], "anchors": [], "anchor_suggestion": ""}, False
+
+
+def _deliver(pkg, dests, spec, cfg, token, shots, force=False):
+    """Destination Router: o mesmo pacote para cada destino, um de cada vez. Obsidian primeiro (local, atômico e
+    idempotente pelo lumen_id: repetir não duplica), depois o Notion (que desfaz o envio em falha ou cancelamento).
+    A falha de um não desfaz o outro: cada um tem o seu status no manifesto e “Tentar de novo” refaz só o que falhou."""
+    key, plan, t0 = pkg["key"], eta.current, time.monotonic()
+    prev = store.history().get(key) or {}
+    res = {"key": key, "lumen_id": pkg["lumen_id"], "title": pkg["lesson"]["title"],
+           "course": pkg["course"] or notion.NO_COURSE, "dests": dests}
+    store.remember(key, {"lumen_id": pkg["lumen_id"], "content_hash": pkg["content_hash"], "title": res["title"],
+                         "processor_version": pkg["processor_version"], "spec": _spec(spec)})
+    gifs = _draw(pkg["charts"], plan) if "notion" in dests or cfg["obsidian_attachments"] else []
+    if "obsidian" in dests:
+        if plan:
+            plan.at("obsidian")
+        _set(stage="obsidian", detail="Salvando no Obsidian (nota, mapa mental e conexões)…", progress=None)
+        assets = {"charts": gifs, "screens": {}}
+        if cfg["obsidian_attachments"]:
+            for s in pkg["screens"]:
+                try:
+                    assets["screens"][s["id"]] = shots.image(s["id"])
+                except (OSError, ValueError, KeyError):
+                    pass  # imagem já apagada (tentar de novo dias depois): a tela entra só com o texto
+        try:
+            ob = obsidian.deliver(pkg, cfg, assets, prev.get("obsidian"), force, notion=prev.get("url"),
+                                  transcript=_transcript(key, spec))
+            res["obsidian"] = {**ob, "status": "ok"}
+        except AppError as e:
+            log.warning("obsidian: não salvo (%s)", "conflito" if "editada" in str(e) else "erro")
+            res["obsidian"] = {"status": "error", "error": str(e), "action": e.action, "conflict": "editada" in str(e)}
+        except OSError as e:
+            log.warning("obsidian: erro de arquivo errno=%s", e.errno)
+            res["obsidian"] = {"status": "error", "error": "Não foi possível gravar no cofre do Obsidian "
+                               f"({e.strerror or 'erro de arquivo'}).", "action": "Confira se a pasta do cofre existe e "
+                               "não está somente leitura, e tente de novo."}
+        # mescla com o que já havia: um erro agora não apaga onde estão a nota e o canvas desta aula
+        store.remember(key, {"obsidian": {**(prev.get("obsidian") or {}), "error": None,
+                                          **{k: v for k, v in res["obsidian"].items() if k != "action"},
+                                          "at": datetime.now().isoformat(timespec="seconds")}})
+    if "notion" in dests:
+        check()  # cancelar aqui: o Obsidian já está salvo e “Retomar” não o duplica
+        try:
+            res["notion"] = {"status": "ok", **_notion(pkg, spec, token, gifs, shots, plan)}
+        except AppError as e:
+            res["notion"] = {"status": "error", "error": str(e), "action": e.action}
+        store.remember(key, {"notion_status": {k: v for k, v in res["notion"].items() if k in ("status", "error")}
+                             | {"at": datetime.now().isoformat(timespec="seconds")}})
+    ok = [d for d in dests if res[d]["status"] == "ok"]
+    if not ok:
+        errs = [res[d] for d in dests]
+        if len(errs) == 1:
+            raise AppError(errs[0]["error"], errs[0].get("action") or "")
+        raise AppError("Nada foi salvo. Notion: " + errs[1]["error"].rstrip(".") + ". Obsidian: "
+                       + errs[0]["error"].rstrip(".") + ".", "Corrija e tente de novo; o material já gerado foi guardado.")
+    url = (res.get("notion") or {}).get("url")
+    if url and (res.get("obsidian") or {}).get("status") == "ok":
+        try:  # a nota passa a apontar para a página do Notion (só o frontmatter muda)
+            obsidian.set_fields(Path(res["obsidian"]["vault"]) / res["obsidian"]["note"], {"notion": url})
+        except OSError:
+            pass
+    ob = res.get("obsidian") or {}
+    understanding.synced(key, {"url": url or (res.get("notion") or {}).get("url"),
+                               "understanding_url": (res.get("notion") or {}).get("understanding_url"),
+                               "obsidian": ob.get("note") if ob.get("status") == "ok" else None,
+                               "title": res["title"], "course": res["course"]})
+    res["url"], res["understanding_url"] = url, (res.get("notion") or {}).get("understanding_url")
+    res["note"] = (res.get("notion") or {}).get("note")
+    log.info("entrega: %s em %.1f s", ", ".join(f"{d}={res[d]['status']}" for d in dests), time.monotonic() - t0)
+    if ob.get("status") == "ok" and cfg["obsidian_open"]:
+        try:
+            obsidian.open_path(Path(ob["vault"]) / ob["note"])
+        except OSError:
+            pass
+    return res
+
+
+def _spec(spec):
+    """O que “Tentar de novo só o Notion” precisa saber do pedido original (sem transcrição nem edições)."""
+    return {k: spec.get(k) for k in ("course_id", "course_title", "mode", "include_transcript", "language") if k in spec}
+
+
+def _transcript(key, spec):
+    """Linhas “[mm:ss] texto” se o usuário pediu a transcrição completa no material (fica no PC até então)."""
+    if not spec.get("include_transcript"):
+        return None
+    tr = _load(work_dir(key) / "transcript.json")
+    return llm.transcript_text(tr["segments"]).split("\n") if tr else None
+
+
+def _draw(found, plan):
+    """GIF de cada gráfico, desenhado uma vez e usado pelos dois destinos (cada um num Edge, 3 ao mesmo tempo)."""
+    if plan:
+        plan.at("draw")
+    if not found:
+        return []
+    from concurrent.futures import ThreadPoolExecutor
+    _set(stage="generate", detail="Desenhando os gráficos da aula…", progress=None)
+    with ThreadPoolExecutor(3) as ex:
+        gifs = list(ex.map(charts.render, found))
+    if plan:
+        eta.learn("chart_s", plan.elapsed() / -(-len(found) // 3))
+    check()
+    return gifs
+
+
+def _notion(pkg, spec, token, gifs, shots, plan):
+    """NotionRenderer + envio: a página da aula e a subpágina “Minha compreensão”, a partir do pacote."""
+    key, lesson, src = pkg["key"], pkg["lesson"], pkg["source"]
+    if plan:
+        plan.at("mindmap")
     _set(stage="publish", detail="Desenhando o mapa mental…", progress=None)
-    mind_png = mindmap.render(mindmap.data(lesson))
+    mind_png = mindmap.render(pkg["map"])
     check()
     _set(stage="publish", detail="Salvando na página escolhida do Notion…", progress=None)
-    course_id = notion.course_for(token, cfg["root_page_id"], spec.get("course_id") or "__none__")
-    course = spec.get("course_title") or notion.NO_COURSE
-    edited = sum(1 for s in tr["segments"] if s.get("edited"))
+    course_id = notion.course_for(token, store.load_config()["root_page_id"], spec.get("course_id") or "__none__")
+    course = pkg["course"] or notion.NO_COURSE
     meta = {"course": course, "yt_id": src.get("yt_id"), "link": src.get("link"), "captures": src["kind"] == "captures",
-            "source": f"{src['label']} — {src['title']}", "duration": tr.get("duration"),
-            "language": tr.get("language"), "model": model,
-            "transcript_origin": tr["origin"] + (f" {edited} trecho(s) corrigido(s) pelo usuário." if edited else ""),
-            "uncertain": sum(1 for s in tr["segments"] if s.get("uncertain") and not s.get("edited")),
-            "understanding": True}
+            "source": f"{src['label']} — {src['title']}", "duration": src.get("duration"),
+            "language": src.get("language"), "model": src.get("model"), "transcript_origin": src.get("origin") or "",
+            "uncertain": src.get("uncertain"), "understanding": True}
     if mind_png:
         try:
             meta["mind_map_upload"] = notion.upload_image(token, mind_png, "mapa-mental.png")
         except AppError:
             pass  # o mapa vai em tópicos (notion._mind_map)
-    eta.learn("mindmap_s", plan.elapsed())
-    plan.at("draw")
-    if found:
+    if plan:
+        eta.learn("mindmap_s", plan.elapsed())
+    if pkg["charts"]:
         from concurrent.futures import ThreadPoolExecutor
-        _set(stage="publish", detail="Desenhando os gráficos da aula…", progress=None)
-
-        def draw(i, c):  # cada gráfico num Edge próprio, desenhado e enviado ao mesmo tempo que os outros
-            gif = charts.render(c)
-            return {**c, "upload": _send(token, gif, f"grafico-{i}.gif", "image/gif") if gif else None}
+        _set(stage="publish", detail="Enviando os gráficos da aula ao Notion…", progress=None)
         with ThreadPoolExecutor(3) as ex:
-            meta["charts"] = list(ex.map(draw, range(1, len(found) + 1), found))
-        eta.learn("chart_s", plan.elapsed() / -(-len(found) // 3))
+            ups = list(ex.map(lambda ig: _send(token, ig[1], f"grafico-{ig[0]}.gif", "image/gif") if ig[1] else None,
+                              enumerate(gifs + [None] * (len(pkg["charts"]) - len(gifs)), 1)))
+        meta["charts"] = [{**c, "upload": u} for c, u in zip(pkg["charts"], ups)]
         check()
-    plan.at("screens")
-    if screens:
-        step = -(-len(screens) // MAX_SCREENS)  # aula com muitas telas: no máximo 40, espalhadas pela aula
-        screens = screens[::step]
-        _set(stage="publish", detail=f"Enviando as {len(screens)} telas da aula ao Notion…", progress=None)
-        meta["screens"], meta["vision_model"] = _upload_screens(token, shots, screens), vision.MODEL
-        eta.learn("upload_s", plan.elapsed() / -(-len(screens) // 3))
+    if plan:
+        plan.at("screens")
+    if pkg["screens"]:
+        _set(stage="publish", detail=f"Enviando as {len(pkg['screens'])} telas da aula ao Notion…", progress=None)
+        meta["screens"], meta["vision_model"] = _upload_screens(token, shots, pkg["screens"]), src.get("vision_model")
+        if plan:
+            eta.learn("upload_s", plan.elapsed() / -(-len(pkg["screens"]) // 3))
         check()
     title, blocks = notion.build_page(lesson, meta)
-    transcript = llm.transcript_text(tr["segments"]).split("\n") if spec.get("include_transcript") else None
+    transcript = _transcript(key, spec)
     check()
-    sub = notion.understanding_page(mine, title)
+    sub = notion.understanding_page(pkg["understanding"], title)
     requests = _requests(blocks, transcript) + len(notion.batches(sub))
-    plan.at("publish", requests * eta.value("request_s"))
+    if plan:
+        plan.at("publish", requests * eta.value("request_s"))
     pid, url, block_ids = notion.publish(token, course_id, title, blocks, check, transcript=transcript, subpage=sub)
-    eta.learn("request_s", plan.elapsed() / requests)
+    if plan:
+        eta.learn("request_s", plan.elapsed() / requests)
     mine_url = "https://www.notion.so/" + block_ids[-1].replace("-", "")  # a subpágina é o último bloco publicado
     shown = meta.get("screens") or []
-    logging.getLogger("lumen").info("página publicada: %d bloco(s); telas: %d no texto da IA, %d na página "
-                                    "(%d sem imagem)", len(block_ids), len(lines), len(shown),
-                                    sum(1 for s in shown if not s.get("upload")))
+    log.info("página publicada: %d bloco(s); telas: %d na página (%d sem imagem)", len(block_ids), len(shown),
+             sum(1 for s in shown if not s.get("upload")))
 
-    old = store.history().get(src["key"]) or {}
-    note = None
-    if spec.get("mode") in ("replace", "redo") and old:
+    old = store.history().get(key) or {}
+    redo, note = spec.get("mode") == "redo", None
+    if spec.get("mode") in ("replace", "redo") and old.get("page_id"):
         if old.get("block_ids") and (old.get("page_id") == pid or redo):  # refazer em outra página = mover
             if redo:
                 note = ("Página refeita; a versão anterior foi removida." if old.get("page_id") == pid
@@ -607,17 +800,9 @@ def finish(spec):
                     note = "O material novo foi salvo, mas parte da versão anterior não pôde ser removida."
         else:
             note = "O material foi salvo no destino escolhido. A versão anterior foi preservada."
-    store.remember(src["key"], {"page_id": pid, "block_ids": block_ids, "url": url, "title": title, "course": course,
-                                "created": datetime.now().isoformat(timespec="minutes")})
-    understanding.synced(src["key"], {"url": url, "understanding_url": mine_url, "title": title, "course": course})
-    if not cfg["keep_temp"]:
-        # Guarda só a transcrição da última aula publicada (para “Refazer página”); a anterior é apagada.
-        for mark in store.WORK.glob("*/published"):
-            if mark.parent != work:
-                shutil.rmtree(mark.parent, ignore_errors=True)
-        (work / "published").touch()
-        shots.prune(chosen)  # só as imagens das telas escolhidas ficam (para “Refazer página”)
-    return {"url": url, "title": title, "course": course, "note": note, "understanding_url": mine_url}
+    store.remember(key, {"page_id": pid, "block_ids": block_ids, "url": url, "title": title, "course": course,
+                         "created": datetime.now().isoformat(timespec="minutes")})
+    return {"url": url, "understanding_url": mine_url, "note": note}
 
 
 MAX_SCREENS = 40
@@ -630,18 +815,26 @@ def _requests(blocks, transcript):
                                                                  for x in transcript])) if lines else 0)
 
 
-def _page_steps(tr, screens, lines, model, cached, saved, spec, extra=0):
-    """As etapas de “gerar a página” com a estimativa de cada uma, antes de começar (extra: tamanho da nota)."""
-    steps = [] if cached else [(k, eta.llm_seconds(model, n, k))
-                               for k, n in llm.calls(tr["segments"], model, lines, extra=extra)]
+def _page_steps(tr, screens, lines, model, cached, saved, spec, extra=0, dests=("notion",), deep=False, linking=False):
+    """As etapas do material com a estimativa de cada uma, antes de começar (extra: tamanho da nota)."""
+    calls = [] if cached else llm.calls(tr["segments"], model, lines, extra=extra)
+    steps = [(k, eta.llm_seconds(model, n, k)) for k, n in calls]
+    if deep and calls:
+        steps.append(("refine", eta.llm_seconds(model, calls[-1][1] * 1.3, "refine")))
     if not (cached and saved.get("charts") is not None):
         ctx = len(charts.context(charts.units(tr["segments"], screens)))
         steps.append(("charts", eta.llm_seconds(model, ctx + len(charts.SYSTEM) + 700, "charts") if ctx else 0.3))
-    shown = min(len(screens), MAX_SCREENS)
-    lines_out = len(llm.transcript_text(tr["segments"]).split("\n")) if spec.get("include_transcript") else 0
-    return steps + [("mindmap", eta.value("mindmap_s")), ("draw", eta.value("chart_s")),
-                    ("screens", -(-shown // 3) * eta.value("upload_s")),
-                    ("publish", (3 + -(-lines_out // 100)) * eta.value("request_s"))]
+    if linking and not (cached and saved.get("links") is not None):
+        steps.append(("connect", eta.llm_seconds(model, 5000, "connect")))
+    steps.append(("draw", eta.value("chart_s") if not cached or saved.get("charts") else 0))
+    if "obsidian" in dests:
+        steps.append(("obsidian", 1.5))
+    if "notion" in dests:
+        shown = min(len(screens), MAX_SCREENS)
+        lines_out = len(llm.transcript_text(tr["segments"]).split("\n")) if spec.get("include_transcript") else 0
+        steps += [("mindmap", eta.value("mindmap_s")), ("screens", -(-shown // 3) * eta.value("upload_s")),
+                  ("publish", (3 + -(-lines_out // 100)) * eta.value("request_s"))]
+    return steps
 
 
 def _find_charts(tr, screens, lesson, model):
@@ -683,11 +876,11 @@ def _upload_screens(token, shots, screens):
     def up(s):
         try:
             return _send(token, shots.image(s["id"]), f"tela-{s['id'] + 1}.jpg", "image/jpeg")
-        except OSError:
+        except (OSError, ValueError, KeyError):
             return None
     with ThreadPoolExecutor(3) as ex:
         ups = list(ex.map(up, screens))
-    return [{**s["note"], "t": s["t"], "upload": u, "manual": bool(s.get("manual"))} for s, u in zip(screens, ups)]
+    return [{**s, "upload": u} for s, u in zip(screens, ups)]
 
 
 def download_whisper(name):
