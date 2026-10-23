@@ -78,16 +78,23 @@ async function refresh() {
 }
 
 let checkTimer = null;
+const DESTS = { notion: ["notion"], obsidian: ["obsidian"], both: ["obsidian", "notion"] };
+const dests = () => DESTS[S?.config.destinations] || ["notion"];
+const usesNotion = () => dests().includes("notion"), usesObsidian = () => dests().includes("obsidian");
+const vaultReady = () => !!(S?.config.obsidian_vault && !S.obsidian?.error);
+const destName = () => usesNotion() && usesObsidian() ? "no Notion e no Obsidian" : usesObsidian() ? "no Obsidian" : "no Notion";
 function renderChecks() {
   const w = S.whisper.models[S.whisper.active];
   const stat = (ok, on, off) => el("span", { class: "stat" }, el("span", { class: "dot" + (ok ? "" : " off"), "aria-hidden": "true" }), ok ? on : off);
   $("#side-status").replaceChildren(
-    stat(rootReady(), "Notion conectado", rootOk === false ? "Página raiz inacessível" : "Notion não conectado"),
+    ...[usesNotion() && stat(rootReady(), "Notion conectado", rootOk === false ? "Página raiz inacessível" : "Notion não conectado"),
+      usesObsidian() && stat(vaultReady(), "Obsidian pronto", "Cofre do Obsidian pendente")].filter(Boolean),
     stat(S.ollama.running && S.ollama.installed, "IA local pronta", "IA local indisponível"),
     stat(w.downloaded, "Transcrição pronta", "Modelo de transcrição ausente"));
   const items = [
-    ["Notion conectado", S.has_token, "Conectar", openSettings],
-    [rootOk === false ? "Página raiz dos cursos (a salva não está mais acessível)" : "Página raiz dos cursos", rootReady(), "Escolher", openSettings],
+    ...(usesNotion() ? [["Notion conectado", S.has_token, "Conectar", openSettings],
+      [rootOk === false ? "Página raiz dos cursos (a salva não está mais acessível)" : "Página raiz dos cursos", rootReady(), "Escolher", openSettings]] : []),
+    ...(usesObsidian() ? [["Cofre do Obsidian", vaultReady(), "Escolher", openSettings]] : []),
     ["Ollama em execução", S.ollama.running, "Como instalar", () => window.open("https://ollama.com/download", "_blank")],
     [`Modelo de IA (${S.config.ollama_model})`, S.ollama.installed, "Baixar", openSettings],
     [`Modelo de transcrição (${w.label}, ${w.size})`, w.downloaded, "Baixar", openSettings],
@@ -96,7 +103,7 @@ function renderChecks() {
     el("li", {}, el("span", { class: "check-label" }, el("span", { class: "st " + (ok ? "ok" : "no"), role: "img", "aria-label": ok ? "Pronto:" : "Pendente:" }, ok ? "✓" : "!"), label),
       ok ? null : el("button", { class: "btn", type: "button", onclick: fn }, act))));
   // O modelo de transcrição só é exigido quando a fonte precisa ser transcrita (avisado na fonte).
-  $("#setup").hidden = items.slice(0, 4).every(([, ok]) => ok);
+  $("#setup").hidden = items.slice(0, -1).every(([, ok]) => ok);
   updateGo();
   // O Lumen abre com o Windows, às vezes antes do Ollama: enquanto a IA não estiver pronta, pergunta de novo
   // a cada 5 s (com as Configurações abertas, espera fechar para não mexer no que está sendo editado).
@@ -284,7 +291,12 @@ function renderSource() {
     el("div", {}, ...tags.map(([t, c]) => el("span", { class: "tag " + c }, t))));
   box.hidden = false;
   $("#dup").hidden = !f.duplicate;
-  if (f.duplicate) $("#dup-info").textContent = `“${f.duplicate.title}” em ${f.duplicate.course}, criada em ${f.duplicate.created.replace("T", " às ")}.`;
+  if (f.duplicate) {
+    const d = f.duplicate, when = d.created || d.obsidian?.at || "";
+    $("#dup-legend").textContent = d.url ? "Esta aula parece já existir no Notion" : "Esta aula já está no Obsidian";
+    $("#dup-info").textContent = `“${d.title}”` + (d.url ? ` em ${d.course}` : "") + (when ? `, criada em ${when.slice(0, 16).replace("T", " às ")}` : "")
+      + (d.obsidian?.status === "ok" ? ". No Obsidian, a mesma nota é sempre atualizada (suas anotações ficam)." : ".");
+  }
   updateGo();
 }
 
@@ -408,6 +420,7 @@ $("#rec-recover-drop").addEventListener("click", async () => {
 Pomodoro.mount($("#u-pomo"), { sheet: true });
 Pomodoro.watch();
 $("#lesson-link").addEventListener("change", () => currentSpec() && inspect());
+$("#course-text").addEventListener("input", () => updateGo());
 
 // ---------- cursos ----------
 let pages = [], pagesState = "idle", rootOk = null;  // idle | loading | ok | error
@@ -783,26 +796,30 @@ function updateGo() {
   const course = sel.selectedOptions[0];
   const rows = [];
   if (found) rows.push(["Fonte", `${found.label} — ${found.title}`]);
-  rows.push(["Curso", course && course.value !== "__new__" ? course.textContent : "—"]);
+  const solo = !usesNotion();
+  $("#dest-card").classList.toggle("solo-obsidian", solo);
+  rows.push(["Curso", solo ? $("#course-text").value.trim() || "—" : course && course.value !== "__new__" ? course.textContent : "—"]);
   const local = found?.has_captions || found?.resumable ? "Material escrito pela IA local (Ollama)."
     : "Transcrição (Whisper) e material (Ollama) feitos no seu PC.";
   const watching = S?.config.watch_screen && !$("#watch-row").hidden;
   rows.push(["Antes da IA", "Você escreve o que entendeu. Só depois a IA analisa a sua nota e complementa."]);
   rows.push(["No seu PC", local + (watching ? " A tela é lida por IA local." : "") + " O vídeo e o áudio não são enviados."]);
-  rows.push(["Enviado ao Notion", "A página da aula e a subpágina “Minha compreensão” (sua nota e a análise)"
+  if (usesNotion()) rows.push(["Enviado ao Notion", "A página da aula e a subpágina “Minha compreensão” (sua nota e a análise)"
     + (watching ? ", com as imagens das telas que você mantiver." : ".")]);
+  if (usesObsidian()) rows.push(["No Obsidian", "Nota de estudo, mapa mental (Canvas), perguntas, revisões e conexões com o seu cofre, na pasta do Lumen."]);
   $("#summary").replaceChildren(...rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
 
   let why = "";
-  if (!S?.has_token) why = "Conecte o Notion em Configurações.";
-  else if (course?.value === "__none__" && !rootReady()) why = "Escolha uma página do Notion (ou a página raiz em Ajustes).";
+  if (usesNotion() && !S?.has_token) why = "Conecte o Notion em Configurações.";
+  else if (usesObsidian() && !vaultReady()) why = "Escolha o cofre do Obsidian em Ajustes → Destinos do material.";
+  else if (usesNotion() && course?.value === "__none__" && !rootReady()) why = "Escolha uma página do Notion (ou a página raiz em Ajustes).";
   else if (!S.ollama.running) why = "Abra o Ollama para gerar o material.";
   else if (!S.ollama.installed) why = "Baixe o modelo de IA em Configurações.";
   else if (kind === "captures" && !S.vision.installed) why = "Baixe o modelo de visão em Ajustes para ler as capturas.";
   else if (!found) why = "Escolha uma fonte.";
   else if (found.needs_transcript) why = "Forneça a transcrição do vídeo.";
   else if (found.needs_transcription && !found.whisper_ready) why = "Baixe o modelo de transcrição em Configurações.";
-  else if (!course || course.value === "__new__") why = "Escolha ou crie um curso.";
+  else if (usesNotion() && (!course || course.value === "__new__")) why = "Escolha ou crie um curso.";
   else if (S.recording?.active) why = "Pare a gravação antes de gerar.";
   go.disabled = !!why || polling;
   $("#go-hint").textContent = why;
@@ -812,11 +829,11 @@ $("#go").addEventListener("click", () => {
   const sel = $("#course");
   if (found.duplicate) {
     const choice = document.querySelector("input[name=dup]:checked").value;
-    if (choice === "open") return window.open(found.duplicate.url, "_blank");
+    if (choice === "open") return found.duplicate.url ? window.open(found.duplicate.url, "_blank") : openObsidian(found.duplicate.key, "note");
     lastSpec = { ...currentSpec(), mode: choice };
   } else lastSpec = { ...currentSpec(), mode: "new" };
-  remember(sel.value);
-  Object.assign(lastSpec, { course_id: sel.value, course_title: sel.value === "__none__" ? "" : sel.selectedOptions[0].dataset.title,
+  Object.assign(lastSpec, chosenDest() || {});
+  Object.assign(lastSpec, {
                             language: $("#lang").value, speed: $("#speed").value });
   start(lastSpec);
 });
@@ -828,6 +845,7 @@ function dockDest(slot) {  // move o cartão “Onde salvar” (com tudo ligado 
   if (destCard.parentElement !== slot) slot.append(destCard);
 }
 function chosenDest() {
+  if (!usesNotion()) return { course_title: $("#course-text").value.trim().slice(0, 120) };
   const sel = $("#course");
   if (!sel.value || sel.value === "__new__") return null;
   remember(sel.value);
@@ -840,13 +858,13 @@ async function start(spec, url = "/api/start") {
   lastUrl = url;
   try { await api(url, spec); } catch (e) { return fail(e); }
   showStep("run"); $("#redo").hidden = true; prepKey = null;
-  $("#run-h").textContent = url === "/api/start" ? "Preparando a aula" : "Criando a página no Notion";
+  $("#run-h").textContent = url === "/api/start" ? "Preparando a aula" : `Salvando o material ${destName()}`;
   $("#result").replaceChildren(); $("#result").className = "result";
   $("#run-h").focus();
   poll();
 }
 
-const ORDER = ["prepare", "transcribe", "screen", "generate", "publish"];
+const ORDER = ["prepare", "transcribe", "screen", "generate", "connect", "obsidian", "publish"];
 let lastJob = null;
 function renderJob(j) {
   lastJob = j;
@@ -859,6 +877,10 @@ function renderJob(j) {
     li.className = (j.status === "done" || i < cur ? "done" : i === cur && j.status === "running" ? "active" : "")
       + ((j.skipped || []).includes(li.dataset.stage) ? " skip" : "");
     if (li.dataset.stage === "screen") li.hidden = !j.screen;
+    const to = j.dests || dests();
+    if (li.dataset.stage === "publish") li.hidden = !to.includes("notion");
+    if (li.dataset.stage === "obsidian") li.hidden = !to.includes("obsidian");
+    if (li.dataset.stage === "connect") li.hidden = !to.includes("obsidian") || !S?.config.obsidian_connections || S?.config.study_level === "rapido";
   }
   const bar = $("#bar");
   const det = j.status === "running" && (j.progress === null || j.progress === undefined);
@@ -883,18 +905,25 @@ function renderJob(j) {
     if (step === "run") return openUnderstanding(j.result.key).catch(fail);
     return refresh().catch(() => {});  // saiu para “Escrever depois”: a aula aparece em Continuar aprendendo
   } else if (j.status === "done") {
-    res.className = "result ok";
-    res.replaceChildren(el("strong", {}, "Página criada no Notion"),
-      el("span", {}, `“${j.result.title}” em ${j.result.course}, com a subpágina “Minha compreensão”: sua nota original e a análise.`));
-    if (j.result.note) res.append(el("span", {}, j.result.note));
-    act.replaceChildren(...[el("a", { class: "btn primary", href: j.result.url, target: "_blank", rel: "noopener" }, "Abrir no Notion"),
-      j.result.understanding_url && el("a", { class: "btn", href: j.result.understanding_url, target: "_blank", rel: "noopener" }, "Abrir minha compreensão"),
-      lastSpec && el("button", { class: "btn", type: "button", onclick: openRedo }, "Refazer página"), back].filter(Boolean));
-    act.querySelector("a").focus();
+    const r = j.result, nt = r.notion, ob = r.obsidian, fails = [nt, ob].filter((d) => d && d.status !== "ok");
+    res.className = "result " + (fails.length ? "partial" : "ok");
+    res.replaceChildren(el("strong", {}, fails.length ? "Material processado, com um destino pendente" : "Material processado com sucesso"),
+      ...doneLines(r));
+    if (r.note) res.append(el("span", { class: "dest-line" }, r.note));
+    act.replaceChildren(...[
+      nt?.status === "ok" && el("a", { class: "btn primary", href: nt.url, target: "_blank", rel: "noopener" }, "Abrir no Notion"),
+      nt?.status === "ok" && nt.understanding_url && el("a", { class: "btn", href: nt.understanding_url, target: "_blank", rel: "noopener" }, "Abrir minha compreensão"),
+      ob?.status === "ok" && el("button", { class: "btn" + (nt?.status === "ok" ? "" : " primary"), type: "button", onclick: () => openObsidian(r.key, "note") }, "Abrir no Obsidian"),
+      ob?.status === "ok" && ob.canvas && el("button", { class: "btn", type: "button", onclick: () => openObsidian(r.key, "canvas") }, "Abrir mapa mental"),
+      nt && nt.status !== "ok" && el("button", { class: "btn primary", type: "button", onclick: () => redeliver(r.key, "notion") }, "Tentar de novo só o Notion"),
+      ob && ob.status !== "ok" && el("button", { class: "btn primary", type: "button", onclick: () => redeliver(r.key, "obsidian", ob.conflict) },
+        ob.conflict ? "Substituir mesmo assim (com backup)" : "Tentar de novo só o Obsidian"),
+      lastSpec && lastUrl !== "/api/deliver" && el("button", { class: "btn", type: "button", onclick: openRedo }, "Refazer material"), back].filter(Boolean));
+    act.querySelector("a, button")?.focus();
   } else if (j.status === "error") {
     res.className = "result err";
     res.replaceChildren(el("strong", {}, j.error.message), el("span", {}, j.error.action));
-    act.replaceChildren(lastSpec ? el("button", { class: "btn primary", type: "button", onclick: () => start(lastSpec, lastUrl) }, "Tentar novamente") : null,
+    act.replaceChildren(lastSpec ? el("button", { class: "btn primary", type: "button", onclick: () => start(lastUrl === "/api/deliver" ? lastDeliver : lastSpec, lastUrl) }, "Tentar novamente") : null,
       el("button", { class: "btn", type: "button", onclick: backToCompose }, "Voltar"));
   } else if (j.status === "cancelled") {
     res.className = "result cancel";
@@ -902,6 +931,26 @@ function renderJob(j) {
     act.replaceChildren(lastSpec ? el("button", { class: "btn primary", type: "button", onclick: () => start(lastSpec, lastUrl) }, "Retomar") : null,
       el("button", { class: "btn", type: "button", onclick: backToCompose }, "Voltar"));
   }
+}
+
+function doneLines(r) {  // uma linha por destino: o que foi feito ou o que falhou e o que fazer
+  const out = [], nt = r.notion, ob = r.obsidian, line = (who, text) => el("span", { class: "dest-line" }, el("b", {}, who + " "), text);
+  if (nt) out.push(line(nt.status === "ok" ? "Notion ✓" : "Notion ✗", nt.status === "ok"
+    ? `Página “${r.title}” em ${r.course}, com a subpágina “Minha compreensão”.` : `${nt.error} ${nt.action || ""}`));
+  if (ob) out.push(line(ob.status === "ok" ? "Obsidian ✓" : "Obsidian ✗", ob.status === "ok"
+    ? [{ created: "Nota criada", updated: "Nota atualizada (suas anotações ficaram)", unchanged: "Nota já estava em dia" }[ob.state] || "Nota salva",
+       ob.canvas ? "mapa mental (Canvas)" : null, `${ob.connections} ${ob.connections === 1 ? "conexão" : "conexões"} com o cofre`,
+       `${ob.questions} perguntas de revisão`, ob.canvas_error].filter(Boolean).join(" · ")
+    : `${ob.error} ${ob.action || ""}`));
+  return out;
+}
+let lastDeliver = null;
+function redeliver(key, only, force = false) {
+  lastDeliver = { key, only: [only], force, ...(only === "notion" && lastSpec ? { course_id: lastSpec.course_id, mode: lastSpec.mode } : {}) };
+  start(lastDeliver, "/api/deliver");
+}
+async function openObsidian(key, what) {
+  try { await api("/api/open", { key, what }); toast("Abrindo no Obsidian…"); } catch (e) { fail(e); }
 }
 
 function openRedo() {
@@ -1073,8 +1122,10 @@ const SECTIONS = [["acertos", "O que eu compreendi corretamente"], ["parciais", 
 async function renderAnalysis() {
   const a = U.analysis, synced = U.state === "synced_to_notion";
   $("#a-lesson").textContent = [U.label, U.title].filter(Boolean).join(" · ");
-  $("#a-title").textContent = synced ? "Salvo no Notion" : "Análise concluída";
-  $("#a-sub").textContent = synced ? "A página da aula e a subpágina “Minha compreensão” estão no seu Notion."
+  const fk = U.final_knowledge;
+  $("#a-title").textContent = synced ? "Material salvo" : "Análise concluída";
+  $("#a-sub").textContent = synced ? [fk?.url && "A página da aula e a subpágina “Minha compreensão” estão no seu Notion.",
+    fk?.obsidian && "A nota de estudo e o mapa mental estão no seu Obsidian."].filter(Boolean).join(" ")
     : "A IA comparou sua nota com a aula. Sua compreensão original continua exatamente como você escreveu.";
   mineEditor.bind(U.key);
   mineEditor.lock(true);
@@ -1091,10 +1142,10 @@ async function renderAnalysis() {
       sec.style.animationDelay = `${i * 70}ms`;
       return sec;
     }));
-  const fk = U.final_knowledge;
   $("#a-actions").replaceChildren(...(synced ? [
-    el("a", { class: "btn primary", href: fk.url, target: "_blank", rel: "noopener" }, "Abrir no Notion"),
+    fk.url && el("a", { class: "btn primary", href: fk.url, target: "_blank", rel: "noopener" }, "Abrir no Notion"),
     fk.understanding_url && el("a", { class: "btn", href: fk.understanding_url, target: "_blank", rel: "noopener" }, "Abrir minha compreensão"),
+    fk.obsidian && el("button", { class: "btn", type: "button", onclick: () => openObsidian(U.key, "note") }, "Abrir no Obsidian"),
     el("button", { class: "btn", type: "button", onclick: backToCompose }, "Nova aula")].filter(Boolean) : []));
   $("#a-actions").hidden = !synced;
   if (synced) showStep("analysis");
@@ -1165,7 +1216,7 @@ document.addEventListener("keydown", (e) => {
 // ---------- Continuar aprendendo: aulas que esperam a compreensão (ou só salvar no Notion) ----------
 const PENDING = { studying: "Preparação não terminou", waiting_for_understanding: "Aguardando compreensão",
   understanding_written: "Compreensão escrita · falta processar", processing_with_ai: "Analisando sua compreensão…",
-  completed: "Análise pronta · falta salvar no Notion" };
+  completed: "Análise pronta · falta salvar o material" };
 function renderPending() {
   const items = S?.pending || [];
   $("#pending").hidden = !items.length;
@@ -1211,7 +1262,16 @@ function musicNote(m) {  // “Filtrar música externa”: uma linha discreta na
   return " Música externa detectada e filtrada" + (m.removed_s ? ` (${min(m.removed_s)} só de música ficaram fora)` : "")
     + "." + (m.doubt_s ? ` Trechos com voz e música juntas estão marcados como “música ao fundo”.` : "");
 }
-function showReview(r) {  // “Salvar no Notion”, abaixo da análise (só existe depois da compreensão)
+function reviewLabels() {
+  const both = usesNotion() && usesObsidian();
+  $("#review-h").textContent = "Salvar " + (both ? "no Notion e no Obsidian" : usesObsidian() ? "no Obsidian" : "no Notion");
+  $("#review-desc").textContent = [usesNotion() && "Cria a página da aula no Notion, escrita a partir da sua compreensão, com a subpágina “Minha compreensão”.",
+    usesObsidian() && "Cria no Obsidian a nota de estudo, o mapa mental (Canvas), as perguntas e as revisões, ligada às suas notas."].filter(Boolean).join(" ");
+  $("#review-go").textContent = both ? "Salvar no Notion e no Obsidian" : usesObsidian() ? "Salvar no Obsidian" : "Criar página no Notion";
+}
+
+function showReview(r) {
+  reviewLabels();  // “Salvar no Notion”, abaixo da análise (só existe depois da compreensão)
   review = r; edits = {};
   renderShots(r);
   $("#review-link-row").hidden = lastSpec?.kind === "youtube";
@@ -1262,7 +1322,7 @@ $("#retranscribe").addEventListener("click", () => {
 });
 $("#review-go").addEventListener("click", () => {
   if (!U || U.key !== review.key || !["completed", "synced_to_notion"].includes(U.state)) {  // o servidor confere de novo
-    $("#review-hint").textContent = "Escreva e processe sua compreensão antes de salvar no Notion."; return;
+    $("#review-hint").textContent = "Escreva e processe sua compreensão antes de salvar o material."; return;
   }
   const changed = Object.fromEntries(Object.entries(edits).filter(([i, t]) => t.trim() !== review.segments[i].text));
   const dest = chosenDest();
@@ -1361,6 +1421,31 @@ function renderSettings() {
     : "Ativo. Na gravação, o som de apps de música (Spotify, Deezer…) fica de fora. Música que ainda chegar é detectada e separada da fala no seu PC antes da transcrição. O vídeo e o arquivo originais não são alterados.";
   $("#music-dl").hidden = !S.config.music_filter || mu.ready;
   $("#music-dl").textContent = `Baixar filtro de música (${mu.size})`;
+  renderDestSettings();
+}
+
+function renderDestSettings() {  // Destinos do material: o cofre só é escolhido pelo usuário (nunca em silêncio)
+  const c = S.config, o = S.obsidian || { vaults: [] };
+  for (const r of $("#dest-mode").querySelectorAll("input")) r.checked = r.value === c.destinations;
+  for (const r of $("#study-level").querySelectorAll("input")) r.checked = r.value === c.study_level;
+  const opts = [el("option", { value: "" }, o.vaults.length ? "Escolha o cofre…" : "Nenhum cofre do Obsidian encontrado neste PC")];
+  for (const v of o.vaults) opts.push(el("option", { value: v.path, ...(v.ok ? {} : { disabled: "" }) },`${v.name}${v.open ? " · aberto no Obsidian" : ""}${v.ok ? "" : " · pasta não encontrada"}`));
+  if (c.obsidian_vault && !o.vaults.some((v) => v.path === c.obsidian_vault)) opts.push(el("option", { value: c.obsidian_vault }, c.obsidian_vault));
+  $("#vault").replaceChildren(...opts);
+  $("#vault").value = c.obsidian_vault;
+  const sug = o.vaults.find((v) => v.path === c.obsidian_vault)?.folder || o.folder;
+  if (document.activeElement !== $("#vault-folder")) $("#vault-folder").value = c.obsidian_folder;
+  $("#vault-folder").placeholder = sug || "Escolha o cofre primeiro";
+  if (document.activeElement !== $("#canvas-folder")) $("#canvas-folder").value = c.obsidian_canvas_folder;
+  if (document.activeElement !== $("#review-intervals")) $("#review-intervals").value = (c.review_intervals || []).join(", ");
+  $("#obs-canvas").checked = c.obsidian_canvas; $("#obs-connections").checked = c.obsidian_connections;
+  $("#obs-review").checked = c.obsidian_review; $("#obs-attachments").checked = c.obsidian_attachments;
+  $("#obs-open").checked = c.obsidian_open;
+  $("#review-intervals").disabled = !c.obsidian_review;
+  $("#vault-status").textContent = o.error || (!c.obsidian_vault ? (o.vaults.length > 1
+    ? "Há mais de um cofre neste PC: escolha qual o Lumen deve usar." : "Escolha o cofre para ligar o Obsidian.")
+    : `As notas ficam em “${o.folder}”, como material da IA para revisar (type: ai-study); nada fora dessa pasta é alterado.`);
+  $("#vault-dashboard").hidden = !c.obsidian_vault || !!o.error;
 }
 
 function renderWatch() {  // “Assistir a tela junto”: chave no cartão da fonte e nos Ajustes
@@ -1435,6 +1520,23 @@ $("#music-set").addEventListener("change", (e) => saveSettings({ music_filter: e
   e.target.checked ? "Filtro de música ativo." : "Filtro de música desligado."));
 $("#music-mode").addEventListener("change", (e) => saveSettings({ music_mode: e.target.value }));
 $("#music-dl").addEventListener("click", () => download({ what: "music" }));
+$("#dest-mode").addEventListener("change", (e) => saveSettings({ destinations: e.target.value },
+  { both: "O material vai para o Notion e o Obsidian.", notion: "O material vai só para o Notion.", obsidian: "O material vai só para o Obsidian." }[e.target.value])
+  .then(() => { renderChecks(); loadCourses(); }));
+$("#study-level").addEventListener("change", (e) => saveSettings({ study_level: e.target.value }));
+$("#vault").addEventListener("change", (e) => saveSettings({ obsidian_vault: e.target.value }, e.target.value ? "Cofre do Obsidian escolhido." : ""));
+$("#vault-pick").addEventListener("click", async () => {
+  try {
+    const { path } = await api("/api/pick", { kind: "vault" });
+    if (path) await saveSettings({ obsidian_vault: path }, "Cofre do Obsidian escolhido.");
+  } catch (e) { fail(e); }
+});
+for (const [id, key] of [["#vault-folder", "obsidian_folder"], ["#canvas-folder", "obsidian_canvas_folder"], ["#review-intervals", "review_intervals"]])
+  $(id).addEventListener("change", (e) => saveSettings({ [key]: e.target.value.trim() }, "Ajuste salvo."));
+for (const [id, key] of [["#obs-canvas", "obsidian_canvas"], ["#obs-connections", "obsidian_connections"], ["#obs-review", "obsidian_review"],
+                         ["#obs-attachments", "obsidian_attachments"], ["#obs-open", "obsidian_open"]])
+  $(id).addEventListener("change", (e) => saveSettings({ [key]: e.target.checked }));
+$("#vault-dashboard").addEventListener("click", () => openObsidian("", "dashboard"));
 async function download(body) {
   try { await api("/api/download", body); poll(); } catch (e) { fail(e); }
 }
@@ -1515,10 +1617,13 @@ async function loadLibrary() {
       return box.replaceChildren(e);
     }
     box.replaceChildren(...items.map((it) => {
+      const ob = it.obsidian?.status === "ok", when = it.created || it.obsidian?.at;
       const row = el("div", { class: "lib-row" },
         el("span", { class: "lib-text" }, el("span", { class: "lib-title" }, it.title),
-          el("span", { class: "lib-meta" }, `${it.course} · ${new Date(it.created).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}`)),
-        el("a", { class: "btn", href: it.url, target: "_blank", rel: "noopener" }, "Abrir"));
+          el("span", { class: "lib-meta" }, [it.course, when && new Date(when).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })].filter(Boolean).join(" · "))),
+        it.url ? el("a", { class: "btn", href: it.url, target: "_blank", rel: "noopener" }, "Notion") : null,
+        ob ? el("button", { class: "btn", type: "button", onclick: () => openObsidian(it.key, "note") }, "Obsidian") : null,
+        !ob && it.lumen_id && usesObsidian() ? el("button", { class: "btn", type: "button", onclick: () => { showView(false); redeliver(it.key, "obsidian"); } }, "Salvar no Obsidian") : null);
       row.insertAdjacentHTML("afterbegin", DOC_ICON);
       return row;
     }));
@@ -1548,7 +1653,7 @@ if (!host) window.addEventListener("pagehide", () => navigator.sendBeacon("/api/
         if (lastSpec?.course_id) renderCourses(lastSpec.course_id);
         if (S.job.kind === "process") {  // a preparação já tem a chave da aula; a publicação não
           lastUrl = S.job.key ? "/api/start" : "/api/finish";
-          $("#run-h").textContent = S.job.key ? "Preparando a aula" : "Criando a página no Notion";
+          $("#run-h").textContent = S.job.key ? "Preparando a aula" : `Salvando o material ${destName()}`;
           showStep("run");
         }
       }

@@ -256,7 +256,7 @@ def readiness(rec, ctx=None):
         return out("processing", "Analisando sua compreensão…",
                    job.get("detail") if mine and job.get("kind") == "analyze" else "", "busy")
     if rec.get("final_knowledge"):
-        return out("synced", "Salvo no Notion", "", "ok")
+        return out("synced", "Material salvo", "", "ok")
     if rec.get("processing_since"):  # o pedido foi feito e a análise não terminou (erro, cancelada ou o app fechou)
         return out("interrupted", "Não foi possível analisar", "Sua compreensão está guardada. Tente de novo.", "error", False)
     if rec.get("ai_analysis"):

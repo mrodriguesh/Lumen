@@ -6,7 +6,7 @@ const $ = (s) => document.querySelector(s);
 let key = new URLSearchParams(location.search).get("key");
 const HINTS = {
   completed: "Você está editando a versão atual. A compreensão original continua guardada.",
-  synced_to_notion: "Esta nota já foi salva no Notion.",
+  synced_to_notion: "O material desta aula já foi salvo.",
 };
 const editor = new UnderstandingEditor({ text: $("#nw-text"), save: $("#nw-save"), count: $("#nw-count"), mode: "floating",
   onChange: (d) => {

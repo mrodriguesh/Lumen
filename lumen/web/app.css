@@ -1,5 +1,5 @@
-/* Visual inspirado em apps de Mac (barra de tÃ­tulo com botÃµes de janela, barra lateral, grupos de ajustes).
-   Desenho prÃ³prio: sem fontes, Ã­cones ou imagens da Apple. Fonte: Inter (OFL, ver fonts/OFL.txt). */
+/* Visual inspirado em apps de Mac (barra de título com botões de janela, barra lateral, grupos de ajustes).
+   Desenho próprio: sem fontes, ícones ou imagens da Apple. Fonte: Inter (OFL, ver fonts/OFL.txt). */
 @font-face {
   font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap;
   src: url("/fonts/inter-latin.woff2") format("woff2");
@@ -24,7 +24,7 @@
   --ring: rgba(0, 113, 227, .42); --shadow: 0 1px 2px rgba(0, 0, 0, .04);
   --btn-shadow: 0 .5px 1.5px rgba(0, 0, 0, .14);
   --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  /* a escrita do estudante em serifa, a da IA na fonte da interface: dÃ¡ para ver de quem Ã© cada texto */
+  /* a escrita do estudante em serifa, a da IA na fonte da interface: dá para ver de quem é cada texto */
   --serif: "New York", "Iowan Old Style", Charter, Georgia, Cambria, serif;
   --paper: #fffefb; --paper-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 10px 34px rgba(60, 50, 30, .07);
   --ai: #f2f5fa; --ai-line: rgba(10, 116, 232, .1);
@@ -67,7 +67,7 @@ strong { font-weight: 600; }
 ::-webkit-scrollbar-thumb { background: var(--fill-strong); border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-track { background: transparent; }
 
-/* Estrutura da janela: barra lateral ocupa a altura toda; barra de tÃ­tulo sÃ³ sobre o conteÃºdo */
+/* Estrutura da janela: barra lateral ocupa a altura toda; barra de título só sobre o conteúdo */
 .window { height: 100vh; display: grid; grid-template-columns: 236px 1fr; grid-template-rows: 52px 1fr; }
 .body { display: contents; }
 .titlebar {
@@ -84,7 +84,7 @@ strong { font-weight: 600; }
 .app-name { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: .95rem; }
 .appicon { width: 20px; height: 20px; filter: drop-shadow(0 .5px 1px rgba(0, 0, 0, .25)); }
 
-/* BotÃµes de janela */
+/* Botões de janela */
 .lights { display: flex; gap: 8px; }
 .light {
   width: 12px; height: 12px; border-radius: 50%; padding: 0; border: .5px solid rgba(0, 0, 0, .12); cursor: default;
@@ -150,7 +150,7 @@ body.inactive .side-list [role=tab][aria-selected=true] .badge { color: var(--mu
 .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--green); }
 .dot.off { background: var(--orange); }
 
-/* ConteÃºdo */
+/* Conteúdo */
 .content { grid-column: 2; grid-row: 2; overflow-y: auto; min-height: 0; }
 #view-new, #view-library { max-width: 700px; margin: 0 auto; padding: 26px 32px 56px; display: grid; gap: 22px; }
 #compose { display: grid; gap: 22px; }
@@ -195,7 +195,7 @@ input.search {
 .row > input, .row > select { flex: 1; margin: 0; }
 .footnote { font-size: .86rem; color: var(--muted); margin: 12px 0 0; }
 
-/* BotÃµes */
+/* Botões */
 .new-page { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: var(--accent-soft); }
 .new-page p { margin: 0 0 8px; }
 .new-page .ai-row { margin: 0 0 10px; font-size: .93rem; }
@@ -210,7 +210,7 @@ input.search {
   margin-top: 8px; padding-left: 64px; font-size: .88rem; color: var(--muted); min-height: 28px; }
 .results li.r-create { color: var(--accent-text); font-weight: 500; }
 .results li.r-create[aria-selected=true] { color: #fff; }
-/* Busca de pÃ¡ginas (lista de resultados sob o campo) */
+/* Busca de páginas (lista de resultados sob o campo) */
 .combo { position: relative; }
 .combo .search { margin-bottom: 10px; }
 .results {
@@ -247,7 +247,7 @@ input.search {
 .btn.plain:hover { background: var(--fill); filter: none; }
 .btn.danger { color: var(--red-text); }
 
-/* Gravador: um botÃ£o que se transforma, onda sonora ao vivo e halo que pulsa com o volume */
+/* Gravador: um botão que se transforma, onda sonora ao vivo e halo que pulsa com o volume */
 .recorder { --lvl: 0; display: grid; justify-items: center; gap: 10px; padding: 8px 0 2px; text-align: center; }
 .wave {
   width: 100%; max-width: 520px; height: 72px; display: flex; align-items: center; justify-content: center; gap: 3px;
@@ -282,7 +282,7 @@ input.search {
 .round-btn svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .recorder[data-state=idle] #rec-discard, .recorder[data-state=done] #rec-discard { opacity: 0; transform: translateX(34px) scale(.6); pointer-events: none; }
 .recorder[data-state=idle] #rec-pause, .recorder[data-state=done] #rec-pause { opacity: 0; transform: translateX(-34px) scale(.6); pointer-events: none; }
-/* Captura pausada: Ã¢mbar e parado (gravando = vermelho que pulsa) */
+/* Captura pausada: âmbar e parado (gravando = vermelho que pulsa) */
 .recorder[data-paused=true] #rec-pause { background: var(--orange-soft); color: var(--orange-text); }
 .recorder[data-paused=true] #rec-pause svg { fill: currentColor; stroke-width: 1.2; }
 .recorder[data-paused=true] .wave i { background: var(--orange); opacity: .5; }
@@ -352,7 +352,7 @@ input.search {
 .actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
 .actions p { margin: 0; margin-right: auto; }
 
-/* Antes de comeÃ§ar */
+/* Antes de começar */
 .setup h2 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
 .checks { list-style: none; padding: 0; margin: 0; }
 .checks li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: .5px solid var(--sep); flex-wrap: wrap; }
@@ -376,8 +376,8 @@ input.search {
 .stages li.active { color: var(--text); font-weight: 600; }
 .stages li.active::before { border: 2px solid var(--fill-strong); border-top-color: var(--accent); animation: spin .8s linear infinite; }
 .stages li.done { color: var(--text); }
-.stages li.done::before { content: "âœ“"; background: var(--green); border-color: var(--green); }
-.stages li.skip::after { content: " Â· jÃ¡ estava pronta"; color: var(--muted); font-weight: 400; }
+.stages li.done::before { content: "✓"; background: var(--green); border-color: var(--green); }
+.stages li.skip::after { content: " · já estava pronta"; color: var(--muted); font-weight: 400; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .bar { height: 4px; border-radius: 99px; background: var(--fill); overflow: hidden; }
 .bar span { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width .3s; }
@@ -389,9 +389,14 @@ input.search {
 .result.ok { background: var(--green-soft); }
 .result.err { background: var(--red-soft); }
 .result.cancel { background: var(--orange-soft); }
+.result.partial { background: var(--orange-soft); }
+.result .dest-line { display: block; margin-top: 4px; }
+.result .dest-line b { font-weight: 600; }
+#dest-card.solo-obsidian .notion-dest { display: none !important; }
+#dest-card:not(.solo-obsidian) .obs-course { display: none; }
 .result strong { display: block; margin-bottom: 2px; }
 
-/* RevisÃ£o da transcriÃ§Ã£o */
+/* Revisão da transcrição */
 .review-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .review h2 { font-size: 1.3rem; font-weight: 700; letter-spacing: -.02em; }
 .review h2:focus { box-shadow: none; }
@@ -481,7 +486,7 @@ details ol { padding-left: 20px; margin: 6px 0; }
   .recorder[data-state=live] .rec-main .halo { transform: scale(1.1); }
 }
 
-/* Janela estreita: barra lateral sÃ³ com Ã­cones */
+/* Janela estreita: barra lateral só com ícones */
 @media (max-width: 760px) {
   .window { grid-template-columns: 78px 1fr; }
   .side-top { flex-direction: column; justify-content: center; gap: 0; }
@@ -503,7 +508,7 @@ details ol { padding-left: 20px; margin: 6px 0; }
 .roots-hint { margin-top: 10px; padding: 12px 14px; border-radius: 10px; background: var(--accent-soft); font-size: .9rem; }
 .roots-hint p { margin: 0 0 8px; }
 
-/* Destino da aula + navegador de pÃ¡ginas (estilo Finder) */
+/* Destino da aula + navegador de páginas (estilo Finder) */
 .dest { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 12px; border-radius: 10px; background: var(--fill); }
 .dest-icon { flex: none; width: 36px; height: 36px; display: grid; place-items: center; font-size: 1.35rem; border-radius: 8px; background: var(--card); box-shadow: 0 0 0 .5px var(--card-line); }
 .dest-text { flex: 1; min-width: 0; display: grid; }
@@ -533,7 +538,7 @@ details ol { padding-left: 20px; margin: 6px 0; }
 .brow.on .b-count { color: rgba(255, 255, 255, .85); }
 .b-empty { padding: 10px 8px; font-size: .88rem; color: var(--muted); }
 
-/* â€œOnde salvarâ€ acompanha a tela: dÃ¡ para trocar o destino durante a transcriÃ§Ã£o, na revisÃ£o e ao refazer */
+/* “Onde salvar” acompanha a tela: dá para trocar o destino durante a transcrição, na revisão e ao refazer */
 .dest-slot:not(:empty) { margin: 14px 0 4px; }
 .redo { display: grid; gap: 12px; margin-top: 12px; padding-top: 14px; border-top: .5px solid var(--sep); }
 .redo label { display: grid; gap: 6px; }
@@ -572,7 +577,7 @@ details ol { padding-left: 20px; margin: 6px 0; }
 .shot.off { opacity: .45; filter: grayscale(1); }
 .shot:focus-within { box-shadow: 0 0 0 3px var(--ring); }
 
-/* Minha compreensÃ£o: o editor Ã© o protagonista. Nada de IA nesta tela: sÃ³ o estudante e o papel. */
+/* Minha compreensão: o editor é o protagonista. Nada de IA nesta tela: só o estudante e o papel. */
 #view-new[data-step=understand] .hero, #view-new[data-step=analysis] .hero, #view-new:not([data-step=compose]) #setup { display: none; }
 .understand { display: grid; gap: 20px; animation: rise .45s cubic-bezier(.2, .8, .2, 1); }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
@@ -620,7 +625,7 @@ textarea.writing[readonly] { cursor: default; }
 }
 @keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 
-/* AnÃ¡lise: a nota do estudante (papel, serifa) e, Ã  parte, a leitura da IA (tom azulado, fonte da interface) */
+/* Análise: a nota do estudante (papel, serifa) e, à parte, a leitura da IA (tom azulado, fonte da interface) */
 .mine { padding-top: 22px; }
 .mine-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
 .mine-label, .ai-label { font-size: .76rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
@@ -654,13 +659,13 @@ textarea.writing[readonly] { cursor: default; }
 .pend-dot.completed { background: var(--green); box-shadow: 0 0 0 4px var(--green-soft); }
 .pend-dot.studying { background: var(--faint); box-shadow: 0 0 0 4px var(--fill); }
 
-/* Salvar no Notion: transcriÃ§Ã£o e telas recolhidas (opcionais, depois da compreensÃ£o) */
+/* Salvar no Notion: transcrição e telas recolhidas (opcionais, depois da compreensão) */
 .review > h2 { margin-bottom: 4px; }
 .more { margin: 14px 0 16px; padding: 0 14px; border-radius: 12px; background: var(--fill); }
 .more[open] { padding-bottom: 12px; }
 .more > summary { display: flex; align-items: center; gap: 8px; padding: 11px 0; color: var(--text); list-style: none; }
 .more > summary::-webkit-details-marker { display: none; }
-.more > summary::before { content: "â€º"; width: 10px; color: var(--muted); font-size: 1.15rem; line-height: 1; transition: transform .2s; }
+.more > summary::before { content: "›"; width: 10px; color: var(--muted); font-size: 1.15rem; line-height: 1; transition: transform .2s; }
 .more[open] > summary::before { transform: rotate(90deg); }
 .more .segments { background: var(--card); }
 .more .review-head { align-items: center; }
@@ -671,7 +676,7 @@ textarea.writing[readonly] { cursor: default; }
   .writing { font-size: 1.1rem; }
 }
 
-/* Destacar â€œMinha compreensÃ£oâ€: botÃ£o discreto no papel e o aviso de que a nota tambÃ©m estÃ¡ flutuando */
+/* Destacar “Minha compreensão”: botão discreto no papel e o aviso de que a nota também está flutuando */
 .u-detach { position: absolute; top: 12px; right: 12px; z-index: 1; opacity: .7; transition: opacity .2s, background .12s, color .12s; }
 .paper:hover .u-detach, .u-detach:focus-visible, .u-detach[aria-pressed=true] { opacity: 1; }
 .u-detach[aria-pressed=true] { color: var(--accent-text); background: var(--accent-soft); }
@@ -680,7 +685,7 @@ textarea.writing[readonly] { cursor: default; }
   background: var(--accent-soft); font-size: .88rem; color: var(--text); animation: rise .35s cubic-bezier(.2, .8, .2, 1); }
 .u-float .link-btn { margin-left: auto; font-weight: 500; }
 
-/* Janela flutuante (note.html): sÃ³ a barra e o papel, para ficar ao lado do vÃ­deo sem disputar atenÃ§Ã£o */
+/* Janela flutuante (note.html): só a barra e o papel, para ficar ao lado do vídeo sem disputar atenção */
 body.note-window { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: var(--content); }
 .nw-bar { flex: none; display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 8px 0 16px; user-select: none;
   background: var(--titlebar); border-bottom: .5px solid var(--sep); cursor: default; }
@@ -740,7 +745,7 @@ body.note-window.compact .nw-bar { height: 100vh; border-bottom: 0; }
 .u-head { position: relative; }
 .u-head .pomo-slot { position: absolute; top: 8px; right: 6px; z-index: 5; }
 .u-head .u-eyebrow { padding-right: 130px; }
-/* Janela flutuante: captura sempre Ã  vista (gravando em vermelho, pausada em Ã¢mbar) e o Pomodoro na barra */
+/* Janela flutuante: captura sempre à vista (gravando em vermelho, pausada em âmbar) e o Pomodoro na barra */
 .nw-bar .pomo-slot { flex: none; }
 .nw-rec { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border: 0; border-radius: 99px; background: var(--red-soft); color: var(--red-text); font: inherit; font-size: .78rem; font-weight: 600; font-variant-numeric: tabular-nums; cursor: default; }
 .nw-rec i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); animation: blink 1.2s ease-in-out infinite; }
