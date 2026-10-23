@@ -459,11 +459,16 @@ def build_page(lesson, meta):
     if lesson["steps"]:
         blocks.append(_h2("🪜 Passo a passo"))
         blocks += [_b("numbered_list_item", _marked(s, terms)) for s in lesson["steps"]]
+    for key, title in (("mistakes", "⚠️ Erros comuns"), ("applications", "🛠️ Aplicações práticas")):
+        if lesson.get(key):  # aulas de antes do pacote 2.0 não têm estas listas
+            blocks += [_h2(title), *[_b("bulleted_list_item", _marked(x, terms)) for x in lesson[key]]]
     blocks += [_h2("❓ Perguntas de revisão"),
                _b("paragraph", _rt("Tente responder antes de abrir cada pergunta.", italic=True, color="gray"))]
     blocks += [_b("toggle", _rt(q["question"], bold=True),
                   children=[_callout(_rt(q["answer"]), "✅", "green_background")])
                for q in lesson["review_questions"]]
+    if lesson.get("open_questions"):
+        blocks += [_h2("🔍 Perguntas em aberto"), *[_b("bulleted_list_item", _rt(x)) for x in lesson["open_questions"]]]
     if lesson["key_moments"]:
         blocks += [_h2("⏱️ Momentos da aula"),
                    _table([["Tempo", "Momento"]] + [[_rt(fmt_time(m["timestamp"]), bold=True,

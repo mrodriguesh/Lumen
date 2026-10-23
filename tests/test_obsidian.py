@@ -269,6 +269,21 @@ class Note(Base):
         self.assertIn('notion: "https://notion.so/abc"', self.read(out["note"]))  # nem apaga o link
 
 
+class NotionRenderer(Base):
+    def test_notion_page_comes_from_the_same_package(self):
+        from lumen import notion
+        p = self.pkg()
+        title, blocks = notion.build_page(p["lesson"], {"course": "IA", "source": "YouTube — Aula", "model": "m",
+                                                        "transcript_origin": p["source"]["origin"]})
+        text = json.dumps(blocks, ensure_ascii=False)
+        self.assertEqual(title, p["lesson"]["title"])
+        for part in ("Erros comuns", "Achar que RAG treina o modelo.", "Aplicações práticas", "Perguntas em aberto",
+                     "Como escolher o tamanho dos trechos?", p["lesson"]["review_questions"][0]["question"]):
+            self.assertIn(part, text)
+        sub = json.dumps(notion.understanding_page(p["understanding"], title), ensure_ascii=False)
+        self.assertIn(NOTE, sub)  # a nota do estudante, intacta, também no Notion
+
+
 class Paths(Base):
     def test_folders_outside_the_vault_or_hidden_are_refused(self):
         for bad in ("../fora", "C:/Windows", "/etc", ".obsidian", "C04 Claude Obsidian/../../fora", "a/.trash/b"):
