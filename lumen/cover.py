@@ -67,14 +67,15 @@ def render(decor, seed=0):
     exe = edge()
     if not exe:
         return None
-    with tempfile.TemporaryDirectory(prefix="lumen-capa-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="lumen-capa-", ignore_cleanup_errors=True) as tmp:
         page, out = Path(tmp) / "capa.html", Path(tmp) / "capa.png"
         page.write_text(html(decor, seed), "utf-8")
         try:
             subprocess.run([str(exe), "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
                             f"--user-data-dir={Path(tmp) / 'perfil'}", f"--window-size={W},{H}",
                             "--default-background-color=00000000", f"--screenshot={out}", page.as_uri()],
-                           capture_output=True, timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         except (OSError, subprocess.SubprocessError):
             return None
         return out.read_bytes() if out.exists() and out.stat().st_size > 1000 else None

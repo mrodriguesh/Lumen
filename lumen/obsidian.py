@@ -178,6 +178,11 @@ def _paras(text):
     return "\n\n".join(md(p.strip()) for p in re.split(r"\n\s*\n", str(text or "")) if p.strip())
 
 
+def _url(u):
+    """Endereço seguro dentro de [texto](endereço): parênteses e sinais de tag não fecham o link."""
+    return "".join({"(": "%28", ")": "%29", "<": "%3C", ">": "%3E", " ": "%20"}.get(c, c) for c in str(u))
+
+
 def _when(t, yt):
     if t is None:
         return ""
@@ -246,7 +251,7 @@ def render(pkg, ctx):
     lesson, src, yt = pkg["lesson"], pkg["source"], pkg["source"].get("yt_id")
     s = [f"# {md(lesson['title'])}"]
 
-    info = [f"- **Aula original:** [Assistir ao material original]({src['link']})" if src.get("link") else "",
+    info = [f"- **Aula original:** [Assistir ao material original]({_url(src['link'])})" if src.get("link") else "",
             f"- **Curso:** {md(pkg['course'])}" if pkg.get("course") else "",
             f"- **Duração:** {_duration(src.get('duration'))}" if src.get("duration") else "",
             f"- **Origem:** {md(src.get('label') or '')} · {md(src.get('title') or '')}",
@@ -344,7 +349,7 @@ def render(pkg, ctx):
     if src.get("uncertain"):
         meta.append(f"{src['uncertain']} trecho(s) da transcrição com baixa confiança")
     if ctx.get("notion"):
-        meta.append(f"Notion: [abrir a página]({ctx['notion']})")
+        meta.append(f"Notion: [abrir a página]({_url(ctx['notion'])})")
     s.append(_callout("note", "Metadados Lumen", "\n".join("- " + x for x in meta)))
     return "\n\n".join(s)
 
@@ -556,7 +561,7 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
     result, state = note(plan[0].name if plan else None)  # conflito → AppError aqui, antes de gravar qualquer coisa
     probs = check(result, known | ({plan[0].name.casefold()} if plan else set()))
     if probs:
-        log.warning("obsidian: nota recusada na validação: %s", probs[0][:40])
+        log.warning("obsidian: nota recusada na validação: %s", probs[0].split(":")[0])  # sem nomes de notas
         raise AppError(f"O material para o Obsidian não passou na validação ({probs[0]}).", "Tente de novo.")
     for f, data in writes:
         _write(f, data, binary=True)

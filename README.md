@@ -166,6 +166,55 @@ O Notion só mostra à integração as páginas liberadas para ela. Para escolhe
 tudo o que está dentro dela; no app elas aparecem no grupo “Páginas raiz do Notion”. A API não permite que uma
 integração interna crie páginas no topo do workspace, só dentro de uma página.
 
+## Notion e Obsidian
+
+O Lumen escreve o material **uma vez** e salva o mesmo conteúdo em cada destino: o Notion para organizar e
+acompanhar, o Obsidian para estudar a fundo e ligar ao seu segundo cérebro. Em **Ajustes → Destinos do material**:
+
+1. Escolha **Notion + Obsidian**, **Só Notion** (padrão, como antes) ou **Só Obsidian** (não precisa do Notion).
+2. Escolha o **cofre do Obsidian**. O Lumen lista os cofres registrados neste PC, mas nunca escolhe sozinho;
+   **Escolher pasta…** aceita qualquer pasta com `.obsidian`.
+3. **Pasta das notas de estudo**: por padrão, a área da IA do cofre (ex.: `C04 Claude Obsidian/16 Lumen`). O Lumen não
+   escreve fora dela.
+
+Para cada aula, no Obsidian:
+
+- **Nota de estudo** `AAAA-MM-DD - Título da aula.md` (`type: ai-study`, `author: lumen-ai`,
+  `status: review-required`), com:
+  - a sua compreensão, intacta, e a análise da IA à parte;
+  - visão geral, conceitos com o tempo da aula (no YouTube, o tempo é um link);
+  - explicação, glossário, exemplos, passo a passo e telas;
+  - perguntas de active recall com a resposta escondida, teste de compreensão e flashcards;
+  - erros comuns, aplicações e conexões com notas reais do cofre;
+  - perguntas em aberto, linha do tempo, revisões e "Possíveis notas permanentes".
+- **Mapa mental** `Mapa - Título da aula.canvas`, um Canvas de verdade:
+  - a nota no centro e os ramos ao redor, com as relações da aula nas setas;
+  - embaixo, os grupos Processo, Conexões, Exemplos e Relações.
+
+  Pode mover os cards: ao reprocessar, o que você moveu ou criou fica.
+- **Lumen Dashboard**: para revisar hoje, atrasados, recentes, não revisados, por curso, por Anchor Topic, com
+  dúvidas e ideias para notas permanentes. Usa o Bases, um plugin nativo do Obsidian.
+
+Regras que protegem o que é seu:
+
+- O material da IA nunca vira nota permanente sozinho. As ideias candidatas ficam marcáveis para você escrever com as
+  suas palavras.
+- Escreva em **Minhas anotações**, no fim da nota. Reprocessar refaz só o bloco do Lumen; suas anotações, as caixas
+  marcadas e as propriedades que você mudou ficam.
+- Se você editar dentro do bloco do Lumen, a próxima atualização para e avisa. **Substituir mesmo assim** guarda uma
+  cópia antes.
+- Reprocessar não cria cópias. A nota é achada pelo `lumen-id` mesmo se você a renomear dentro da pasta do Lumen.
+- **Revisões:** marque `Revisão N` na nota. Ao abrir o Lumen, ele atualiza `next-review`. Os intervalos (padrão 1,
+  3, 7, 14, 30 e 60 dias) ficam em Ajustes.
+- **Profundidade** (Ajustes → IA local):
+  - Rápido: uma passada.
+  - Balanceado: com conexões no cofre.
+  - Profundo: uma 2ª passada critica e melhora o material.
+
+  Tudo roda no Ollama local: nada do cofre sai do PC.
+- Se um destino falhar, o outro fica salvo, e **Tentar de novo só o Notion/Obsidian** refaz só o que faltou, sem
+  chamar a IA.
+
 ## Fontes
 
 | Fonte | Estado | Como funciona |

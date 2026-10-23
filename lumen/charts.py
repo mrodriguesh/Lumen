@@ -826,14 +826,15 @@ def render(c):
     if not exe:
         return None
     rows = -(-FRAMES // COLS)
-    with tempfile.TemporaryDirectory(prefix="lumen-grafico-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="lumen-grafico-", ignore_cleanup_errors=True) as tmp:
         page, shot = Path(tmp) / "grafico.html", Path(tmp) / "quadros.png"
         page.write_text(html(c), "utf-8")
         try:
             subprocess.run([str(exe), "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
                             f"--user-data-dir={Path(tmp) / 'perfil'}", f"--window-size={W * COLS},{H * rows}",
                             f"--screenshot={shot}", page.as_uri()],
-                           capture_output=True, timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             with av.open(str(shot)) as f:
                 sheet = next(f.decode(video=0)).to_ndarray(format="rgb24")
         except (OSError, subprocess.SubprocessError, av.error.FFmpegError, StopIteration):

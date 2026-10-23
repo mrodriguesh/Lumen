@@ -129,6 +129,9 @@ class Package(Base):
         p = self.pkg()
         self.assertIn({"front": "Embedding", "back": "Vetor que representa o sentido de um texto."}, p["flashcards"])
         self.assertIn({"front": "O que é RAG?", "back": "Busca + geração."}, p["flashcards"])
+        dup = package.flashcards({"glossary": [{"term": "RAG", "definition": "Busca + geração."}],
+                                  "review_questions": [{"kind": "recordacao", "question": "O que é RAG?", "answer": "Busca + geração."}]})
+        self.assertEqual(len(dup), 1)
         self.assertEqual(p["timeline"], [{"t": 65, "label": "Exemplo dos manuais"}])
         self.assertEqual(p["review_dates"][:2], ["2026-10-24", "2026-10-26"])
 
@@ -391,6 +394,11 @@ class Vault(Base):
         self.assertNotIn("Sistema - Estudos", got)
         self.assertNotIn("Receita de bolo", got)
         self.assertEqual([n["name"] for n in vault.anchors(notes)], ["Inteligência Artificial"])
+        # num cofre com type, nota sem tipo é documentação do sistema (teste real: “Agents” virava conexão de RAG)
+        (self.root / "Agents.md").write_text("> [!info]- x\n# Agents\nembeddings vetores busca agentes", "utf-8")
+        got = [n["name"] for n in vault.search(vault.index(self.root), [("embeddings vetores busca", 2)])]
+        self.assertNotIn("Agents", got)
+        self.assertEqual(vault.search(notes, [("embeddings receita", 2)]), [])  # uma palavra em comum não basta
 
     @unittest.skipUnless(shutil.which("node") and Path(r"D:\downloads\cerebro\Cerebro Oficial\.claude\scripts\vault-check.mjs").exists(),
                          "checker do cofre do usuário")
@@ -404,9 +412,10 @@ class Vault(Base):
 
 class Connect(unittest.TestCase):
     def test_only_candidates_can_come_back(self):
-        answer = {"links": [{"note": "Busca semântica", "relation": "fundamenta", "reason": "Base da busca."},
-                            {"note": "Inventada", "relation": "aplica", "reason": "x"},
-                            {"note": "Busca semântica", "relation": "aplica", "reason": "repetida"}],
+        answer = {"links": [{"note": "Busca semântica", "relation": "fundamenta", "reason": "Base da busca.", "strength": "forte"},
+                            {"note": "Inventada", "relation": "aplica", "reason": "x", "strength": "forte"},
+                            {"note": "Busca semântica", "relation": "aplica", "reason": "repetida", "strength": "forte"},
+                            {"note": "Projeto Lumen", "relation": "aplica", "reason": "Só a palavra.", "strength": "fraca"}],
                   "anchors": ["Inteligência Artificial", "Outra"], "anchor_suggestion": "ignorado"}
         seen = {}
 
@@ -414,10 +423,12 @@ class Connect(unittest.TestCase):
             seen["schema"] = schema
             return json.dumps(answer)
         with mock.patch.object(llm, "_chat", side_effect=fake):
-            out = llm.connect(lesson(), [{"name": "Busca semântica", "kind": "Nota permanente", "excerpt": "e"}],
+            out = llm.connect(lesson(), [{"name": "Busca semântica", "kind": "Nota permanente", "excerpt": "e"},
+                                         {"name": "Projeto Lumen", "kind": "Projeto", "excerpt": "e"}],
                               [{"name": "Inteligência Artificial", "kind": "Anchor Topic", "excerpt": ""}], "m", "pt",
                               lambda: None, lambda *a: None)
-        self.assertEqual(seen["schema"]["properties"]["links"]["items"]["properties"]["note"]["enum"], ["Busca semântica"])
+        self.assertEqual(seen["schema"]["properties"]["links"]["items"]["properties"]["note"]["enum"],
+                         ["Busca semântica", "Projeto Lumen"])
         self.assertEqual(out, {"links": [{"note": "Busca semântica", "reason": "Base da busca.", "relation": "fundamenta"}],
                                "anchors": ["Inteligência Artificial"], "anchor_suggestion": ""})
 

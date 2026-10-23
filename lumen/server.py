@@ -145,6 +145,8 @@ def inspect(spec):
         dup = {k: v for k, v in dup.items() if k not in ("page_id", "url", "block_ids")}  # página apagada no Notion
     if dup and not (dup.get("page_id") or (dup.get("obsidian") or {}).get("status") == "ok"):
         dup = None
+    if dup:
+        dup = {**dup, "key": src["key"]}  # “Abrir” de uma aula que só está no Obsidian
     resumable = (jobs.work_dir(src["key"]) / "transcript.json").exists()
     needs_tr = not src.get("captions") and bool(src.get("path")) and not resumable
     return {
@@ -286,7 +288,7 @@ def _apply_settings(body):
         iv = body["review_intervals"]
         days = [int(x) for x in re.findall(r"\d+", iv)] if isinstance(iv, str) else iv
         if not (isinstance(days, list) and 1 <= len(days) <= 10
-                and all(isinstance(d, int) and 1 <= d <= 365 for d in days) and days == sorted(set(days))):
+                and all(type(d) is int and 1 <= d <= 365 for d in days) and days == sorted(set(days))):
             raise AppError("Intervalos de revisão inválidos.", "Use dias crescentes entre 1 e 365, como 1, 3, 7, 14, 30, 60.")
         cfg["review_intervals"] = days
     if ("destinations" in body or "obsidian_vault" in body) and cfg["destinations"] != "notion":

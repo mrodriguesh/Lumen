@@ -103,7 +103,7 @@ def generate(prompt, engine=DEFAULT_ENGINE, width=1536, height=640, seed=-1, tim
 
 def _generate(prompt, engine, width, height, seed, timeout):
     e, f = ENGINES[engine], folder()
-    with tempfile.TemporaryDirectory(prefix="lumen-img-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="lumen-img-", ignore_cleanup_errors=True) as tmp:
         out = Path(tmp) / "capa.png"
         cmd = [str(_exe()), "--diffusion-model", str(f / e["files"]["model"][0]), "--llm", str(f / e["files"]["llm"][0]),
                "--vae", str(f / e["files"]["vae"][0]), "-p", clean_prompt(prompt)[:1500] + STYLE, "-W", str(width), "-H", str(height),
@@ -111,8 +111,8 @@ def _generate(prompt, engine, width, height, seed, timeout):
         # sem --offload-to-cpu/--vae-tiling: com folga de VRAM o sd.cpp decide sozinho onde pôr cada parte
         # (backend_fit); com as duas opções ligadas a geração passou de 4 minutos no teste
         try:
-            subprocess.run(cmd, capture_output=True, timeout=timeout, cwd=str(_exe().parent),
-                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout,
+                           cwd=str(_exe().parent), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         except (OSError, subprocess.SubprocessError):
             return None
         return out.read_bytes() if out.exists() and out.stat().st_size > 1000 else None

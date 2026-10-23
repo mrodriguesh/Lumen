@@ -2,6 +2,7 @@
 import json
 import os
 import shutil
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -95,13 +96,17 @@ def delete_token():
 
 
 def purge_old_uploads(days=7):
-    """Remove gravações, cópias, telas capturadas e áudio do filtro de música esquecidos com mais de `days` dias. As
+    """Remove gravações, cópias, telas capturadas e áudio do filtro de música esquecidos com mais de `days` dias (e as
+    pastas temporárias do Lumen com mais de um dia: o Edge às vezes as segura e elas não saem na hora). As
     telas de uma aula (as imagens são o que mais ocupa) também saem depois desse prazo; a transcrição fica para
     retomar."""
-    cutoff = time.time() - days * 86400
-    for f in [*(WORK / "uploads").glob("*"), *WORK.glob("*/screens"), *WORK.glob("*/music-*.wav")]:
+    cutoff, day = time.time() - days * 86400, time.time() - 86400
+    temp = list(Path(tempfile.gettempdir()).glob("lumen-*"))
+    for f in [*(WORK / "uploads").glob("*"), *WORK.glob("*/screens"), *WORK.glob("*/music-*.wav"), *temp]:
         try:
-            if f.stat().st_mtime < cutoff:
+            if f in temp and (f == DATA or f in DATA.parents):  # os dados deste Lumen (testes rodam em %TEMP%)
+                continue
+            if f.stat().st_mtime < (day if f in temp else cutoff):
                 shutil.rmtree(f, ignore_errors=True) if f.is_dir() else f.unlink()
         except OSError:
             pass

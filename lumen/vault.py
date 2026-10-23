@@ -17,6 +17,9 @@ from .package import norm
 # Notas que não são conhecimento (sistema, memória da IA, diário, captura bruta): nunca viram conexão.
 SKIP_TYPES = {"system", "ai-memory", "ai-log", "ai-decision", "ai-briefing", "ai-spec", "ai-suggestion", "daily",
               "capture", "review"}
+# Num cofre que usa `type:`, conhecimento é o que tem um destes tipos; notas sem tipo são documentação do sistema
+# (teste real: “Agents”, “Skills” e índices viravam conexões de uma aula sobre RAG).
+KNOWLEDGE = {"permanent", "resource", "project", "book", "ai-study", "anchor"}
 KINDS = {"anchor": "Anchor Topic", "permanent": "Nota permanente", "resource": "Recurso", "project": "Projeto",
          "book": "Livro", "ai-study": "Estudo Lumen", "ai-output": "Output da IA"}
 STOP = set("""a o as os um uma uns umas de da do das dos e em no na nos nas para por pela pelo pelas pelos com sem que
@@ -170,7 +173,9 @@ def tokens(text):
 def search(notes, query, limit=12, exclude=""):
     """Candidatas a conexão por relevância (BM25 com pesos por campo). query: [(texto, peso)]. Só ranqueia; quem
     decide se a relação é real é a IA (llm.connect), entre estas e só estas."""
-    docs = [n for n in notes if n["candidate"] and (not exclude or n["lumen_id"] != exclude)]
+    typed = sum(1 for n in notes if n["type"]) >= 0.3 * len(notes)
+    docs = [n for n in notes if n["candidate"] and (not exclude or n["lumen_id"] != exclude)
+            and (n["type"] in KNOWLEDGE or not typed)]
     if not docs:
         return []
     tfs = []
@@ -191,15 +196,17 @@ def search(notes, query, limit=12, exclude=""):
             q[w] = max(q[w], weight)
     scored = []
     for n, tf in zip(docs, tfs):
-        size, s = sum(tf.values()), 0.0
+        size, s, hits = sum(tf.values()), 0.0, 0
         for w, qw in q.items():
             if tf[w]:
+                hits += 1
                 idf = math.log(1 + (len(docs) - df[w] + 0.5) / (df[w] + 0.5))
                 s += qw * idf * tf[w] * 2.2 / (tf[w] + 1.2 * (0.25 + 0.75 * size / avg))
-        if s > 0:
+        if s > 0 and hits >= min(2, len(q)):  # uma palavra em comum não basta para ser candidata
             scored.append((s, n))
     scored.sort(key=lambda x: (-x[0], x[1]["name"]))
-    return [n for _, n in scored[:limit]]
+    top = scored[0][0] if scored else 0
+    return [n for s, n in scored[:limit] if s >= top * 0.2]
 
 
 def anchors(notes):

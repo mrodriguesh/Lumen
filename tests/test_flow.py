@@ -489,6 +489,24 @@ class Destinations(unittest.TestCase):
         self.assertEqual(j["status"], "error")
         self.assertIn("cofre do Obsidian", j["error"]["message"])
 
+    def test_chart_that_breaks_while_drawing_never_stops_the_material(self):
+        # teste real: o Edge segurava a pasta temporária e a limpeza levantava PermissionError fora do try
+        chart = {"tipo": "barras", "titulo": "T", "mensagem": "", "eixo_x": "x", "unidade": "", "rotulos": ["a"],
+                 "series": [{"nome": "s", "valores": [1]}], "t": None}
+        with mock.patch("lumen.charts.extract", return_value=[chart]), \
+                mock.patch("lumen.charts.render", side_effect=PermissionError(13, "em uso")):
+            j = full({**SPEC, "course_id": self.root})
+        self.assertEqual(j["status"], "done", j.get("error"))
+        self.assertEqual((j["result"]["notion"]["status"], j["result"]["obsidian"]["status"]), ("ok", "ok"))
+        self.assertIn("| a | 1 |", (self.lumen / self.notes()[0]).read_text("utf-8"))  # sem o GIF, a tabela
+
+    def test_unexpected_error_in_one_destination_keeps_the_other(self):
+        with mock.patch("lumen.jobs._notion", side_effect=TypeError("x")):
+            j = full({**SPEC, "course_id": self.root})
+        self.assertEqual(j["status"], "done", j.get("error"))
+        self.assertEqual(j["result"]["obsidian"]["status"], "ok")
+        self.assertIn("Erro inesperado ao salvar no Notion (TypeError)", j["result"]["notion"]["error"])
+
     def test_both_fail_is_an_error_with_both_reasons(self):
         self.fake.fail_append = True
         with mock.patch("lumen.obsidian.deliver", side_effect=AppError("Cofre sem permissão.", "x")):

@@ -85,7 +85,13 @@ def flashcards(lesson):
     cards = [{"front": g["term"], "back": g["definition"]} for g in lesson.get("glossary") or []]
     cards += [{"front": q["question"], "back": q["answer"]} for q in lesson.get("review_questions") or []
               if q.get("kind") == "recordacao"]
-    return cards[:24]
+    seen, out = set(), []
+    for c in cards:  # a pergunta “O que é X?” costuma repetir o glossário: um cartão por resposta
+        k = norm(c["back"])[:60]
+        if k not in seen:
+            seen.add(k)
+            out.append(c)
+    return out[:24]
 
 
 def timeline(lesson, screens):

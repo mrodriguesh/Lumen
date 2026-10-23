@@ -14,8 +14,12 @@ lumen/
   understanding.py  “Minha compreensão”: a nota do estudante, os estados e a trava de toda IA sobre a aula
   sources.py     arquivo local, link do YouTube, legendas/transcrições importadas
   transcribe.py  faster-whisper (CPU ou GPU NVIDIA)
-  llm.py         Ollama: prompt, JSON Schema, validação, leitura por partes
-  notion.py      API REST do Notion (stdlib urllib) e montagem dos blocos
+  llm.py         Ollama: prompt, JSON Schema, validação, leitura por partes, crítica (Profundo) e conexões
+  package.py     StudyPackage: a aula processada uma vez, canônica para todos os destinos (+ validador)
+  notion.py      destino Notion: API REST do Notion (stdlib urllib) e montagem dos blocos
+  obsidian.py    destino Obsidian: nota (renderer + writer sem destruir o que é do usuário), revisões, painel
+  canvas.py      mapa mental como JSON Canvas: layout determinístico, merge com o que o usuário moveu
+  vault.py       cofres do Obsidian: descoberta, estrutura (pelo type das notas) e busca de conexões
   store.py       config.json, history.json, token no cofre do sistema
   web/           HTML/CSS/JS sem framework
 ```
@@ -753,3 +757,133 @@ Incremental sobre a v1: mesmos detector, separador, emenda, cache, recuo e integ
 - **Sem polling novo.** A barra e a flutuante já consultavam `/api/widget` (a flutuante agora usa ele no lugar de
   `/api/record`); o `notes` dele leva estado, prontidão e horário de cada aula, e `Notes.merge` aplica. O recarregamento
   de 3 s de antes continua como reserva se um aviso entre janelas se perder.
+
+## Notion + Obsidian: um StudyPackage, dois destinos (23/10/2026; `lumen/package.py`, `obsidian.py`, `canvas.py`, `vault.py`)
+
+- **Pedido do usuário:** a aula é processada uma vez e o mesmo conteúdo vai para o Notion (organização) e para o
+  Obsidian (segundo cérebro: nota, Canvas, conexões, revisão). Nada de dois pipelines nem de dois resumos diferentes.
+- **Fluxo:**
+
+  ```
+  Captura (record, vision, sources) → Transcrição → Minha compreensão (understanding.py, sem mudança) → análise
+  → Study Processor (jobs.finish): llm.generate (1 passada) → [Profundo] llm.refine → charts.extract
+                                   → [Obsidian] vault.search + llm.connect
+  → StudyPackage (package.build + validate) → DATA/packages/<lumen_id>.json
+  → Destination Router (jobs._deliver): Obsidian (obsidian.deliver) → Notion (jobs._notion → notion.publish)
+  → manifesto (history.json)
+  ```
+
+  A IA escreve o material **uma vez**. Os destinos só renderizam: `notion.build_page`/`understanding_page` e
+  `obsidian.render`/`canvas.build` leem o pacote e nunca leem um do outro. A fonte da verdade é o pacote, não o Notion
+  nem o Obsidian.
+- **StudyPackage** (`package.py`): `lumen_id` (`lm-` + hash da chave da fonte: o mesmo vídeo ou arquivo dá o mesmo
+  id), `processor_version` (`2.0`), `content_hash` (do conteúdo, sem horários), fonte, curso, `understanding` (as
+  chaves de `understanding.py`, intactas; a análise da IA fica à parte em `ai_analysis`), `lesson` (material da IA),
+  mapa limpo, telas (só texto), gráficos, conexões, âncoras, flashcards e linha do tempo derivados (sem IA nova) e as
+  datas de revisão. O validador recusa material sem título, resumo, tópicos ou nota do estudante, e pergunta sem
+  resposta. Ele também descarta relações entre rótulos que o mapa não tem e conexões com notas que não existem, e
+  troca credenciais (`ntn_`, `secret_`, `sk-`, `Bearer`, o token do keyring) por "[segredo removido]".
+- **IA:** o esquema ganhou:
+  - `topics[].why`;
+  - `review_questions[].kind` (recordação, compreensão, relação, aplicação, diagnóstico, síntese; no máximo metade de
+    recordação);
+  - `map_kind` (conceitual, tutorial, argumentação, sistema, livro), que decide a forma do mapa;
+  - `relations`, com tipo fechado;
+  - `mistakes`, `applications`, `open_questions` e `permanent_ideas`.
+
+  Continua sendo uma chamada. As conexões usam `llm.connect`: as notas candidatas vão num **enum do JSON Schema**,
+  então o Ollama não consegue citar uma nota que não existe. Profundidade (Ajustes → IA local):
+  - **Rápido:** 1 passada, sem conexões;
+  - **Balanceado:** 1 passada + conexões (padrão);
+  - **Profundo:** + `llm.refine`, uma 2ª passada que critica o material contra a aula e devolve o mesmo esquema. Se
+    falhar, fica a 1ª versão.
+
+  Tudo fica em `lesson.json`: "Tentar novamente" não chama a IA de novo.
+- **Conexões sem banco vetorial:** o cofre tem dezenas de notas. Os candidatos saem de um BM25 simples (stdlib, sem
+  acentos, palavras cortadas em 6 letras). Título e aliases pesam mais. Ficam de fora templates, notas de sistema,
+  memória e logs da IA, diário e capturas. A IA local escolhe entre os 12 primeiros e os Anchor Topics, e dá o motivo
+  de cada um. Nada do cofre sai do PC.
+- **Onde fica no Obsidian** (decisão D010 do cofre): em `C04 Claude Obsidian/16 Lumen`, a área da IA. O CLAUDE.md do
+  cofre reserva a escrita automática a C04. As notas são `type: ai-study`, `author: lumen-ai`,
+  `status: review-required`, nomeadas `AAAA-MM-DD - Título da aula` (título em `aliases`), com o canvas
+  `Mapa - Título da aula.canvas` e as imagens em `Anexos`. O Lumen nunca escreve fora da pasta configurada:
+  `vault.inside` recusa `..`, caminho absoluto, pasta oculta e junction que sai do cofre.
+- **Nota:**
+  - o frontmatter segue as convenções do cofre (links entre aspas, datas `AAAA-MM-DD`, âncoras em `topics`);
+  - abre com `> [!info]- Como usar esta nota` e `> [!warning] Conteúdo gerado por IA`, que o `vault-check.mjs` do
+    cofre exige;
+  - o material fica entre `%% lumen:begin %%` e `%% lumen:end <hash> %%`; depois vem "Minhas anotações";
+  - sem emojis (preferência do cofre);
+  - o texto da IA é escapado: `[[` não vira link, `#` não vira tag, `%%` e `<` são neutralizados, `|` é escapado nas
+    tabelas.
+- **Atualizar sem destruir:**
+  - tudo fora do bloco fica byte a byte;
+  - o frontmatter é mesclado linha a linha: o Lumen atualiza só as chaves dele; `status`, revisão e chaves do usuário
+    ficam; `topics`, `related` e `aliases` viram a união;
+  - caixas marcadas (revisões, ideias) são levadas para a versão nova;
+  - se o bloco foi editado à mão (o hash no marcador não bate), nada é gravado: a interface mostra o conflito e
+    "Substituir mesmo assim" faz backup em `DATA/obsidian-backups` (10 por aula);
+  - a nota é achada pelo `lumen-id`, mesmo renomeada; movida para fora da pasta do Lumen, ela não é tocada;
+  - o mesmo material não muda nem a data de atualização (idempotente).
+
+  A escrita é atômica: arquivo oculto + `os.replace`.
+- **Canvas** (JSON Canvas 1.0, testado no Obsidian 1.14 real pelo CDP):
+  - o centro é um node `file` da nota com `subpath: "#Visão geral"` (sem o subpath, o card mostrava só o
+    frontmatter);
+  - ramos do mapa à direita e à esquerda, balanceados pela altura; ramos ligados por uma relação ficam do mesmo lado;
+  - filhos ao lado do ramo e uma cor do Obsidian por ramo;
+  - relação entre pai e filho rotula a seta que já existe (ponta em quem recebe);
+  - relação entre lados opostos vira card no grupo "Relações": a seta atravessaria a nota central (visto no teste);
+  - embaixo, os grupos Processo (passos encadeados), Conexões (cards com `[[nota]]` e o motivo; um card de arquivo
+    mostrava só as propriedades), Exemplos e Relações; em cima, o vídeo original (node `link`);
+  - IDs estáveis (`lumen-` + hash do papel e do rótulo);
+  - `canvas.check` recusa sobreposição, card solto, grupo vazio, id repetido e seta para card inexistente; no Obsidian
+    real, de 2 a 8 ramos, 0 sobreposições e nenhum texto cortado;
+  - ao reprocessar, `canvas.merge` mantém a posição e o tamanho dos cards que o usuário mexeu e os cards e setas que
+    ele criou; os grupos se ajustam. Sem o manifesto (dados locais apagados), o canvas existente é sempre tratado
+    como editado: as posições ficam.
+- **Revisões:**
+  - `review_intervals` (padrão 1, 3, 7, 14, 30 e 60 dias depois do estudo) gera `- [ ] Revisão N · data` na nota;
+  - `sync_reviews`, ao abrir o Lumen e depois de cada entrega, conta as marcadas e atualiza `review-stage` e
+    `next-review` (só essas duas chaves, só nas notas `ai-study`);
+  - o painel `Lumen Dashboard.md` usa Bases (core; o cofre não usa plugins da comunidade, decisão D001), com as
+    visões: Para revisar hoje, Atrasados, Estudando agora, Processados recentemente, Não revisados, Por curso, Por
+    Anchor Topic, Com dúvidas e Para virar nota permanente. Cada filtro foi conferido no Obsidian real com uma nota
+    vencida.
+- **Manifesto e repetição:**
+  - `history.json` passou a mesclar as entradas: Notion (`page_id`, `block_ids`, `url`, `notion_status`),
+    `obsidian` (nota, canvas, `canvas_hash`, status, erro), `lumen_id`, `content_hash` e versão;
+  - o Obsidian é salvo primeiro: é local e idempotente, então repetir não duplica. Depois vem o Notion, que já desfazia
+    o envio em falha ou cancelamento;
+  - a falha de um destino não desfaz o outro: o job termina "parcial", e "Tentar de novo só o X" (`/api/deliver`) usa
+    o pacote guardado, sem IA;
+  - o canvas e o painel têm status próprio: se o canvas falhar, a nota sai sem o mapa embutido, sem link quebrado.
+- **Abrir no Obsidian:** `/api/open` monta `obsidian://open?path=…` a partir do manifesto, só para arquivos do cofre
+  configurado, e chama `os.startfile`. Nenhuma URI vem da interface.
+- **Não feito (avaliado):**
+  - canvas global do conhecimento: a Graph view (core) e o painel por Anchor Topic cobrem isso;
+  - snippet CSS: `.obsidian` é área do usuário, e o tema padrão ficou limpo;
+  - plugin de Spaced Repetition: os flashcards são callouts recolhidos, legíveis sem plugin;
+  - migração dos materiais antigos: os `lesson.json` de antes não existem mais. Daqui em diante os pacotes ficam, e a
+    Biblioteca tem "Salvar no Obsidian";
+  - outro provider de IA: continua só o Ollama local (ver "IA (texto)").
+- **O que o teste real mudou** (aula de teste sobre RAG, Ollama `qwen3:8b`, Notion real e o cofre real, apagados
+  depois):
+  1. *Gráfico derrubava o material:* no Windows, o Edge sem janela ainda segura o perfil quando o
+     `TemporaryDirectory` fecha, e a limpeza levantava `PermissionError` fora do `try`. A entrega inteira falhava com
+     "Erro ao ler ou gravar um arquivo". O defeito já existia (gráficos, mapa mental, capas, imagens). Agora:
+     `ignore_cleanup_errors=True`; `_draw` isola a falha de cada gráfico (fica a tabela); o erro de arquivo diz qual
+     arquivo; pastas `%TEMP%\lumen-*` com mais de um dia são apagadas ao abrir.
+  2. *Publicação parada para sempre:* com o `--screenshot` quebrado do Edge 155, o desenho do mapa estoura o tempo;
+     o Edge é morto, mas o processo auxiliar dele (crashpad) segura os pipes do `capture_output=True`, e o
+     `subprocess.run` nunca volta. Nada chegou ao Notion; o processo ficou ocioso. Agora a saída do Edge (e do
+     gerador de capas) vai para `DEVNULL`. Ninguém lia aquela saída.
+  3. *Conexões ruins:* num cofre ainda sem notas de conhecimento, a busca trouxe notas de sistema (Agents, Skills,
+     Fila de Processamento, Índice de Imagens). A IA as aceitou, chegando a escrever "não seja diretamente
+     relacionado". Agora: num cofre que usa `type:`, só os tipos de conhecimento são candidatos (permanent, resource,
+     project, book, ai-study; Anchor Topics à parte); a busca exige ao menos dois termos da aula em comum; a IA
+     classifica cada conexão (`strength`: forte, media, fraca) e as fracas são descartadas. Flashcards repetidos
+     (glossário e "O que é X?" com a mesma resposta) viram um só.
+  4. *A análise da compreensão funcionou:* a nota de teste tinha um erro de conceito ("o modelo é treinado de novo
+     com esses documentos"). Ele saiu em "Possíveis confusões" com a correção da aula, e a nota de estudo o trata em
+     "Erros comuns".

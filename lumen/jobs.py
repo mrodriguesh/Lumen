@@ -81,8 +81,9 @@ def start(kind, fn, *args, spec=None):
         except OSError as e:
             log.warning("%s falhou: OSError errno=%s", kind, e.errno)
             full = e.errno == errno.ENOSPC
+            name = f" ({Path(e.filename).name})" if e.filename else ""
             _set(status="error", eta=None, error={
-                "message": "Sem espaço em disco." if full else "Erro ao ler ou gravar um arquivo.",
+                "message": "Sem espaço em disco." if full else f"Erro ao ler ou gravar um arquivo{name}.",
                 "action": "Libere espaço e tente de novo." if full else "Confira o arquivo e tente de novo."})
         except Exception as e:  # não registra mensagem: pode conter conteúdo da aula
             log.error("%s erro inesperado: %s", kind, type(e).__name__)
@@ -579,8 +580,8 @@ def deliver(spec):
     _set(dests=dests, key=pkg["key"], title=pkg["lesson"]["title"])
     eta.current = eta.Plan([("obsidian", 1.5)] * ("obsidian" in dests) + [("publish", 10)] * ("notion" in dests))
     log.info("nova tentativa: %s", "+".join(dests))
-    return _deliver(pkg, dests, spec, cfg, token, vision.Shots(work_dir(pkg["key"]) / "screens"),
-                    force=spec.get("force") is True)
+    return _deliver(pkg, dests, {**(entry.get("spec") or {}), **spec}, cfg, token,
+                    vision.Shots(work_dir(pkg["key"]) / "screens"), force=spec.get("force") is True)
 
 
 def _destinations(cfg):
@@ -662,6 +663,12 @@ def _deliver(pkg, dests, spec, cfg, token, shots, force=False):
             res["obsidian"] = {"status": "error", "error": "Não foi possível gravar no cofre do Obsidian "
                                f"({e.strerror or 'erro de arquivo'}).", "action": "Confira se a pasta do cofre existe e "
                                "não está somente leitura, e tente de novo."}
+        except Cancelled:
+            raise
+        except Exception as e:  # noqa: BLE001 — a falha de um destino nunca derruba o outro
+            log.error("obsidian: erro inesperado %s", type(e).__name__)
+            res["obsidian"] = {"status": "error", "error": f"Erro inesperado ao salvar no Obsidian ({type(e).__name__}).",
+                               "action": "Tente de novo só o Obsidian; o material já está guardado."}
         # mescla com o que já havia: um erro agora não apaga onde estão a nota e o canvas desta aula
         store.remember(key, {"obsidian": {**(prev.get("obsidian") or {}), "error": None,
                                           **{k: v for k, v in res["obsidian"].items() if k != "action"},
@@ -672,6 +679,12 @@ def _deliver(pkg, dests, spec, cfg, token, shots, force=False):
             res["notion"] = {"status": "ok", **_notion(pkg, spec, token, gifs, shots, plan)}
         except AppError as e:
             res["notion"] = {"status": "error", "error": str(e), "action": e.action}
+        except Cancelled:
+            raise
+        except Exception as e:  # noqa: BLE001 — idem: o Obsidian já salvo continua salvo
+            log.error("notion: erro inesperado %s", type(e).__name__)
+            res["notion"] = {"status": "error", "error": f"Erro inesperado ao salvar no Notion ({type(e).__name__}).",
+                             "action": "Confira a página no Notion e tente de novo só o Notion."}
         store.remember(key, {"notion_status": {k: v for k, v in res["notion"].items() if k in ("status", "error")}
                              | {"at": datetime.now().isoformat(timespec="seconds")}})
     ok = [d for d in dests if res[d]["status"] == "ok"]
@@ -724,8 +737,14 @@ def _draw(found, plan):
         return []
     from concurrent.futures import ThreadPoolExecutor
     _set(stage="generate", detail="Desenhando os gráficos da aula…", progress=None)
+    def one(c):  # opcional: um gráfico que não desenha nunca impede o material (sai a tabela dos dados)
+        try:
+            return charts.render(c)
+        except Exception as e:  # noqa: BLE001
+            log.warning("gráfico: desenho falhou (%s)", type(e).__name__)
+            return None
     with ThreadPoolExecutor(3) as ex:
-        gifs = list(ex.map(charts.render, found))
+        gifs = list(ex.map(one, found))
     if plan:
         eta.learn("chart_s", plan.elapsed() / -(-len(found) // 3))
     check()

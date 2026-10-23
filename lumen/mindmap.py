@@ -110,14 +110,15 @@ def render(m):
     exe = edge()
     if not exe or not m["branches"]:
         return None
-    with tempfile.TemporaryDirectory(prefix="lumen-mapa-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="lumen-mapa-", ignore_cleanup_errors=True) as tmp:
         page, out = Path(tmp) / "mapa.html", Path(tmp) / "mapa.png"
         page.write_text(html(m), "utf-8")
         try:
             subprocess.run([str(exe), "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
                             "--force-device-scale-factor=2", f"--user-data-dir={Path(tmp) / 'perfil'}",
                             f"--window-size={W},{height(m)}", f"--screenshot={out}", page.as_uri()],
-                           capture_output=True, timeout=40, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=40, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         except (OSError, subprocess.SubprocessError):
             return None
         return out.read_bytes() if out.exists() and out.stat().st_size > 5000 else None

@@ -499,6 +499,8 @@ CONNECT = """Você ajuda um estudante a ligar uma aula nova às notas que ele j�
 Regras:
 - links: entre as notas candidatas, só as que têm relação conceitual real com a aula. Palavra igual não é conexão.
   Poucas e boas (até 6); lista vazia se nenhuma servir. Nunca cite nota fora da lista.
+- strength: forte (a nota trata do mesmo conceito ou o aplica), media (relação clara e útil para estudar) ou fraca
+  (só palavras ou temas parecidos). Seja rigoroso: na dúvida, fraca.
 - relation: fundamenta, aprofunda, aplica, exemplo de, contrasta com, depende de, usado no projeto (só para projetos) ou
   relacionado.
 - reason: uma frase com a relação concreta entre a aula e aquela nota.
@@ -517,7 +519,8 @@ def connect(lesson, candidates, anchors, model, language, check, status):
     schema = {"type": "object", "properties": {
         "links": {"type": "array", "items": {"type": "object", "properties": {
             "note": {"type": "string", "enum": names or [""]}, "relation": {"type": "string", "enum": LINK_RELATIONS},
-            "reason": {"type": "string"}}, "required": ["note", "relation", "reason"]}},
+            "reason": {"type": "string"}, "strength": {"type": "string", "enum": ["forte", "media", "fraca"]}},
+            "required": ["note", "relation", "reason", "strength"]}},
         "anchors": {"type": "array", "items": {"type": "string", "enum": tops or [""]}},
         "anchor_suggestion": {"type": "string"}}, "required": ["links", "anchors", "anchor_suggestion"]}
     system = CONNECT.format(lang=_lang(language), schema=json.dumps(schema, ensure_ascii=False))
@@ -539,7 +542,8 @@ def connect(lesson, candidates, anchors, model, language, check, status):
             raise AppError("A IA não conseguiu sugerir conexões com o cofre.", "Tente de novo.")
     links, seen = [], set()
     for x in data.get("links") or []:
-        if isinstance(x, dict) and x.get("note") in names and x["note"] not in seen and _s(x.get("reason")):
+        if isinstance(x, dict) and x.get("note") in names and x["note"] not in seen and _s(x.get("reason")) \
+                and x.get("strength") in ("forte", "media"):  # fraca = palavra parecida, não conexão
             seen.add(x["note"])
             links.append({"note": x["note"], "reason": _s(x["reason"], 300),
                           "relation": x.get("relation") if x.get("relation") in LINK_RELATIONS else "relacionado"})
