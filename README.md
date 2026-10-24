@@ -28,13 +28,30 @@ o que entendeu da aula. Só depois a IA analisa a sua nota contra a aula (ver [M
    uma GPU NVIDIA, pergunta se deve baixar o suporte a GPU (≈ 1 GB).
 3. Depois disso, abra pelo **`Lumen.exe`**: uma janela nativa com ícone próprio. Para fixar, clique com o botão
    direito no ícone dele na barra de tarefas e escolha **Fixar na barra de tarefas**. Fechar a janela recolhe o app;
-   para encerrar, use o botão vermelho no rodapé da barra flutuante ou **Sair do Lumen** na bandeja do Windows.
+   para encerrar, use o botão de desligar no rodapé da barra flutuante ou **Sair do Lumen** na bandeja do Windows.
 
 `Lumen.exe` é um programa pequeno em C# (`launcher/Lumen.cs`) que abre a interface no WebView2 do Windows e inicia o
 Python em segundo plano. Para recompilar: `powershell -ExecutionPolicy Bypass -File launcher/build.ps1` (usa o
 compilador C# que já vem no Windows). O ícone é gerado por `launcher\make-icon.ps1`.
 
 Pela linha de comando: `.venv\Scripts\python -m lumen`.
+
+## A interface
+
+Escura, com uma barra lateral de cinco áreas e uma barra superior que mostra sempre onde você está e o que o Lumen
+está fazendo (detalhes e regras do visual em [docs/DESIGN.md](docs/DESIGN.md)):
+
+- **Início:** o que está acontecendo agora (gravando, processando ou a aula para continuar, com as etapas dela), as aulas
+  em andamento, as salvas recentemente, as revisões do Obsidian para hoje e o estado do sistema (Notion, Obsidian, IA
+  local, transcrição). Na primeira vez, “Antes de começar” lista o que falta configurar.
+- **Nova aula:** Fonte → Compreensão → Análise → Salvar. À esquerda a fonte (gravar, arquivo ou capturas); à direita o
+  link, onde salvar e as opções.
+- **Biblioteca:** as aulas em andamento e as salvas, com busca e filtro.
+- **Integrações:** os destinos (Notion + Obsidian, só Notion ou só Obsidian) e um cartão para cada um, com o estado da
+  conexão.
+- **Ajustes:** Geral, Captura, Transcrição, IA local, Capas com IA e Privacidade e dados.
+- **Barra superior:** a busca (**Ctrl+K**: telas, ajustes, ações e aulas), o status (Pronto, Gravando, Pausado,
+  Processando, Erro; clique para ir até ele) e o Pomodoro.
 
 ## Minha compreensão
 
@@ -69,8 +86,8 @@ O fluxo é **conteúdo → a sua compreensão → a IA analisa a sua compreensã
   analisar* (com **Tentar novamente**; a nota nunca é perdida, nem se o app fechar no meio). Na barra e na janela
   flutuante aparece também **Processar**. O servidor confere tudo de novo e trava a nota no instante do pedido; a
   análise lê exatamente a versão enviada (guarda a revisão), e a nota fica só para leitura até ela terminar.
-- **Escrever depois:** a aula fica em **Continuar aprendendo**, no topo de Nova aula, até ser salva no Notion.
-- **Destacar (Ctrl+Shift+D):** o ícone no canto do papel leva a nota para uma janela flutuante, sempre por cima, para
+- **Escrever depois:** a aula fica no Início e na Biblioteca (**Em andamento**) até ser salva no Notion.
+- **Destacar (Ctrl+Shift+D):** o botão **Destacar**, acima do papel, leva a nota para uma janela flutuante, sempre por cima, para
   escrever enquanto revê o vídeo em outro programa. Arraste pela barra, redimensione pelas bordas, minimize para ficar
   só a barra; **Voltar para o Lumen** traz o editor de volta e **fechar** só fecha a janela. Ela lembra posição e
   tamanho, não sai da tela e não cresce além de 60% × 92% da área útil. A **barra flutuante** do lado esquerdo também
@@ -94,14 +111,15 @@ Perto de uma borda ou canto, a alça se encaixa automaticamente e o painel se ab
 sem cobrir a barra de tarefas. A posição salva no formato anterior é convertida ao abrir.
 Nas laterais a alça é vertical; em cima e embaixo ela é horizontal. Os controles também mudam de disposição,
 e a orientação é lembrada junto com a posição. Arraste a barra aberta até a borda desejada para alternar.
-A barra mostra um único botão **Gravar/Parar**, o tempo da captura e atalhos discretos para abrir o app e os ajustes.
+A barra mostra um único botão **Gravar/Parar**, o estado em palavras (Pronto, Gravando, Captura pausada), o tempo da
+captura e atalhos discretos para abrir o app e os ajustes. Parada, ela não pisca: só a gravação pulsa.
 A engrenagem abre todas as configurações dentro da própria barra, organizadas em categorias: barra flutuante,
 Notion, transcrição, IA local, capas e privacidade. Os campos maiores têm rolagem e os downloads mostram progresso.
 A limpeza exige confirmação e fica bloqueada durante gravações e tarefas, preservando os arquivos em uso.
 Instruções de silêncio e mensagens de erro aparecem quando necessárias. Ao parar, a janela principal abre com a gravação pronta para usar.
 Fechar a janela principal mantém a captura e o processamento ativos.
 
-Em **Ajustes → Lumen sempre por perto**, escolha esquerda, direita, em cima, embaixo, posição livre ou desativada;
+Em **Ajustes → Geral**, escolha esquerda, direita, em cima, embaixo, posição livre ou desativada;
 **Restaurar posição** recoloca a barra. **Iniciar com o Windows** registra apenas o usuário atual na chave Run,
 com o caminho do executável entre aspas. O login abre o Lumen em segundo plano (`--background`), sem gravar sozinho.
 Mesmo com a barra desativada, a bandeja permite abrir, acessar ajustes e sair. Ao sair durante uma gravação,
@@ -121,7 +139,7 @@ atalho: `localStorage` `captureShortcut` (tabela `SHORTCUTS` em `understanding-e
 ### Pomodoro
 
 Um timer só (`lumen/pomodoro.py`, guardado em `pomodoro.json`), mostrado na barra, na janela flutuante de “Minha
-compreensão” (clique no tempo para os controles) e na janela principal. Foco, pausa curta, pausa longa e ciclos são
+compreensão” (clique no tempo para os controles) e na barra superior da janela principal, em qualquer tela. Foco, pausa curta, pausa longa e ciclos são
 personalizáveis (25/5/15/4 por padrão; atalhos 25 e 50 min), com **Iniciar a próxima etapa sozinho** (desligado) e
 **Som ao terminar** (ligado). O tempo vem do horário em que a etapa termina, não de ticks: minimizar, fechar janelas,
 reiniciar o app ou suspender o PC não atrasa nada. É independente da captura: um nunca pausa o outro. No fim de uma
@@ -142,7 +160,7 @@ Também cobre mensagens atrasadas, hover repetido, quatro bordas/cantos da tela 
 origens negativas, telas em retrato e escalas de 100% a 300%. Não envolve reiniciar o Windows nem testar
 monitores físicos com escalas diferentes.
 
-Os modelos não são baixados sem pedido: o app mostra o tamanho e um botão **Baixar** em Configurações.
+Os modelos não são baixados sem pedido: o app mostra o tamanho e um botão **Baixar** em Ajustes.
 
 ## Conectar o Notion (API oficial)
 
@@ -151,10 +169,10 @@ cliente, que um app local e gratuito não pode guardar com segurança.
 
 1. Acesse <https://www.notion.so/profile/integrations> → **Nova integração** → tipo *Interna*, no seu workspace.
 2. Capacidades: *Ler conteúdo*, *Atualizar conteúdo*, *Inserir conteúdo*. Não precisa de informações de usuários.
-3. Copie o token secreto e cole em **Configurações → Notion**. Ele é validado e guardado no
+3. Copie o token secreto e cole em **Integrações → Notion**. Ele é validado e guardado no
    Gerenciador de Credenciais do Windows (via `keyring`), nunca em arquivo.
 4. No Notion, crie uma página (ex.: “Estudos”), abra **••• → Conexões** e adicione a integração.
-5. Em Configurações, escolha essa página como **página raiz dos cursos**.
+5. Em Integrações, escolha essa página como **página raiz dos cursos**.
 
 Você pode escolher uma página existente ou criar uma página dentro da raiz. A aula é acrescentada diretamente
 à página escolhida, com um título para o material, preservando o nome, a capa, o ícone e o conteúdo anterior.
@@ -169,7 +187,7 @@ integração interna crie páginas no topo do workspace, só dentro de uma pági
 ## Notion e Obsidian
 
 O Lumen escreve o material **uma vez** e salva o mesmo conteúdo em cada destino: o Notion para organizar e
-acompanhar, o Obsidian para estudar a fundo e ligar ao seu segundo cérebro. Em **Ajustes → Destinos do material**:
+acompanhar, o Obsidian para estudar a fundo e ligar ao seu segundo cérebro. Em **Integrações → Destinos do material**:
 
 1. Escolha **Notion + Obsidian**, **Só Notion** (padrão, como antes) ou **Só Obsidian** (não precisa do Notion).
 2. Escolha o **cofre do Obsidian**. O Lumen lista os cofres registrados neste PC, mas nunca escolhe sozinho;
@@ -205,7 +223,7 @@ Regras que protegem o que é seu:
   cópia antes.
 - Reprocessar não cria cópias. A nota é achada pelo `lumen-id` mesmo se você a renomear dentro da pasta do Lumen.
 - **Revisões:** marque `Revisão N` na nota. Ao abrir o Lumen, ele atualiza `next-review`. Os intervalos (padrão 1,
-  3, 7, 14, 30 e 60 dias) ficam em Ajustes.
+  3, 7, 14, 30 e 60 dias) ficam em Integrações → Obsidian. As revisões do dia aparecem no Início.
 - **Profundidade** (Ajustes → IA local):
   - Rápido: uma passada.
   - Balanceado: com conexões no cofre.
@@ -242,7 +260,7 @@ Outros formatos são recusados com uma mensagem. Arquivos sem áudio ou corrompi
 
 ## Assistir a tela junto (opcional)
 
-Liga no cartão **Fonte** (ou em Ajustes). O Lumen passa a olhar a aula com você e põe na página o que aparece na
+Liga no cartão da fonte, em Nova aula (ou em Ajustes → Captura). O Lumen passa a olhar a aula com você e põe na página o que aparece na
 tela: slides, quadro, código, tabelas, fórmulas e gráficos, com as imagens. Tudo no seu PC, com um modelo de
 visão local (`qwen3.5:4b`).
 
@@ -277,7 +295,7 @@ uso. Sem GPU, a leitura fica para depois da gravação e é mais lenta.
 
 ## Filtrar música externa (opcional)
 
-Para quem estuda ouvindo música. Liga em Ajustes → **Música de fundo** → **Filtrar música externa** (desligado por
+Para quem estuda ouvindo música. Liga em Ajustes → **Captura** → **Filtrar música externa** (desligado por
 padrão; baixa uma vez o filtro, ≈ 72 MB). Desligado, nada muda: nenhum modelo é carregado e a transcrição é a mesma
 de antes. Ligado, nesta ordem:
 
@@ -430,7 +448,7 @@ recolhido, com os tempos.
 A geração com `qwen3:8b` levou ≈ 30 s para uma aula curta na GPU. Na CPU, espere vários minutos. Aulas longas
 (acima de ~40 mil caracteres de transcrição) são lidas por partes e depois consolidadas.
 
-Para outro modelo, informe o nome em Configurações → IA local (ex.: `qwen3:4b` para PCs com menos memória).
+Para outro modelo, informe o nome em Ajustes → IA local → Avançado (ex.: `qwen3:4b` para PCs com menos memória).
 
 ## Privacidade
 
@@ -440,7 +458,7 @@ Para outro modelo, informe o nome em Configurações → IA local (ex.: `qwen3:4
 - Sem telemetria (o download dos modelos do Hugging Face roda com `HF_HUB_DISABLE_TELEMETRY=1`).
 - O log (`%LOCALAPPDATA%\Lumen\lumen.log`) registra só etapas e tipos de erro, nunca tokens ou conteúdo.
 - Gravações ficam no PC só até você confirmar a revisão. Transcrições ficam em `%LOCALAPPDATA%\Lumen\work` só até a página ser publicada, para permitir retomar após uma
-  falha. Configurações → **Limpar histórico e dados locais** apaga tudo. **Desconectar Notion** também remove o token.
+  falha. Ajustes → Privacidade e dados → **Limpar** apaga tudo. **Desconectar Notion** (em Integrações) também remove o token.
 - Assistir a tela junto: as capturas ficam no PC e são lidas pelo modelo local; só as imagens das telas que você
   mantiver na revisão vão para o Notion. Detalhes em [Assistir a tela junto](#assistir-a-tela-junto-opcional).
 - Filtrar música externa: detecção e separação no PC; o áudio filtrado é uma cópia temporária, e o log guarda só
@@ -459,6 +477,20 @@ da API). Verificação ponta a ponta real (Whisper + Ollama de verdade, Notion s
 ```
 .venv\Scripts\python -m tests.e2e <pasta-com-amostras>
 ```
+
+Interface (Playwright no Python do sistema, Chrome sem GPU como o WebView2; API simulada e dados isolados):
+
+```
+py -3.14 tests\ui_shots.py [nome] [--sizes] [--zoom]
+py -3.14 tests\widget_ui.py
+```
+
+`ui_shots.py` captura todas as telas e estados (Início, Nova aula, Minha compreensão, processamento, análise,
+Biblioteca, Integrações, cada categoria de Ajustes, busca, confirmação, avisos, barra flutuante e janela da nota) em
+`tests\desktop-artifacts\ui\`, de 520×560 a 1920×1040 e de 80% a 120%, e falha com erro de página, rolagem horizontal,
+controle cortado ou alvo de clique menor que 24 px. `tests\test_ui_tokens.py` confere o contraste dos tokens e que não
+há cor solta fora de `ui.css`. O mostruário dos componentes fica em `http://127.0.0.1:<porta>/design`.
+No `DesktopChecks.cs`, defina `LUMEN_SHOTS=<pasta>` para guardar imagens das três janelas reais do WebView2.
 
 Para publicar de verdade numa página **sua** de teste, defina `LUMEN_E2E_TOKEN` e `LUMEN_E2E_PARENT`.
 Leitura da tela: `.venv\Scripts\python -m bench.vision_bench make` e `run qwen3.5:4b` (ver `bench/README.md`).

@@ -45,8 +45,9 @@ lumen/
   A interface usa renderização por software no WebView2, configurada apenas no processo do Lumen. A verificação
   nativa apresentou encerramentos com aceleração gráfica durante o redimensionamento e passou com esse modo.
   Os motores de transcrição usam suas próprias configurações de hardware.
-- **Visual**: inspirado na linguagem dos apps da Apple (cartões agrupados, barra translúcida, controle segmentado,
-  chave liga/desliga), com desenho próprio: sem fontes, ícones ou imagens da Apple. A fonte é a Inter (OFL,
+- **Visual**: escuro, com um design system próprio (`lumen/web/ui.css`, regras em `docs/DESIGN.md`) compartilhado
+  pelas três janelas: tokens de cor, tipo, espaço, raio, vidro, sombra e movimento, ícones num sprite próprio
+  (`icons.svg`). Os botões de janela continuam no estilo Mac, em grafite. A fonte é a Inter (OFL,
   `lumen/web/fonts/OFL.txt`). As DLLs do SDK do WebView2 (licença BSD da Microsoft, `launcher/bin/LICENSE-WebView2.txt`)
   vêm do pacote NuGet oficial `Microsoft.Web.WebView2`. Electron, pywebview e Qt foram descartados:
   são dependências grandes, e o pythonnet do pywebview ainda não acompanha o Python 3.14.
@@ -887,3 +888,32 @@ Incremental sobre a v1: mesmos detector, separador, emenda, cache, recuo e integ
   4. *A análise da compreensão funcionou:* a nota de teste tinha um erro de conceito ("o modelo é treinado de novo
      com esses documentos"). Ele saiu em "Possíveis confusões" com a correção da aula, e a nota de estudo o trata em
      "Erros comuns".
+
+## Redesign da interface (24/10/2026; `lumen/web/ui.css`, `docs/DESIGN.md`)
+
+- **Sempre escuro.** O tema claro saiu; o `Lumen.exe` não lê mais o tema do Windows (`BackColor` e bordas DWM fixas
+  em `--bg-base`). A barra flutuante já era só escura.
+- **Navegação.** Rail com Início, Nova aula, Biblioteca, Integrações e Ajustes; barra superior com contexto, busca
+  (Ctrl+K), status global e Pomodoro. Ajustes e Integrações deixaram de ser um diálogo de 9 seções e viraram páginas;
+  as fontes saíram da barra lateral para um segmentado dentro da Nova aula. Os IDs que o `app.js`, o C# e os testes
+  usam continuam os mesmos.
+- **Vidro só simulado nas superfícies grandes.** Com a GPU desligada no WebView2, `backdrop-filter` em áreas grandes
+  custa CPU a cada quadro; ele fica só na busca e nos flutuantes pequenos. Medido no Chrome sem GPU com a mesma API
+  simulada (antes → depois): carga até o estado 191 → 186 ms, trocar de tela 33,0 → 32,6 ms, abrir Ajustes
+  30,1 → 31,2 ms, rolar a análise 16,3 → 16,3 ms por quadro, redimensionar 27,1 → 21,8 ms, CPU com a Nova aula parada
+  13 → 28 ms em 5 s e com a barra aberta parada 29 → 36 ms em 5 s (ambos abaixo de 1% de um núcleo). O heap JS não
+  cresce em 50 trocas de tela (1,71 → 1,74 MB) e os elementos vivos ficam estáveis.
+- **Repouso sem animação.** O botão de gravar parado não pulsa mais (na barra e na janela principal); só a gravação
+  e o processamento se movem.
+- **Dicas próprias, sem `title`.** O tooltip nativo some atrás das janelas sempre por cima; `ui.js` mostra uma dica
+  no hover e no foco pelo teclado, dentro da janela.
+- **Confirmações do Lumen** (`ui.confirm`) no lugar do `confirm()` do navegador, só para o que não se desfaz.
+- **Revisões no Início.** `obsidian.due_reviews` lê o `next-review` que `sync_reviews` já mantém nas notas de estudo
+  (nada é escrito) e `GET /api/reviews` liga cada nota à aula da history, para abrir pelo `/api/open` de sempre.
+- **Testes visuais.** `tests/ui_shots.py` captura cada tela e estado de 520×560 a 1920×1040 e de 80% a 120% de zoom e
+  confere rolagem horizontal, controles cortados e alvos pequenos; `DesktopChecks.cs` guarda imagens das janelas reais
+  do WebView2 com `LUMEN_SHOTS`.
+- **Limitações.** Os cantos da barra flutuante continuam serrilhados (região GDI; os cantos do DWM teriam outro raio e
+  mudariam a geometria testada). A barra não ganhou modos compacto/mínimo novos: a alça recolhida já é o modo mínimo e
+  mostra gravando (vermelho) e pausado (âmbar). Abaixo de 380 px de altura, a janela da nota mostra só o texto (o
+  status e “Processar” ficam na janela principal e na barra).
