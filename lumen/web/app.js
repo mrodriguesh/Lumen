@@ -355,7 +355,7 @@ function renderRec(r) {
   if (!r.active) $("#watch").disabled = false;
   if (r.error) $("#rec-hint").textContent = r.error;
   updateGo();
-  renderUCap(); renderStatus(); renderHome();
+  renderUCap(); renderStatus(); renderHero();
 }
 function watchRec() {
   clearInterval(recTimer);
@@ -1430,7 +1430,7 @@ async function poll() {
     for (;;) {
       const j = await api("/api/job");
       renderJob(j);  // guarda lastJob
-      renderStatus(); renderHome();
+      renderStatus(); renderHero();
       if (j.status !== "running") {
         if (j.kind === "download") await refresh();
         break;
@@ -1646,13 +1646,13 @@ function renderDownload(j) {
 $("#clear").addEventListener("click", async () => {
   if (!await ui.confirm("Apaga o histórico de aulas, as transcrições guardadas, as suas notas de compreensão deste PC (inclusive as que ainda não foram salvas) e os arquivos temporários. As páginas no Notion e as notas no Obsidian ficam.",
     { title: "Limpar os dados locais?", ok: "Apagar dados locais", danger: true })) return;
-  try { S = await api("/api/clear", {}); renderPending(); renderHome(); toast("Dados locais apagados."); } catch (e) { fail(e); }
+  try { S = await api("/api/clear", {}); await loadHistory().catch(() => {}); renderPending(); renderHome(); toast("Dados locais apagados."); } catch (e) { fail(e); }
 });
 $("#forget").addEventListener("click", async () => {
   if (!await ui.confirm("O token sai do cofre do Windows e o histórico local (com as notas de compreensão guardadas neste PC) é apagado. As páginas no Notion ficam.",
     { title: "Desconectar o Notion?", ok: "Desconectar", danger: true })) return;
   try { localStorage.removeItem("lumen.pages"); } catch {}
-  try { S = await api("/api/clear", { forget_token: true }); $("#root").replaceChildren(); renderSettings(); renderChecks(); toast("Notion desconectado."); } catch (e) { fail(e); }
+  try { S = await api("/api/clear", { forget_token: true }); $("#root").replaceChildren(); renderSettings(); renderChecks(); renderPending(); await loadHistory().catch(() => {}); toast("Notion desconectado."); } catch (e) { fail(e); }
 });
 
 // ---------- janela (botões estilo Mac quando aberto pelo Lumen.exe) ----------
@@ -1771,26 +1771,36 @@ const STAGE_NAMES = { prepare: "Preparando a fonte", transcribe: "Transcrevendo"
   generate: "Escrevendo o material", connect: "Buscando conexões", obsidian: "Salvando no Obsidian", publish: "Salvando no Notion", download: "Baixando" };
 const pct = (j) => Number.isFinite(j.progress) ? ` · ${Math.round(j.progress * 100)}%` : "";
 let heroMode = "";
-function renderHome() {
+function renderHome() {  // tudo (ao abrir o Início, ao chegar a lista de aulas); a gravação e a tarefa só mexem no cartão principal
   if (!S || view !== "home") return;
   const h = new Date().getHours();
   $("#home-greet").textContent = h < 5 || h >= 18 ? "Boa noite" : h < 12 ? "Bom dia" : "Boa tarde";
   $("#home-date").textContent = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
-  const n = S.pending?.length || 0, r = S.recording || {}, due = reviews.length;
-  $("#home-lead").textContent = r.active ? "Uma gravação está em andamento."
-    : (lastJob || S.job)?.status === "running" ? "O Lumen está trabalhando numa aula; dá para continuar usando o app."
-    : [n ? `${n} ${n === 1 ? "aula espera" : "aulas esperam"} por você` : "", due ? `${due} ${due === 1 ? "revisão" : "revisões"} para hoje` : ""].filter(Boolean).join(" · ") + (n || due ? "." : "")
-      || "Grave ou escolha uma aula, escreva o que entendeu e deixe a IA local completar.";
   renderHero();
   const recent = (historyItems || []).slice(0, 4);
   $("#home-recent").hidden = !!historyItems && !recent.length;
   $("#recent-list").replaceChildren(...(historyItems ? recent.map((it) => savedRow(it, true)) : skeletonRows(3)));
 }
 function renderHero() {
+  if (!S || view !== "home") return;
   const box = $("#home-hero"), r = S.recording || {}, j = lastJob || S.job || {}, p = S.pending?.[0];
   const busy = j.status === "running" && j.kind !== "download";
+  const n = S.pending?.length || 0, due = reviews.length;
+  $("#home-lead").textContent = r.active ? "Uma gravação está em andamento."
+    : busy ? "O Lumen está trabalhando numa aula; dá para continuar usando o app."
+    : [n ? `${n} ${n === 1 ? "aula espera" : "aulas esperam"} por você` : "", due ? `${due} ${due === 1 ? "revisão" : "revisões"} para hoje` : ""].filter(Boolean).join(" · ") + (n || due ? "." : "")
+      || "Grave ou escolha uma aula, escreva o que entendeu e deixe a IA local completar.";
   const mode = r.active && !r.error ? (r.paused ? "paused" : "rec") : busy ? "job" : p ? `pending:${p.key}:${p.state}` : historyItems && !historyItems.length ? "first" : "start";
+  // a cada leitura só o que mudou (o tempo, a etapa, o progresso): os botões continuam os mesmos, sem perder foco
   if (mode === heroMode && (mode === "rec" || mode === "paused")) { box.querySelector(".hero-time").textContent = mmss(r.seconds); return; }
+  if (mode === heroMode && mode === "job") {
+    box.querySelector(".badge").lastChild.textContent = j.kind === "analyze" ? "Analisando sua compreensão" : STAGE_NAMES[j.stage] || "Processando";
+    box.querySelector(".hero-sub").textContent = [j.detail, Number.isFinite(j.eta_total) && etaText(j.eta_total, "Pronta")].filter(Boolean).join(" · ");
+    const bar = box.querySelector(".progress"), det = !Number.isFinite(j.progress);
+    bar.classList.toggle("indeterminate", det);
+    bar.firstChild.style.width = det ? "" : Math.round(j.progress * 100) + "%";
+    return;
+  }
   heroMode = mode;
   box.dataset.mode = mode.split(":")[0];
   const top = (tone, ic, text) => el("div", { class: "hero-top" }, el("span", { class: "badge", "data-tone": tone }, ic, text));
@@ -1852,7 +1862,7 @@ async function loadReviews() {
     el("span", { class: "lib-text" }, el("span", { class: "lib-title" }, r.title),
       el("span", { class: "lib-meta" }, `${r.overdue ? "Atrasada · era para " + new Date(r.next_review + "T12:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" }) : "Para hoje"} · revisão ${r.stage + 1}`)),
     r.key ? el("button", { class: "icon-btn sm", type: "button", "aria-label": `Revisar “${r.title}” no Obsidian`, "data-tip": "Abrir no Obsidian", onclick: () => openObsidian(r.key, "note") }, icon("external")) : null)));
-  renderHome();  // o subtítulo do Início conta as revisões
+  renderHero();  // o subtítulo do Início conta as revisões
 }
 
 // ---------- Status global (barra superior): pronto, gravando, pausado, processando, erro ----------

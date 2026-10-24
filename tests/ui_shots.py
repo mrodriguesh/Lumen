@@ -12,6 +12,7 @@ ou alvo de clique menor que 24 px. Dados isolados: LUMEN_DATA temporário e nenh
 import copy
 import json
 import os
+import shutil
 import struct
 import subprocess
 import sys
@@ -270,11 +271,13 @@ class Harness:
 
 
 def serve():
-    env = {**os.environ, "LUMEN_DATA": tempfile.mkdtemp(prefix="lumen-ui-shots-"),
+    data = tempfile.mkdtemp(prefix="lumen-ui-shots-")
+    env = {**os.environ, "LUMEN_DATA": data,
            "PYTHON_KEYRING_BACKEND": "keyring.backends.null.Keyring"}
     proc = subprocess.Popen([str(ROOT / ".venv/Scripts/python.exe"), "-u", "-c",
                              "from lumen import server; h=server.serve(); print(h.server_port, flush=True); h.serve_forever()"],
                             cwd=ROOT, env=env, stdout=subprocess.PIPE, text=True)
+    proc.data = data  # apagada ao terminar (o C: costuma estar cheio)
     return proc, "http://127.0.0.1:" + proc.stdout.readline().strip()
 
 
@@ -301,6 +304,8 @@ def run(scenarios, filters=(), sizes=((1120, 860),), zooms=(1.0,), out=OUT):
             browser.close()
     finally:
         proc.kill()
+        proc.wait(timeout=10)
+        shutil.rmtree(proc.data, ignore_errors=True)
     for tag, found in total.items():
         print(f"\n{tag}:")
         for f in dict.fromkeys(found):
