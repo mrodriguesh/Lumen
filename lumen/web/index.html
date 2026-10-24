@@ -45,7 +45,8 @@
   <button class="search-btn" type="button" id="open-palette" aria-haspopup="dialog" aria-keyshortcuts="Control+K">
     <svg class="i"><use href="/icons.svg#search"/></svg><span>Buscar ou ir para…</span><kbd>Ctrl K</kbd></button>
   <div class="top-right">
-    <button class="status-pill" type="button" id="global-status" data-tone="ok" aria-live="polite">
+    <span class="sr" id="status-live" role="status" aria-live="polite"></span>
+    <button class="status-pill" type="button" id="global-status" data-tone="ok">
       <span class="status-ico" id="global-status-ico" aria-hidden="true"></span><span id="global-status-text">Pronto</span></button>
     <span class="pomo-slot" id="u-pomo"></span>
   </div>
@@ -70,7 +71,7 @@
   </section>
 
   <div class="home-grid">
-    <section class="card hero-card" id="home-hero" aria-live="polite" aria-label="Agora"></section>
+    <section class="card hero-card" id="home-hero" aria-label="Agora"></section>
     <section class="card" id="home-system" aria-labelledby="sys-h">
       <header class="card-head"><h2 id="sys-h">Sistema</h2><button class="btn ghost sm" type="button" data-go="integrations">Integrações<svg class="i"><use href="/icons.svg#chevron-right"/></svg></button></header>
       <div class="sys-list" id="side-status" aria-label="Estado do sistema"></div>

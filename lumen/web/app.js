@@ -31,6 +31,14 @@ async function api(path, body) {
 function toast(msg, tone = "success") { ui.toast(msg, tone === true ? "error" : tone || "success"); }
 const fail = (e) => toast(e.message + (e.action ? " " + e.action : ""), true);
 const icon = (name, cls) => ui.icon(name, cls);
+// Troca o conteúdo só se ele mudou: quem está com o foco ou o mouse numa linha não a perde a cada atualização
+const sigs = new WeakMap();
+function swap(box, nodes) {
+  const sig = nodes.map((n) => n.outerHTML ?? n.textContent).join("");
+  if (sigs.get(box) === sig) return;
+  sigs.set(box, sig);
+  box.replaceChildren(...nodes);
+}
 const setLabel = (btn, text, ic) => btn.replaceChildren(...(ic ? [icon(ic)] : []), text);  // botão com ícone
 
 function el(tag, attrs = {}, ...kids) {
@@ -85,14 +93,14 @@ function renderChecks() {
     el("span", {}, name, el("small", {}, ok ? on : off)),
     el("span", { class: "badge", "data-tone": ok ? "ok" : "warn" }, icon(ok ? "check" : "alert"), ok ? "Pronto" : "Pendente"),
     ok ? null : el("button", { class: "icon-btn sm", type: "button", "aria-label": `Resolver: ${name}`, "data-tip": "", onclick: go }, icon("chevron-right")));
-  $("#side-status").replaceChildren(
+  swap($("#side-status"), [
     ...[usesNotion() && stat("page", "Notion", rootReady(), `Salvando em “${S.config.root_page_title || "página raiz"}”`,
       !S.has_token ? "Não conectado" : rootOk === false ? "A página raiz não está mais acessível" : "Escolha a página raiz", goIntegrations),
       usesObsidian() && stat("notebook", "Obsidian", vaultReady(), S.obsidian?.vaults.find((v) => v.path === S.config.obsidian_vault)?.name || "Cofre escolhido",
         S.obsidian?.error ? "Cofre indisponível" : "Escolha o cofre", goIntegrations)].filter(Boolean),
     stat("cpu", "IA local", S.ollama.running && S.ollama.installed, S.config.ollama_model,
       !S.ollama.running ? "Ollama fechado" : `Falta o modelo ${S.config.ollama_model}`, () => goSettings("ai")),
-    stat("wave", "Transcrição", w.downloaded, `${w.label} · ${S.gpu ? "GPU" : "processador"}`, `Falta baixar o modelo ${w.label}`, () => goSettings("transcription")));
+    stat("wave", "Transcrição", w.downloaded, `${w.label} · ${S.gpu ? "GPU" : "processador"}`, `Falta baixar o modelo ${w.label}`, () => goSettings("transcription"))]);
   const items = [
     ...(usesNotion() ? [["Notion conectado", S.has_token, "Conectar", goIntegrations],
       [rootOk === false ? "Página raiz dos cursos (a salva não está mais acessível)" : "Página raiz dos cursos", rootReady(), "Escolher", goIntegrations]] : []),
@@ -101,7 +109,7 @@ function renderChecks() {
     [`Modelo de IA (${S.config.ollama_model})`, S.ollama.installed, "Baixar", () => goSettings("ai")],
     [`Modelo de transcrição (${w.label}, ${w.size})`, w.downloaded, "Baixar", () => goSettings("transcription")],
   ];
-  $("#checks").replaceChildren(...items.map(([label, ok, act, fn]) =>
+  swap($("#checks"), items.map(([label, ok, act, fn]) =>
     el("li", {}, el("span", { class: "check-label" }, el("span", { class: ok ? "ok" : "no", role: "img", "aria-label": ok ? "Pronto:" : "Pendente:" }, icon(ok ? "check-circle" : "alert")), label),
       ok ? null : el("button", { class: "btn sm", type: "button", onclick: fn }, act))));
   // O modelo de transcrição só é exigido quando a fonte precisa ser transcrita (avisado na fonte).
@@ -1290,11 +1298,13 @@ function pendingRow(p) {
     el("button", { class: "btn sm" + (p.state === "completed" ? "" : " primary"), type: "button", onclick: () => resume(p.key) },
       p.state === "completed" ? "Ver análise" : "Continuar"));
 }
+// O cartão principal do Início mostra a gravação, a tarefa ou, sem elas, a primeira aula em andamento
+const heroBusy = () => !!(S?.recording?.active && !S.recording.error) || ((lastJob || S?.job)?.status === "running" && (lastJob || S.job).kind !== "download");
 function renderPending() {
-  const items = S?.pending || [], more = items.slice(1);  // a primeira já está no cartão principal do Início
+  const items = S?.pending || [], more = heroBusy() ? items : items.slice(1);  // sem repetir a que já está no cartão
   $("#pending").hidden = !more.length;
   $("#pending-all").hidden = more.length <= 3;
-  $("#pending-list").replaceChildren(...more.slice(0, 3).map(pendingRow));
+  swap($("#pending-list"), more.slice(0, 3).map(pendingRow));
   $("#lib-n-pending").textContent = items.length || "";
   if (view === "library") renderLibrary();
 }
@@ -1709,8 +1719,11 @@ function showView(name) {
   if (name === "integrations" && was !== name && S?.has_token) loadRoots();
   if (S && ["settings", "integrations"].includes(was) && !["settings", "integrations"].includes(name)) afterSettings();
 }
-for (const b of $$(".rail-item")) b.addEventListener("click", () => (b.dataset.view === "settings" ? goSettings() : showView(b.dataset.view)));
-for (const b of $$("[data-go]")) b.addEventListener("click", () => { if (b.dataset.filter) libFilter = b.dataset.filter; showView(b.dataset.go); });
+for (const b of $$(".rail-item")) b.addEventListener("click", () => {
+  if (b.dataset.view === "library") libFilter = "all";
+  if (b.dataset.view === "settings") goSettings(); else showView(b.dataset.view);
+});
+for (const b of $$("[data-go]")) b.addEventListener("click", () => { libFilter = b.dataset.filter || "all"; showView(b.dataset.go); });
 
 // Aulas salvas (Notion e/ou Obsidian): uma leitura só para o Início, a Biblioteca e a busca
 let historyItems = null;
@@ -1750,18 +1763,18 @@ async function loadLibrary() {
 function renderLibrary() {
   const box = $("#library-list");
   for (const b of $$("#lib-filter button")) b.setAttribute("aria-pressed", String(b.dataset.f === libFilter));
-  if (!historyItems) return box.replaceChildren(...skeletonRows(4));
+  if (!historyItems) return swap(box, skeletonRows(4));
   const typed = $("#lib-search").value.trim(), q = fold(typed), match = (...t) => !q || t.some((x) => fold(x || "").includes(q));
   const pend = (S?.pending || []).filter((p) => match(p.title, p.label));
   const saved = historyItems.filter((it) => match(it.title, it.course, it.spec?.course_title));
   const out = [];
   if (libFilter !== "saved" && pend.length) out.push(el("p", { class: "group-h" }, "Em andamento"), ...pend.map(pendingRow));
   if (libFilter !== "pending" && saved.length) out.push(el("p", { class: "group-h" }, "Salvas"), ...saved.map((it) => savedRow(it)));
-  if (out.length) return box.replaceChildren(...out);
+  if (out.length) return swap(box, out);
   const start = el("button", { class: "btn primary", type: "button", onclick: () => showView("new") }, icon("new"), "Nova aula");
-  box.replaceChildren(typed ? emptyState("search", `Nada com “${typed}”`, "Tente outra palavra do título ou do curso.")
+  swap(box, [typed ? emptyState("search", `Nada com “${typed}”`, "Tente outra palavra do título ou do curso.")
     : libFilter === "pending" ? emptyState("pen", "Nenhuma aula em andamento", "As aulas que você começar e ainda não salvou ficam aqui, para continuar de onde parou.", start)
-    : emptyState("library", "Nenhuma aula ainda", "Quando você salvar a primeira aula no Notion ou no Obsidian, ela aparece aqui.", start));
+    : emptyState("library", "Nenhuma aula ainda", "Quando você salvar a primeira aula no Notion ou no Obsidian, ela aparece aqui.", start)]);
 }
 $("#lib-search").addEventListener("input", renderLibrary);
 for (const b of $$("#lib-filter button")) b.addEventListener("click", () => { libFilter = b.dataset.f; renderLibrary(); });
@@ -1779,7 +1792,7 @@ function renderHome() {  // tudo (ao abrir o Início, ao chegar a lista de aulas
   renderHero();
   const recent = (historyItems || []).slice(0, 4);
   $("#home-recent").hidden = !!historyItems && !recent.length;
-  $("#recent-list").replaceChildren(...(historyItems ? recent.map((it) => savedRow(it, true)) : skeletonRows(3)));
+  swap($("#recent-list"), historyItems ? recent.map((it) => savedRow(it, true)) : skeletonRows(3));
 }
 function renderHero() {
   if (!S || view !== "home") return;
@@ -1794,6 +1807,7 @@ function renderHero() {
   // a cada leitura só o que mudou (o tempo, a etapa, o progresso): os botões continuam os mesmos, sem perder foco
   if (mode === heroMode && (mode === "rec" || mode === "paused")) { box.querySelector(".hero-time").textContent = mmss(r.seconds); return; }
   if (mode === heroMode && mode === "job") {
+    box.querySelector(".hero-title").textContent = j.title || U?.title || "Aula em processamento";
     box.querySelector(".badge").lastChild.textContent = j.kind === "analyze" ? "Analisando sua compreensão" : STAGE_NAMES[j.stage] || "Processando";
     box.querySelector(".hero-sub").textContent = [j.detail, Number.isFinite(j.eta_total) && etaText(j.eta_total, "Pronta")].filter(Boolean).join(" · ");
     const bar = box.querySelector(".progress"), det = !Number.isFinite(j.progress);
@@ -1803,6 +1817,7 @@ function renderHero() {
   }
   heroMode = mode;
   box.dataset.mode = mode.split(":")[0];
+  renderPending();
   const top = (tone, ic, text) => el("div", { class: "hero-top" }, el("span", { class: "badge", "data-tone": tone }, ic, text));
   const btn = (cls, ic, text, fn, attrs = {}) => el("button", { class: "btn " + cls, type: "button", onclick: fn, ...attrs }, icon(ic), text);
   if (mode === "rec" || mode === "paused") {
@@ -1857,7 +1872,7 @@ async function loadReviews() {
   const box = $("#home-reviews");
   box.hidden = !reviews.length;
   $("#reviews-count").textContent = reviews.length === 1 ? "1 para revisar" : `${reviews.length} para revisar`;
-  $("#review-list").replaceChildren(...reviews.slice(0, 4).map((r) => el("div", { class: "lib-row", role: "listitem" },
+  swap($("#review-list"), reviews.slice(0, 4).map((r) => el("div", { class: "lib-row", role: "listitem" },
     el("span", { class: "lib-ico", "data-tone": r.overdue ? "warn" : "accent", "aria-hidden": "true" }, icon("calendar")),
     el("span", { class: "lib-text" }, el("span", { class: "lib-title" }, r.title),
       el("span", { class: "lib-meta" }, `${r.overdue ? "Atrasada · era para " + new Date(r.next_review + "T12:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" }) : "Para hoje"} · revisão ${r.stage + 1}`)),
@@ -1879,6 +1894,8 @@ function renderStatus() {
     pill.dataset.ic = ic;
     $("#global-status-ico").replaceChildren(ic === "spin" ? el("span", { class: "spinner" }) : ic === "dot" ? el("span", { class: "live-dot" }) : icon(ic));
   }
+  // o leitor de tela ouve só a mudança de estado (gravando, pausado, processando…), não o relógio a cada segundo
+  if (pill.dataset.tone !== tone) $("#status-live").textContent = "Lumen: " + text.replace(/ · [\d:]+$/, "").replace(/ · \d+%$/, "");
   pill.dataset.tone = tone;
   $("#global-status-text").textContent = text;
   pill.setAttribute("aria-label", `Status do Lumen: ${text}`);
@@ -1903,7 +1920,7 @@ function palCommands() {
   add("Ações", "Adicionar capturas de tela", "image", () => { toCompose(); $("#tab-captures").click(); });
   if (step === "understand" && U) add("Ações", Notes.floating(U.key) ? "Trazer a nota de volta" : "Destacar a nota numa janela flutuante", "detach", () => { showView("new"); $("#u-detach").click(); }, Notes.shortcutLabel);
   if (usesObsidian() && vaultReady()) add("Ações", "Abrir o painel de estudos no Obsidian", "external", () => openObsidian("", "dashboard"));
-  for (const [v, ic] of [["home", "home"], ["new", "new"], ["library", "library"], ["integrations", "plug"]]) add("Ir para", VIEW_NAMES[v], ic, () => showView(v));
+  for (const [v, ic] of [["home", "home"], ["new", "new"], ["library", "library"], ["integrations", "plug"]]) add("Ir para", VIEW_NAMES[v], ic, () => { libFilter = "all"; showView(v); });
   for (const b of $$("#settings-nav [data-cat]")) add("Ajustes", b.textContent.trim(), b.querySelector("use").getAttribute("href").split("#")[1], () => goSettings(b.dataset.cat));
   for (const p of S?.pending || []) add("Em andamento", p.title || "Aula", (PEND_LOOK[p.state] || ["pen"])[0], () => resume(p.key), PENDING[p.state]);
   for (const it of historyItems || []) add("Biblioteca", it.title, "page", () => (it.url ? window.open(it.url, "_blank") : openObsidian(it.key, "note")),

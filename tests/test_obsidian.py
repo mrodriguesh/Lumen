@@ -391,6 +391,15 @@ class Reviews(Base):
         self.assertNotRegex(today["title"], r"^\d{4}-")  # o título, sem a data do nome do arquivo
         self.assertTrue(obsidian.due_reviews(self.cfg, today=date(2026, 10, 30))[0]["overdue"])
         path = self.root / out["note"]
+        # marcada no Obsidian com o Lumen aberto: o Início já mostra a próxima, sem esperar o sync da abertura
+        path.write_text(path.read_text("utf-8").replace("- [ ] Revisão 1", "- [x] Revisão 1"), "utf-8")
+        self.assertEqual(obsidian.due_reviews(self.cfg, today=date(2026, 10, 25)), [])
+        nxt, = obsidian.due_reviews(self.cfg, today=date(2026, 10, 26))
+        self.assertEqual((nxt["next_review"], nxt["stage"]), ("2026-10-26", 1))
+        # uma nota ilegível (outra codificação) fica de fora sem derrubar as outras
+        (path.parent / "salva em latin-1.md").write_bytes("---\ntype: ai-study\n---\n- [ ] Revisão 1 · 2026-10-20 ação".encode("latin-1"))
+        self.assertEqual(len(obsidian.due_reviews(self.cfg, today=date(2026, 10, 26))), 1)
+        self.assertEqual(obsidian.sync_reviews(self.cfg), 1)  # e o sync da abertura também não cai por causa dela
         path.write_text(re.sub(r"- \[ \] Revisão", "- [x] Revisão", path.read_text("utf-8")), "utf-8")
         obsidian.sync_reviews(self.cfg)  # todas feitas: nada para revisar
         self.assertEqual(obsidian.due_reviews(self.cfg, today=date(2026, 12, 30)), [])

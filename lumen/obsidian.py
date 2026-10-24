@@ -622,6 +622,27 @@ def set_fields(path, values):
 
 # --- Revisões e painel ---------------------------------------------------------------------------------------
 
+REVIEW_MARK = re.compile(r"(?m)^\s*[-*] \[([ xX])\] Revisão \d+ · (\d{4}-\d{2}-\d{2})")
+_review_seen = {}  # nota → (mtime, estado): o Início lê a pasta a cada abertura, e só relê a nota que mudou
+
+
+def _review_state(f):
+    """Uma nota de estudo do Lumen e as revisões marcadas nela: (campos, quantas feitas, próxima data) ou None."""
+    try:
+        mtime = f.stat().st_mtime_ns
+        hit = _review_seen.get(f)
+        if hit and hit[0] == mtime:
+            return hit[1]
+        fm, body = vault.split(f.read_text("utf-8"))
+    except (OSError, UnicodeDecodeError):  # sem permissão, apagada no meio ou noutra codificação: só ela fica de fora
+        return None
+    d, marks = vault.fields(fm), REVIEW_MARK.findall(body)
+    out = (d, sum(1 for m, _ in marks if m != " "), next((day for m, day in marks if m == " "), None)) \
+        if d.get("type") == "ai-study" and marks else None
+    _review_seen[f] = (mtime, out)
+    return out
+
+
 def sync_reviews(cfg):
     """Revisões marcadas → `review-stage` (quantas) e `next-review` (a próxima data não marcada; some no fim).
     Só nas notas `ai-study` da pasta do Lumen, e só essas duas chaves."""
@@ -630,19 +651,10 @@ def sync_reviews(cfg):
     root, folder, _ = folders(cfg)
     changed = 0
     for f in folder.rglob("*.md"):
-        try:
-            text = f.read_text("utf-8")
-        except OSError:
+        st = _review_state(f)
+        if not st:
             continue
-        fm, body = vault.split(text)
-        d = vault.fields(fm)
-        if d.get("type") != "ai-study":
-            continue
-        marks = re.findall(r"(?m)^\s*[-*] \[([ xX])\] Revisão \d+ · (\d{4}-\d{2}-\d{2})", body)
-        if not marks:
-            continue
-        stage = sum(1 for m, _ in marks if m != " ")
-        nxt = next((day for m, day in marks if m == " "), None)
+        d, stage, nxt = st
         if str(d.get("review-stage")) != str(stage) or (d.get("next-review") or None) != nxt:
             set_fields(f, {"review-stage": stage, "next-review": nxt})
             changed += 1
@@ -650,23 +662,20 @@ def sync_reviews(cfg):
 
 
 def due_reviews(cfg, today=None):
-    """Para o Início do Lumen: as notas de estudo com revisão para hoje ou atrasada, as mais atrasadas primeiro. Só lê
-    o `next-review` que sync_reviews mantém; nada no cofre muda."""
+    """Para o Início do Lumen: as notas de estudo com revisão para hoje ou atrasada, as mais atrasadas primeiro. Vem
+    das caixas marcadas na própria nota (vale na hora, sem esperar o sync_reviews da abertura); nada no cofre muda."""
     if cfg["destinations"] == "notion" or not cfg["obsidian_review"]:
         return []
     today = (today or date.today()).isoformat()
     _, folder, _ = folders(cfg)
     out = []
     for f in folder.rglob("*.md"):
-        try:
-            d = vault.fields(vault.split(f.read_text("utf-8"))[0])
-        except OSError:
+        st = _review_state(f)
+        if not st or not st[2] or st[2] > today:
             continue
-        nxt = str(d.get("next-review") or "")
-        if d.get("type") != "ai-study" or not nxt or nxt > today:
-            continue
+        d, stage, nxt = st
         out.append({"title": re.sub(r"^\d{4}-\d{2}-\d{2} - ", "", f.stem), "lumen_id": d.get("lumen-id"),
-                    "next_review": nxt, "stage": int(d.get("review-stage") or 0), "overdue": nxt < today})
+                    "next_review": nxt, "stage": stage, "overdue": nxt < today})
     return sorted(out, key=lambda r: r["next_review"])
 
 

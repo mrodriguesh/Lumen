@@ -526,7 +526,7 @@ def _reviews():
     """Revisões do Obsidian para o Início, com a chave da aula para abrir a nota pelo /api/open."""
     try:
         items = obsidian.due_reviews(store.load_config())
-    except AppError:  # cofre não escolhido ou fora do ar: o Início só não mostra o cartão
+    except (AppError, OSError, ValueError):  # cofre não escolhido ou fora do ar: o Início só não mostra o cartão
         return {"items": []}
     keys = {v.get("lumen_id"): k for k, v in store.history().items() if v.get("lumen_id")}
     return {"items": [{**i, "key": keys.get(i["lumen_id"])} for i in items]}
