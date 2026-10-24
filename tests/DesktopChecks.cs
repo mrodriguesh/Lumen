@@ -31,6 +31,16 @@ static class DesktopChecks
         await web.ExecuteScriptAsync("window.__ok=null;(" + promise + ").then(v=>window.__ok=!!v,()=>window.__ok=false)");
         return await Until(web, "window.__ok===true", ms);
     }
+    // Imagem do WebView2 real (renderização por software, como no app) quando LUMEN_SHOTS aponta para uma pasta.
+    static async Task Shot(WebView2 web, string name)
+    {
+        string dir = Environment.GetEnvironmentVariable("LUMEN_SHOTS");
+        if (dir == null || web.CoreWebView2 == null) return;
+        Directory.CreateDirectory(dir);
+        await Task.Delay(250);
+        using (var f = File.Create(Path.Combine(dir, name + ".png")))
+            await web.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, f);
+    }
     static string Js(string text) { return "'" + text.Replace("\\", "\\\\").Replace("'", "\\'") + "'"; }
     static string Typing(string field, string text)
     {
@@ -120,6 +130,7 @@ static class DesktopChecks
         Check(await Until(() => w.Width >= (int)(340 * k) && w.Height >= (int)(420 * k)), "Barra cresce para a nota: " + w.Size);
         Check(Screen.FromControl(w).WorkingArea.Contains(w.Bounds), "Barra com a nota dentro da tela");
         Check(await Until(web, "document.querySelector('#note-text').value===" + Js(one)), "Teste 1: o que se escreve na principal aparece na lateral");
+        await Shot(web, "widget-note");
         string two = one + " A fase clara quebra a água.";
         await web.ExecuteScriptAsync(Typing("#note-text", two));
         Check(await Until(mainWeb, "document.querySelector('#u-text').value===" + Js(two)), "Teste 8: o que se escreve na lateral aparece na principal");
@@ -140,6 +151,7 @@ static class DesktopChecks
         await web.ExecuteScriptAsync("conceal(); host.postMessage('widget:collapse')");
         Check(await Until(mainWeb, "!document.querySelector('#u-float').hidden"), "Principal avisa que a nota também está flutuando");
         Check(await Until(nweb, "document.querySelector('#nw-save').textContent==='Salvo'"), "Autosave na janela flutuante");
+        await Shot(nweb, "note-window");
         // Teste 6: mover e redimensionar (o fim de um arrasto chega como ResizeEnd)
         var area = Screen.FromControl(nf).WorkingArea;
         MethodInfo end = typeof(Form).GetMethod("OnResizeEnd", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -176,6 +188,9 @@ static class DesktopChecks
         Check(await Until(() => !nf.Visible && main.Visible), "Voltar para o Lumen mostra a janela principal");
         Check(await Until(mainWeb, "step==='understand' && U.key==='" + NoteKey + "' && document.querySelector('#u-text').value===" + Js(four)), "O editor volta para a principal com o texto intacto");
         Check(await Ask(mainWeb, "Notes.call('/api/understanding?key=" + NoteKey + "').then(v=>v.text===" + Js(four) + ")"), "Texto salvo ao voltar");
+        await Shot(mainWeb, "main-understand");
+        await mainWeb.ExecuteScriptAsync("showView('home')"); await Shot(mainWeb, "main-home");
+        await mainWeb.ExecuteScriptAsync("goSettings('general')"); await Shot(mainWeb, "main-settings");
         main.Hide();
         // Teste 7: recarregar a página (e o rascunho continua)
         mainWeb.CoreWebView2.Reload();
@@ -228,17 +243,10 @@ static class DesktopChecks
                 await web.ExecuteScriptAsync("expand()"); await Task.Delay(600);
                 Check(w.Width > 250,"Expansão animada nativa");
                 Check(w.Height > 240,"Altura expandida nativa");
-                bool reduced = await web.ExecuteScriptAsync("matchMedia('(prefers-reduced-motion: reduce)').matches") == "true";
-                Check(await web.ExecuteScriptAsync("getComputedStyle(document.querySelector('.record-symbol')).animationName === '"+(reduced ? "none" : "record-pulse")+"'")=="true","Pulsação aplicada ao núcleo vermelho no WebView2");
-                if (!reduced) {
-                    var pulseBefore = await web.ExecuteScriptAsync("getComputedStyle(document.querySelector('.record-symbol')).scale");
-                    await Task.Delay(350);
-                    var pulseMiddle = await web.ExecuteScriptAsync("getComputedStyle(document.querySelector('.record-symbol')).scale");
-                    await Task.Delay(350);
-                    var pulseAfter = await web.ExecuteScriptAsync("getComputedStyle(document.querySelector('.record-symbol')).scale");
-                    Check(pulseBefore!=pulseMiddle || pulseMiddle!=pulseAfter,"Botão pulsa com o tempo real, sem avançar a animação por script");
-                    Console.WriteLine("OK: pulsação do botão avança no WebView2 nativo.");
-                }
+                // parado, o botão de gravar fica em repouso; só gravando o halo pulsa (nada pisca enquanto se estuda)
+                Check(await web.ExecuteScriptAsync("getComputedStyle(document.querySelector('.record-symbol')).animationName==='none' && getComputedStyle(document.querySelector('#action'),'::after').animationName==='none'")=="true","Botão de gravar em repouso no WebView2");
+                Check(await web.ExecuteScriptAsync("getComputedStyle(document.querySelector('.notch')).borderRadius==='18px' && document.querySelector('.notch').offsetWidth===304")=="true","Moldura da barra no tamanho da janela nativa (304 px, cantos de 18)");
+                await Shot(web, "widget-left");
                 web.CoreWebView2.PostWebMessageAsString("widget:hidden");
                 await Task.Delay(150);
                 Check(await web.ExecuteScriptAsync("document.body.dataset.expanded === 'true'") == "true", "Mensagem atrasada não deixa uma cápsula gigante sem controles");
@@ -294,6 +302,7 @@ static class DesktopChecks
                 for(int i=0;i<30 && await web.ExecuteScriptAsync("settingsBusy || preferences === null")=="true";i++) await Task.Delay(100);
                 Check(!main.Visible,"Engrenagem abre ajustes locais sem mostrar a janela principal");
                 Check(await web.ExecuteScriptAsync("!document.querySelector('#preferences').hidden && document.querySelector('#recording-panel').hidden")=="true","Painel de ajustes integrado à barra");
+                await Shot(web, "widget-prefs");
                 Check(await web.ExecuteScriptAsync("document.querySelectorAll('[data-category]').length===6")=="true","Todos os grupos de ajustes na barra");
                 await web.ExecuteScriptAsync("openCategory('privacy')");
                 await web.ExecuteScriptAsync("savePreferences({keep_temp:true,page_language:'original'})");
