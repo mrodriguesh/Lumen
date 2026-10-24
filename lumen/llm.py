@@ -208,18 +208,18 @@ def _stream(path, body, check, timeout=900):
                     d = json.loads(line)
                     if "error" in d:
                         raise AppError(f"O Ollama informou um erro: {str(d['error'])[:200]}",
-                                       "Confira o modelo em Configurações e tente de novo.")
+                                       "Confira o modelo em Ajustes → IA local e tente de novo.")
                     yield d
     except urllib.error.HTTPError as e:
         if e.code == 404:
             raise AppError(f"O modelo “{body.get('model')}” não está instalado no Ollama.",
-                           "Abra Configurações e baixe o modelo.") from None
+                           "Abra Ajustes → IA local e baixe o modelo.") from None
         raise AppError(f"O Ollama recusou o pedido (HTTP {e.code}).", "Tente de novo.") from None
     except (urllib.error.URLError, ConnectionError):
         raise AppError("O Ollama não está rodando.", "Abra o aplicativo Ollama e tente de novo.") from None
     except TimeoutError:
         raise AppError("O modelo demorou demais para responder.",
-                       "Tente de novo ou escolha um modelo menor em Configurações.") from None
+                       "Tente de novo ou escolha um modelo menor em Ajustes → IA local.") from None
 
 
 def release_vram():
@@ -294,7 +294,7 @@ def _s(v, limit=4000):
 def validate(data, duration=None, has_times=True):
     """Confere e limpa a resposta do modelo. Resposta inútil → AppError (nada é publicado)."""
     bad = AppError("A IA devolveu um resultado incompleto.",
-                   "Tente de novo; se persistir, escolha outro modelo em Configurações.")
+                   "Tente de novo; se persistir, escolha outro modelo em Ajustes → IA local.")
     if not isinstance(data, dict):
         raise bad
 
@@ -452,7 +452,7 @@ def generate(segments, duration, model, language, check, status, redo=False, not
         except (ValueError, AppError):
             if attempt == 2:
                 raise AppError("A IA devolveu um resultado malformado duas vezes.",
-                               "Tente de novo; se persistir, escolha outro modelo em Configurações.") from None
+                               "Tente de novo; se persistir, escolha outro modelo em Ajustes → IA local.") from None
             continue
         return _refine(lesson, text, model, lang, check, status, understanding, duration, has_times) if deep else lesson
 
@@ -571,7 +571,7 @@ def analyze(segments, model, language, understanding, check, status, screens=())
         except (ValueError, AppError):
             if attempt == 2:
                 raise AppError("A IA devolveu uma análise malformada duas vezes.",
-                               "Tente de novo; se persistir, escolha outro modelo em Configurações.") from None
+                               "Tente de novo; se persistir, escolha outro modelo em Ajustes → IA local.") from None
 
 
 # --- Enfeitar páginas novas (ícone, capa, destaque) ----------------------------

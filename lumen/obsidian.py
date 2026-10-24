@@ -77,7 +77,7 @@ def _free(name, ext, taken, mine, extras):
 def _within(path, folder):
     p = path.resolve()
     if p != folder and folder not in p.parents:
-        raise AppError("O Lumen tentou gravar fora da pasta escolhida no cofre.", "Confira a pasta em Ajustes.")
+        raise AppError("O Lumen tentou gravar fora da pasta escolhida no cofre.", "Confira a pasta em Integrações → Obsidian.")
     return p
 
 

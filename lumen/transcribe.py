@@ -131,7 +131,7 @@ def for_speed(name, speed):
         return "large-v3-turbo", None
     if weak:
         return name, ("O modelo deste modo erra bem mais em fala acelerada. Para melhorar, baixe o modo "
-                      "“Maior precisão” em Ajustes e transcreva de novo.")
+                      "“Maior precisão” em Ajustes → Transcrição e transcreva de novo.")
     return name, None
 
 
@@ -397,7 +397,7 @@ def transcribe(path, name, progress, check, speed=1.0, second=True, release=None
     desacelerado pelo fator f (atempo, sem mudar o tom) e cada tempo volta ao arquivo como t × f.
     `check()` levanta Cancelled. `release()` libera VRAM de outros programas (Ollama) se a GPU encher no meio."""
     if not downloaded(name):
-        raise AppError("O modelo de transcrição ainda não foi baixado.", "Abra Configurações e baixe o modelo.")
+        raise AppError("O modelo de transcrição ainda não foi baixado.", "Abra Ajustes → Transcrição e baixe o modelo.")
     samples = audio.load(path)
     duration = len(samples) / audio.SR
     factor = PREP.get((name, int(speed)), 1.0)
@@ -453,7 +453,7 @@ def _run(samples, name, progress, check, duration, factor, scale, second, opts=N
                     "compute": "int8 (ONNX)" if name == PARAKEET else _loaded_compute(name, device)}
         except MemoryError:
             raise AppError("Memória insuficiente para transcrever.",
-                           "Feche outros programas ou escolha a qualidade “Rápido” em Configurações.") from None
+                           "Feche outros programas ou escolha a qualidade “Rápido” em Ajustes → Transcrição.") from None
         except RuntimeError as e:
             # Falha de CUDA (DLL ausente, VRAM cheia): libera memória e transcreve de novo (GPU, depois CPU).
             if device == "cuda" and i + 1 < len(devices):
@@ -462,5 +462,5 @@ def _run(samples, name, progress, check, duration, factor, scale, second, opts=N
                 continue
             if "out of memory" in str(e).lower():
                 raise AppError("Memória insuficiente para transcrever.",
-                               "Escolha a qualidade “Rápido” em Configurações.") from None
+                               "Escolha a qualidade “Rápido” em Ajustes → Transcrição.") from None
             raise

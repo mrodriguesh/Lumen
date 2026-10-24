@@ -179,7 +179,7 @@ def process(spec):
     if src["kind"] == "captures":  # imagens enviadas pelo estudante: viram as “telas” da aula, lidas logo abaixo
         if not vision.ready(vision.MODEL):
             raise AppError(f"O modelo de visão ({vision.MODEL}) não está instalado ou o Ollama está fechado.",
-                           "Abra o Ollama e baixe o modelo de visão em Ajustes.")
+                           "Abra o Ollama e baixe o modelo de visão em Ajustes → Captura.")
         _make_shots(src, work)
     if spec.get("retranscribe"):
         for f in ("transcript.json", "transcript_original.json", "lesson.json"):
@@ -259,7 +259,7 @@ def process(spec):
             warning = " ".join(w for w in (auto_note, warning, vram_warning) if w) or None
             if not tr["segments"] and music and music.get("removed_s"):
                 raise AppError("Só foi encontrada música neste arquivo: o filtro de música não achou fala da aula.",
-                               "Se havia fala, desligue “Filtrar música externa” em Ajustes e transcreva de novo.")
+                               "Se havia fala, desligue “Filtrar música externa” em Ajustes → Captura e transcreva de novo.")
             if not tr["segments"]:
                 raise AppError("Não foi detectada fala neste arquivo.", "Confira se o vídeo tem narração audível.")
             tr["model"] = name
@@ -389,7 +389,7 @@ def add_captures(key, paths):
     try:
         if not vision.ready(vision.MODEL):
             raise AppError(f"O modelo de visão ({vision.MODEL}) não está instalado ou o Ollama está fechado.",
-                           "Abra o Ollama e baixe o modelo de visão em Ajustes.")
+                           "Abra o Ollama e baixe o modelo de visão em Ajustes → Captura.")
         folder = work / "screens"
         shots = vision.Shots(folder)
         tr = _load(work / "transcript.json") or {}
@@ -592,8 +592,8 @@ def _destinations(cfg):
     if "notion" in dests:
         token = store.get_token()
         if not token:
-            raise AppError("O Notion ainda não foi conectado.", "Abra Configurações e conecte o Notion, ou escolha "
-                                                                "salvar só no Obsidian em Destinos do material.")
+            raise AppError("O Notion ainda não foi conectado.", "Abra Integrações e conecte o Notion, ou escolha "
+                                                                "“Só Obsidian” em Destinos do material.")
     if "obsidian" in dests:
         obsidian.folders(cfg)
     return dests, token

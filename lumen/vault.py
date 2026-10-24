@@ -50,10 +50,10 @@ def check(path):
     """O cofre (caminho resolvido) ou AppError dizendo o que está errado."""
     raw = str(path or "").strip()
     if not raw:
-        raise AppError("O cofre do Obsidian ainda não foi escolhido.", "Abra Ajustes → Destinos do material e escolha o cofre.")
+        raise AppError("O cofre do Obsidian ainda não foi escolhido.", "Abra Integrações e escolha o cofre do Obsidian.")
     p = Path(raw).expanduser()
     if not p.is_dir():
-        raise AppError("A pasta do cofre do Obsidian não existe mais.", "Confira o cofre em Ajustes → Destinos do material.")
+        raise AppError("A pasta do cofre do Obsidian não existe mais.", "Confira o cofre em Integrações → Obsidian.")
     if not (p / ".obsidian").is_dir():
         raise AppError("Esta pasta não é um cofre do Obsidian (falta a pasta .obsidian).",
                        "Escolha a pasta do cofre, a que o Obsidian abre.")

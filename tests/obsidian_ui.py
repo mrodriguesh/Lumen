@@ -69,7 +69,7 @@ try:
         if ev("typeof S !== 'undefined' && !!S"):
             break
         time.sleep(0.5)
-    ev("document.querySelector('#open-settings').click()")
+    ev("document.querySelector('#nav-integrations').click()")  # cofre e destinos: página Integrações
     time.sleep(0.6)
     opts = ev("[...document.querySelectorAll('#vault option')].map(o => [o.value, o.textContent, o.disabled])")
     check(opts[0][0] == "" and len(opts) == 3, f"cofres listados sem escolher sozinho: {opts}")
@@ -111,14 +111,14 @@ try:
     check(store.load_config()["study_level"] == "profundo", "profundidade salva")
     ev("document.querySelector('#dest-settings').scrollIntoView()")
     shot("2-ajustes-com-cofre")
-    ev("document.querySelector('#settings').close()")
+    ev("document.querySelector('#nav-new').click()")  # sair das Integrações aplica o que mudou (como fechar os Ajustes)
     time.sleep(0.8)
 
     # Nova aula só no Obsidian: o cartão do Notion vira o campo de curso
-    ev("(() => { const r = document.querySelector('#open-settings'); r.click(); const m = document.querySelector('#dest-mode input[value=obsidian]');"
+    ev("(() => { document.querySelector('#nav-integrations').click(); const m = document.querySelector('#dest-mode input[value=obsidian]');"
        " m.checked = true; m.dispatchEvent(new Event('change', {bubbles: true})); })()")
     time.sleep(0.8)
-    ev("document.querySelector('#settings').close()")
+    ev("document.querySelector('#nav-new').click()")
     time.sleep(0.8)
     check(ev("document.querySelector('#dest-card').classList.contains('solo-obsidian')"), "só Obsidian: cartão do curso em texto")
     check(ev("getComputedStyle(document.querySelector('#course-text')).display") != "none", "campo Curso visível")
@@ -130,11 +130,12 @@ try:
          "notion": {"status": "error", "error": "O Notion limitou o número de pedidos.", "action": "Aguarde um minuto."},
          "obsidian": {"status": "ok", "state": "created", "canvas": "C04/Mapa - RAG.canvas", "connections": 3, "questions": 9,
                       "note": "C04/2026 - RAG.md"}}
-    ev("showStep('run'); lastSpec = {course_id: 'x', mode: 'new'}; renderJob(" + json.dumps(
+    ev("showView('new'); showStep('run'); lastSpec = {course_id: 'x', mode: 'new'}; renderJob(" + json.dumps(
         {"status": "done", "kind": "process", "stage": "obsidian", "dests": ["obsidian", "notion"], "result": r}) + ")")
     text = ev("document.querySelector('#result').innerText")
     buttons = ev("[...document.querySelectorAll('#run-actions .btn')].map(b => b.textContent)")
-    check("Obsidian ✓" in text and "3 conexões com o cofre" in text and "Notion ✗" in text, f"linhas por destino: {text!r}")
+    ok = ev("[...document.querySelectorAll('#result .dest-line')].map(l => [l.dataset.ok, l.querySelector('b').textContent])")
+    check(["true", "Obsidian"] in ok and ["false", "Notion"] in ok and "3 conexões com o cofre" in text, f"linhas por destino: {ok} {text!r}")
     check("Tentar de novo só o Notion" in buttons and "Abrir no Obsidian" in buttons and "Abrir mapa mental" in buttons,
           f"botões: {buttons}")
     check(ev("document.querySelector('#result').className") == "result partial", "parcial não é erro genérico")
@@ -148,7 +149,7 @@ try:
 
     store.remember("yt:x", {"title": "RAG", "course": "IA", "lumen_id": "lm-0123456789abcdef",
                             "obsidian": {"status": "ok", "note": "C04/x.md", "at": "2026-10-23T10:00:00"}})
-    ev("showView(true)")
+    ev("showView('library')")
     time.sleep(0.8)
     lib = ev("document.querySelector('#library-list').innerText")
     check("RAG" in lib and "Obsidian" in lib, f"Biblioteca com aula só no Obsidian: {lib!r}")

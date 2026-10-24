@@ -349,7 +349,7 @@ def _widget(h):
 def _need_token():
     tok, cfg = store.get_token(), store.load_config()
     if not tok:
-        raise AppError("O Notion ainda não foi conectado.", "Abra Configurações e cole o token da integração.")
+        raise AppError("O Notion ainda não foi conectado.", "Abra Integrações e cole o token da integração do Notion.")
     return tok, cfg
 
 
@@ -396,7 +396,7 @@ def _new_course(h):
     body = h._json()
     parent = notion.page_id(body["parent_id"]) if body.get("parent_id") else cfg["root_page_id"]
     if not parent:
-        raise AppError("Escolha a página raiz dos cursos.", "Abra Ajustes e escolha a página do Notion.")
+        raise AppError("Escolha a página raiz dos cursos.", "Abra Integrações e escolha a página raiz do Notion.")
     decor, png, note = None, None, None
     if body.get("decorate") and str(body.get("title") or "").strip():
         if body.get("preview_id") in _previews:  # usa exatamente a prévia que o usuário viu

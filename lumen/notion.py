@@ -18,7 +18,7 @@ NO_COURSE = "Sem curso"
 
 def _error(status, code):
     if status == 401:
-        return AppError("O token do Notion é inválido ou foi revogado.", "Cole um token novo em Configurações.")
+        return AppError("O token do Notion é inválido ou foi revogado.", "Cole um token novo em Integrações → Notion.")
     if status in (403, 404):
         return AppError("A integração não tem acesso a esta página do Notion.",
                         "No Notion, abra a página raiz → ••• → Conexões → adicione sua integração.")
@@ -185,7 +185,7 @@ def course_for(token, root, course_id):
     if course_id != "__none__":
         return course_id
     if not root:
-        raise AppError("Escolha onde salvar a aula.", "Escolha uma página do Notion ou defina a página raiz em Ajustes.")
+        raise AppError("Escolha onde salvar a aula.", "Escolha uma página do Notion ou defina a página raiz em Integrações → Notion.")
     for c in list_courses(token, root):
         if c["title"] == NO_COURSE:
             return c["id"]

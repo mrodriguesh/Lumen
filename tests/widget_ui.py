@@ -18,7 +18,10 @@ proc = subprocess.Popen([str(ROOT / ".venv/Scripts/python.exe"), "-u", "-c",
 try:
     url = "http://127.0.0.1:" + proc.stdout.readline().strip()
     cfg = dict(root_page_id="", root_page_title="", quality="equilibrado", ollama_model="qwen3:8b",
-               page_language="pt", keep_temp=False, widget="left", autostart=True)
+               page_language="pt", keep_temp=False, widget="left", autostart=True, destinations="notion", watch_screen=False,
+               music_filter=False, music_mode="balanceado", study_level="balanceado", obsidian_vault="", obsidian_folder="",
+               obsidian_canvas_folder="", obsidian_canvas=True, obsidian_connections=True, obsidian_review=True,
+               obsidian_attachments=True, obsidian_open=False, review_intervals=[1, 3, 7])
     recording = {"active": False, "seconds": 0, "level": 0, "heard": False}
     job = {"status": "idle", "review": False}
     counters = {"start": 0, "stop": 0}
@@ -45,7 +48,9 @@ try:
                     "ollama": {"running": True, "installed": cfg["ollama_model"]=="qwen3:8b", "models": ["qwen3:8b"]},
                     "sources": {k: {"id": "ok", "label": "Compatível"} for k in ("recording", "file", "youtube", "telegram")},
                     "formats": {".wav": "WAV"}, "covers": {"ready": False, "label": "Gerador", "size": "1 GB"},
-                    "job": job, "recording": recording}
+                    "job": job, "recording": recording, "pending": [], "images": [".png"],
+                    "vision": {"model": "qwen3.5:4b", "size": "3,3 GB", "installed": True}, "music": {"ready": False, "size": "72 MB"},
+                    "obsidian": {"vaults": [], "folder": "", "error": None}}
         elif path == "/api/widget": data = {"recording": recording, "job": job}
         elif path == "/api/record": data = recording
         elif path == "/api/record/start":
@@ -100,24 +105,16 @@ try:
         assert widget.locator("#peek").bounding_box()["height"] == 84
         widget.evaluate("syncPresentation()")
         widget.evaluate("pending=true")
-        widget.locator(".record-symbol").evaluate("n=>{const a=n.getAnimations().find(a=>a.animationName==='record-pulse');a.pause();a.currentTime=0;}")
-        pulse_start = widget.screenshot(path=str(ART / "pulse-small.png"),clip={"x":1,"y":96,"width":51,"height":60})
-        widget.locator(".record-symbol").evaluate("n=>{const a=n.getAnimations().find(a=>a.animationName==='record-pulse');a.currentTime=900;}")
-        pulse_end = widget.screenshot(path=str(ART / "pulse-large.png"),clip={"x":1,"y":96,"width":51,"height":60})
-        assert pulse_start != pulse_end, "Pulsação muda os pixels do próprio botão"
-        widget.locator(".record-symbol").evaluate("n=>n.getAnimations().find(a=>a.animationName==='record-pulse').play()")
-        before = widget.locator(".record-symbol").evaluate("n=>getComputedStyle(n).scale")
-        widget.wait_for_function("before=>getComputedStyle(document.querySelector('.record-symbol')).scale!==before", arg=before)
+        # Parado, o botão de gravar fica em repouso (nada pisca na tela enquanto se estuda); gravando, o halo pulsa
+        assert widget.locator(".record-symbol").evaluate("n=>n.getAnimations().length") == 0
+        assert widget.locator("#action").evaluate("n=>['::before','::after'].every(p=>getComputedStyle(n,p).animationName==='none')")
         widget.evaluate("pending=false")
         widget.screenshot(path=str(ART / "widget-expanded.png"), animations="disabled")
         widget.locator("#exit").click()
         assert widget.evaluate("messages.filter(m=>m==='window:exit').length") == 1
         assert widget.locator("#exit").get_attribute("aria-label") == "Sair do Lumen"
         assert widget.locator("#exit").get_attribute("title") is None
-        for focus in (False, True):
-            if focus: widget.locator("#exit").focus()
-            else: widget.locator("#exit").hover()
-            assert widget.locator("#exit span").evaluate("n=>['::before','::after'].every(p=>getComputedStyle(n,p).content==='none')")
+        assert widget.locator("#exit svg use").get_attribute("href").endswith("#power"), "Sair é o ícone de desligar, não uma bolinha vermelha"
         widget.locator("#action").click()
         widget.wait_for_function("() => document.body.dataset.state === 'live'")
         assert widget.locator("#time").inner_text() == "00:12"
@@ -176,8 +173,8 @@ try:
                 widget.evaluate("rec=>render({recording:rec,job:{status:'idle',review:false}})", rec)
                 assert widget.locator("[title]").count()==0, "Barra flutuante sem tooltips em todos os estados"
                 pulse = widget.locator("#action").evaluate("n=>['::before','::after'].map(p=>getComputedStyle(n,p).animationName)")
-                assert pulse == (["idle-halo","idle-halo"] if index==0 else ["none","none"] if index==3 else ["none","live-halo"])
-                assert widget.locator(".record-symbol").evaluate("n=>getComputedStyle(n).animationName") == ("none" if index==3 else "record-pulse")
+                assert pulse == (["none","live-halo"] if rec["active"] else ["none","none"])
+                assert widget.locator(".record-symbol").evaluate("n=>getComputedStyle(n).animationName") == "none"
                 for selector in ("#action", "#settings", "#open", "#exit", "#drag"):
                     b=widget.locator(selector).bounding_box()
                     assert b and b["x"]>=0 and b["y"]>=0 and b["x"]+b["width"]<=304 and b["y"]+b["height"]<=252, (edge,index,selector,b)
@@ -225,7 +222,7 @@ try:
             if job_state["status"]=="running":
                 assert widget.locator("#job").is_visible() and "50%" in widget.locator("#job").inner_text()
             elif job_state["review"]:
-                assert widget.locator("#job").is_visible() and "revisar" in widget.locator("#job").inner_text()
+                assert widget.locator("#job").is_visible() and "compreensão" in widget.locator("#job").inner_text()
             else:
                 assert widget.locator("#job").is_hidden()
         heights = []
@@ -263,7 +260,7 @@ try:
             assert widget.locator("[title]").count()==0
             widget.screenshot(path=str(ART/f"preferences-{edge}.png"),animations="disabled")
             widget.locator("#prefs-back").click()
-            assert widget.locator("[data-page=menu]").is_visible()
+            assert widget.locator("nav[data-page=menu]").is_visible()
             widget.locator("#prefs-back").click()
             assert widget.locator("#recording-panel").is_visible()
         widget.locator("#settings").click()
@@ -288,7 +285,7 @@ try:
         widget.wait_for_function("() => !settingsBusy && preferences.autostart===true")
         assert len(settings_requests)==saved_count+1
         widget.keyboard.press("Escape")
-        assert widget.locator("[data-page=menu]").is_visible()
+        assert widget.locator("nav[data-page=menu]").is_visible()
         widget.locator("[data-category=privacy]").click()
         assert widget.locator("#prefs-clear").is_disabled() and widget.locator("#prefs-forget").is_disabled()
         widget.locator("#prefs-keep").click()
@@ -436,9 +433,10 @@ try:
         main = context.new_page(); main.on("pageerror", lambda e: errors.append(str(e)))
         main.set_viewport_size({"width": 1120, "height": 860})
         main.goto(url + "/?frame=1")
-        main.wait_for_function("() => S !== null && messages.includes('desktop:prefs:left')")
+        try: main.wait_for_function("() => S !== null && messages.includes('desktop:prefs:left')", timeout=8000)
+        except Exception: raise AssertionError((errors, main.evaluate("document.querySelector('#toast').textContent")))
         main.locator("#nav-library").click()
-        main.locator(".lib-title").wait_for()
+        main.locator("#library-list .lib-title").first.wait_for()
         history.clear()
         main.evaluate("hostListeners.forEach(fn=>fn({data:'desktop:preferences-updated'}))")
         main.wait_for_function("() => document.querySelector('#library-list').textContent.includes('Nenhuma aula ainda')")
@@ -467,7 +465,7 @@ try:
             assert main.evaluate("command=>messages.includes('window:'+command)", command)
         main.screenshot(path=str(ART / "main-window-controls.png"),animations="disabled")
         main.locator("#open-settings").click()
-        assert main.locator("#settings").is_visible()
+        assert main.locator("#view-settings").is_visible() and main.locator("#widget-position").is_visible()
         assert main.locator("#autostart").is_checked()
         main.locator("#widget-position").select_option("right")
         main.wait_for_function("() => messages.includes('desktop:prefs:right')")
@@ -478,9 +476,8 @@ try:
         assert main.evaluate("messages.includes('widget:reset')")
         main.locator("#autostart").uncheck()
         main.wait_for_function("() => S.config.autostart === false")
-        main.locator("#settings .dlg-body").evaluate("n => n.scrollTop = 0")
         main.screenshot(path=str(ART / "settings.png"))
-        main.locator("#settings button[value=close]").click()
+        main.locator("#nav-new").click()
         main.evaluate("data=>hostListeners.forEach(fn=>fn({data:'record:ready:'+JSON.stringify(data)}))", payload)
         main.wait_for_function("() => picked.recording?.name === 'Aula.wav'")
         main.wait_for_function("() => found?.title === 'Aula'")
