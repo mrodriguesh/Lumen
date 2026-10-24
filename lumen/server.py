@@ -25,6 +25,7 @@ STATIC = {"/": ("index.html", "text/html"), "/app.css": ("app.css", "text/css"),
           "/pomodoro.js": ("pomodoro.js", "text/javascript"),
           "/ui.css": ("ui.css", "text/css"), "/ui.js": ("ui.js", "text/javascript"),
           "/icons.svg": ("icons.svg", "image/svg+xml"), "/design": ("design.html", "text/html"),
+          "/design.js": ("design.js", "text/javascript"),
           "/fonts/inter-latin.woff2": ("fonts/inter-latin.woff2", "font/woff2"),
           "/fonts/inter-latin-ext.woff2": ("fonts/inter-latin-ext.woff2", "font/woff2")}
 TOKEN = secrets.token_urlsafe(24)
@@ -521,6 +522,16 @@ def _open(h):
     return {}
 
 
+def _reviews():
+    """Revisões do Obsidian para o Início, com a chave da aula para abrir a nota pelo /api/open."""
+    try:
+        items = obsidian.due_reviews(store.load_config())
+    except AppError:  # cofre não escolhido ou fora do ar: o Início só não mostra o cartão
+        return {"items": []}
+    keys = {v.get("lumen_id"): k for k, v in store.history().items() if v.get("lumen_id")}
+    return {"items": [{**i, "key": keys.get(i["lumen_id"])} for i in items]}
+
+
 def _history():
     """Biblioteca: aulas salvas em algum destino, com a chave (para abrir no Obsidian ou salvar de novo)."""
     items = [{**v, "key": k} for k, v in store.history().items()
@@ -600,6 +611,7 @@ ROUTES = {
     ("POST", "/api/clear"): _clear,
     ("GET", "/api/record"): lambda h: record.status(),
     ("GET", "/api/history"): lambda h: _history(),
+    ("GET", "/api/reviews"): lambda h: _reviews(),
     ("POST", "/api/deliver"): _deliver,
     ("POST", "/api/open"): _open,
     ("POST", "/api/record/start"): lambda h: (record.start(h._json().get("title")), record.status())[1],

@@ -17,9 +17,12 @@
   // teclado, sempre dentro da janela. Substitui o title nativo, que some atrás das janelas "sempre por cima".
   let tip = null, timer = 0, target = null;
   function text(el) { return el.dataset.tip || el.getAttribute("aria-label") || ""; }
+  const visible = (n) => { const s = getComputedStyle(n); return n.getBoundingClientRect().width > 1 && s.display !== "none" && s.clipPath === "none"; };
   function show(el) {
     const t = text(el);
     if (!t || !el.isConnected) return;
+    // o rótulo já está à vista (rail largo, abas): a dica só repetiria; com atalho de teclado ela ainda informa algo
+    if (!el.dataset.kbd && [...el.querySelectorAll("span")].some((s) => s.textContent.trim() === t && visible(s))) return;
     if (!tip) { tip = document.createElement("div"); tip.className = "tip"; tip.setAttribute("role", "tooltip"); tip.id = "lumen-tip"; document.body.append(tip); }
     tip.replaceChildren(t);
     if (el.dataset.kbd) { const k = document.createElement("kbd"); k.textContent = el.dataset.kbd; tip.append(k); }

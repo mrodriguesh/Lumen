@@ -649,6 +649,27 @@ def sync_reviews(cfg):
     return changed
 
 
+def due_reviews(cfg, today=None):
+    """Para o Início do Lumen: as notas de estudo com revisão para hoje ou atrasada, as mais atrasadas primeiro. Só lê
+    o `next-review` que sync_reviews mantém; nada no cofre muda."""
+    if cfg["destinations"] == "notion" or not cfg["obsidian_review"]:
+        return []
+    today = (today or date.today()).isoformat()
+    _, folder, _ = folders(cfg)
+    out = []
+    for f in folder.rglob("*.md"):
+        try:
+            d = vault.fields(vault.split(f.read_text("utf-8"))[0])
+        except OSError:
+            continue
+        nxt = str(d.get("next-review") or "")
+        if d.get("type") != "ai-study" or not nxt or nxt > today:
+            continue
+        out.append({"title": re.sub(r"^\d{4}-\d{2}-\d{2} - ", "", f.stem), "lumen_id": d.get("lumen-id"),
+                    "next_review": nxt, "stage": int(d.get("review-stage") or 0), "overdue": nxt < today})
+    return sorted(out, key=lambda r: r["next_review"])
+
+
 def dashboard(root, folder):
     """Painel dos estudos (Bases, plugin nativo do Obsidian): criado se faltar; o bloco do Lumen acompanha o modelo."""
     path = folder / "Lumen Dashboard.md"

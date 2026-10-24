@@ -382,6 +382,33 @@ class Reviews(Base):
         self.assertEqual(self.deliver(prev=out)["state"], "unchanged")  # marcar revisões não é conflito nem recomeço
         self.assertNotIn("next-review", vault.fields(vault.split(path.read_text("utf-8"))[0]))
 
+    def test_due_reviews_for_the_home_screen(self):
+        out = self.deliver()  # estudada em 23/10: a 1ª revisão é em 24/10
+        self.assertEqual(obsidian.due_reviews(self.cfg, today=date(2026, 10, 23)), [])
+        today, = obsidian.due_reviews(self.cfg, today=date(2026, 10, 24))
+        self.assertEqual((today["next_review"], today["stage"], today["overdue"]), ("2026-10-24", 0, False))
+        self.assertTrue(today["lumen_id"])
+        self.assertNotRegex(today["title"], r"^\d{4}-")  # o título, sem a data do nome do arquivo
+        self.assertTrue(obsidian.due_reviews(self.cfg, today=date(2026, 10, 30))[0]["overdue"])
+        path = self.root / out["note"]
+        path.write_text(re.sub(r"- \[ \] Revisão", "- [x] Revisão", path.read_text("utf-8")), "utf-8")
+        obsidian.sync_reviews(self.cfg)  # todas feitas: nada para revisar
+        self.assertEqual(obsidian.due_reviews(self.cfg, today=date(2026, 12, 30)), [])
+        self.assertEqual(obsidian.due_reviews({**self.cfg, "obsidian_review": False}, today=date(2026, 10, 24)), [])
+
+    def test_reviews_endpoint_links_the_lesson_and_tolerates_a_missing_vault(self):
+        from lumen import server
+        lid = self.pkg()["lumen_id"]
+        self.deliver()
+        with mock.patch.object(store, "load_config", return_value=self.cfg), \
+                mock.patch.object(store, "history", return_value={"aula-1": {"lumen_id": lid}}), \
+                mock.patch.object(obsidian, "date", wraps=date) as d:
+            d.today.return_value = date(2026, 10, 25)
+            item, = server._reviews()["items"]
+        self.assertEqual((item["key"], item["overdue"]), ("aula-1", True))
+        with mock.patch.object(store, "load_config", return_value={**self.cfg, "obsidian_vault": str(self.root / "sumiu")}):
+            self.assertEqual(server._reviews(), {"items": []})
+
     def test_intervals_come_from_the_config(self):
         self.cfg["review_intervals"] = [2, 5]
         text = self.read(self.deliver()["note"])

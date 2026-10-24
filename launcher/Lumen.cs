@@ -104,7 +104,6 @@ class MainForm : Form
     readonly Process server;
     readonly WebView2 web;
     readonly string url;
-    readonly bool dark;
     readonly NotifyIcon tray;
     WidgetForm widget;
     NoteForm note;
@@ -117,11 +116,10 @@ class MainForm : Form
         // Aplica também aos controles criados implicitamente pelo WebView2; não altera configurações do Windows.
         Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
             (Environment.GetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") ?? "") + " --disable-gpu");
-        dark = IsDark();
         Text = "Lumen";
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         StartPosition = FormStartPosition.Manual;  // posição calculada em OnHandleCreated
-        BackColor = dark ? Color.FromArgb(28, 28, 30) : Color.FromArgb(245, 245, 247);  // = --bg do app.css
+        BackColor = Color.FromArgb(8, 9, 12);  // = --bg-base do ui.css (o Lumen é sempre escuro)
         web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = BackColor };
         Controls.Add(web);
         tray = new NotifyIcon { Icon = Icon, Text = "Lumen", Visible = true };
@@ -198,7 +196,7 @@ class MainForm : Form
     void Float(string key)
     {
         if (string.IsNullOrEmpty(key)) return;
-        if (note == null || note.IsDisposed) note = new NoteForm(url, Program.Data, dark, (msg) => {
+        if (note == null || note.IsDisposed) note = new NoteForm(url, Program.Data, (msg) => {
             if (msg == "note:dock") ShowMain(false);
             else if (msg.StartsWith("notify:")) Notify(msg);
         });
@@ -258,15 +256,15 @@ class MainForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        int on = dark ? 1 : 0;
-        DwmSetWindowAttribute(Handle, 20, ref on, 4);   // barra de título escura no tema escuro
+        int on = 1;
+        DwmSetWindowAttribute(Handle, 20, ref on, 4);   // moldura escura (o Lumen é sempre escuro)
         if (customFrame)  // recalcula a moldura sem a barra de título nativa
             SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0020 | 0x0002 | 0x0001 | 0x0004);  // FRAMECHANGED|NOMOVE|NOSIZE|NOZORDER
-        int border = ColorTranslator.ToWin32(dark ? Color.FromArgb(58, 58, 60) : Color.FromArgb(200, 200, 205));
+        int border = ColorTranslator.ToWin32(Color.FromArgb(38, 41, 48));
         DwmSetWindowAttribute(Handle, 34, ref border, 4);  // borda discreta
         int caption = ColorTranslator.ToWin32(BackColor);
         DwmSetWindowAttribute(Handle, 35, ref caption, 4);  // barra de título da mesma cor do app (Windows 11)
-        int text = ColorTranslator.ToWin32(dark ? Color.FromArgb(245, 245, 247) : Color.FromArgb(29, 29, 31));
+        int text = ColorTranslator.ToWin32(Color.FromArgb(233, 235, 240));  // = --text-primary
         DwmSetWindowAttribute(Handle, 36, ref text, 4);
         int round = 2;
         DwmSetWindowAttribute(Handle, 33, ref round, 4);  // cantos arredondados
@@ -348,12 +346,12 @@ class MainForm : Form
 
     string Splash(string msg)
     {
-        string bg = dark ? "#1c1c1e" : "#f5f5f7", fg = dark ? "#98989d" : "#6e6e73";
+        const string bg = "#08090c", fg = "#a4a9b4";  // = --bg-base e --text-secondary do ui.css
         // Tela de espera arrastável, com o botão de fechar (sem a barra nativa não haveria outro).
         return "<!doctype html><meta charset=utf-8><body style=\"margin:0;height:100vh;display:grid;place-items:center;app-region:drag;background:" + bg +
                ";color:" + fg + ";font:14px 'Segoe UI Variable Text','Segoe UI',sans-serif\">" +
-               "<button onclick=\"chrome.webview.postMessage('window:close')\" aria-label=Fechar style=\"app-region:no-drag;position:fixed;top:20px;left:18px;" +
-               "width:12px;height:12px;border-radius:50%;border:0;background:#ff5f57;padding:0\"></button>" + System.Net.WebUtility.HtmlEncode(msg);
+               "<button onclick=\"chrome.webview.postMessage('window:close')\" aria-label=Fechar style=\"app-region:no-drag;position:fixed;top:21px;left:8px;" +
+               "width:12px;height:12px;border-radius:50%;border:0;background:#f05d63;padding:0\"></button>" + System.Net.WebUtility.HtmlEncode(msg);
     }
 
     bool Listening()
@@ -392,9 +390,4 @@ class MainForm : Form
         return p;
     }
 
-    static bool IsDark()
-    {
-        object v = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", 1);
-        return v is int && (int)v == 0;
-    }
 }

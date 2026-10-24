@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumen · design system</title>
+<link rel="stylesheet" href="/ui.css">
+<link rel="stylesheet" href="/app.css">
+<script src="/ui.js" defer></script>
+</head>
+<!-- Mostruário interno (não aparece no app): os componentes de ui.css e app.css, para conferir consistência.
+     Abra em http://127.0.0.1:<porta>/design. Regras em docs/DESIGN.md. -->
+<body class="design-page">
+<main class="content design">
+<div class="view">
+  <header class="page-head"><div><p class="eyebrow">Lumen</p><h1 class="t-display">Design system</h1>
+    <p class="lead">Tokens e componentes compartilhados pela janela principal, a barra flutuante e a janela da nota.</p></div></header>
+
+  <section class="card ds">
+    <h2 class="t-h2">Superfícies e texto</h2>
+    <div class="ds-swatches">
+      <span class="sw sw-base">bg-base</span><span class="sw sw-elev">bg-elevated</span><span class="sw sw-s1">surface-1</span>
+      <span class="sw sw-s2">surface-2</span><span class="sw sw-s3">surface-3</span><span class="sw sw-paper">paper</span>
+    </div>
+    <p class="t-display">Display 30</p><p class="t-h1">Heading 1 · 24</p><p class="t-h2">Heading 2 · 18</p><p class="t-h3">Heading 3 · 15</p>
+    <p>Body 14 · texto principal</p><p class="muted">Secundário · descrições</p><p class="faint t-sm">Terciário · metadados</p>
+    <p class="t-label">Label 12,5</p><p class="t-caption faint">Caption 12</p><p class="eyebrow">Micro 11 · maiúsculas</p>
+    <p class="writing">A escrita do estudante fica em serifa: dá para ver de quem é cada texto.</p>
+  </section>
+
+  <section class="card ds">
+    <h2 class="t-h2">Botões</h2>
+    <div class="ds-row">
+      <button class="btn primary" type="button"><svg class="i"><use href="/icons.svg#arrow-right"/></svg>Primário</button>
+      <button class="btn" type="button">Secundário</button>
+      <button class="btn ghost" type="button">Fantasma</button>
+      <button class="btn danger" type="button"><svg class="i"><use href="/icons.svg#trash"/></svg>Destrutivo</button>
+      <button class="btn danger primary" type="button">Confirmar exclusão</button>
+      <button class="btn primary" type="button" disabled>Desabilitado</button>
+      <button class="icon-btn" type="button" aria-label="Ícone" data-tip=""><svg class="i"><use href="/icons.svg#gear"/></svg></button>
+      <button class="icon-btn" type="button" aria-label="Ativo" aria-pressed="true" data-tip=""><svg class="i"><use href="/icons.svg#detach"/></svg></button>
+    </div>
+    <div class="ds-row"><button class="btn sm" type="button">Pequeno</button><button class="btn primary lg" type="button">Grande</button><button class="link-btn" type="button">Link</button></div>
+  </section>
+
+  <section class="card ds">
+    <h2 class="t-h2">Campos</h2>
+    <div class="ds-grid">
+      <label class="field">Texto <span class="opt">opcional</span><input placeholder="Placeholder"></label>
+      <label class="field">Preenchido<input value="Inteligência Artificial"></label>
+      <label class="field">Com erro<input value="ntn_curto" aria-invalid="true"><small class="field-hint">Token inválido. Copie de novo no Notion.</small></label>
+      <label class="field">Desabilitado<input value="—" disabled></label>
+      <label class="field">Seleção<select><option>Automático</option><option>Normal</option></select></label>
+      <label class="field"><span class="sr">Busca</span><span class="search-field"><svg class="i"><use href="/icons.svg#search"/></svg><input type="search" placeholder="Buscar"></span></label>
+    </div>
+    <label class="set-row"><span class="set-text"><strong>Chave</strong><small>Descrição curta do que muda.</small></span><input type="checkbox" class="switch" checked></label>
+    <label class="set-row"><span class="set-text"><strong>Desligada</strong></span><input type="checkbox" class="switch"></label>
+    <div class="ds-row"><div class="segmented"><button type="button" aria-pressed="true">Todas</button><button type="button" aria-pressed="false">Em andamento <span class="count">3</span></button><button type="button" aria-pressed="false">Salvas</button></div></div>
+    <div class="segmented wide"><label><input type="radio" name="d" checked> Balanceado<small>Padrão</small></label><label><input type="radio" name="d"> Profundo<small>Uma 2ª passada</small></label></div>
+  </section>
+
+  <section class="card ds">
+    <h2 class="t-h2">Estado</h2>
+    <div class="ds-row">
+      <span class="badge" data-tone="ok"><svg class="i"><use href="/icons.svg#check"/></svg>Conectado</span>
+      <span class="badge" data-tone="warn"><svg class="i"><use href="/icons.svg#alert"/></svg>Pendente</span>
+      <span class="badge" data-tone="error"><svg class="i"><use href="/icons.svg#x-circle"/></svg>Erro</span>
+      <span class="badge" data-tone="busy"><span class="spinner"></span>Processando</span>
+      <span class="badge" data-tone="rec"><span class="live-dot"></span>Gravando</span>
+      <span class="badge">Neutro</span>
+    </div>
+    <div class="ds-row">
+      <span class="status-pill" data-tone="ok"><span class="status-ico"><svg class="i"><use href="/icons.svg#check-circle"/></svg></span>Pronto</span>
+      <span class="status-pill" data-tone="rec"><span class="status-ico"><span class="live-dot"></span></span>Gravando · 12:34</span>
+      <span class="status-pill" data-tone="paused"><span class="status-ico"><svg class="i"><use href="/icons.svg#pause"/></svg></span>Pausado · 12:34</span>
+      <span class="status-pill" data-tone="busy"><span class="status-ico"><span class="spinner"></span></span>Transcrevendo · 42%</span>
+      <span class="status-pill" data-tone="error"><span class="status-ico"><svg class="i"><use href="/icons.svg#alert"/></svg></span>A tarefa falhou</span>
+    </div>
+    <p class="t-label muted">Progresso real</p><div class="progress"><span class="ds-p42"></span></div>
+    <p class="t-label muted">Indeterminado (sem percentual confiável)</p><div class="progress indeterminate"><span></span></div>
+    <p class="t-label muted">Carregando</p><div class="ds-row"><span class="skeleton ds-sk"></span><span class="skeleton ds-sk short"></span></div>
+    <ol class="pipeline">
+      <li class="done"><span class="ps-mark"></span><span class="ps-label">Etapa concluída</span></li>
+      <li class="active"><span class="ps-mark"></span><span class="ps-label">Etapa em andamento</span></li>
+      <li class="failed"><span class="ps-mark"></span><span class="ps-label">Etapa que falhou</span></li>
+      <li><span class="ps-mark"></span><span class="ps-label">Etapa pendente</span></li>
+    </ol>
+  </section>
+
+  <section class="card ds">
+    <h2 class="t-h2">Vazio, aviso e confirmação</h2>
+    <div class="empty"><span class="empty-icon"><svg class="i"><use href="/icons.svg#library"/></svg></span><strong>Nenhuma aula ainda</strong>
+      <p>Explica o que a área mostra e qual é a próxima ação.</p><button class="btn primary" type="button">Nova aula</button></div>
+    <div class="ds-row">
+      <button class="btn" type="button" id="ds-toast">Mostrar aviso</button>
+      <button class="btn" type="button" id="ds-toast-err">Mostrar erro</button>
+      <button class="btn danger" type="button" id="ds-confirm">Abrir confirmação</button>
+    </div>
+  </section>
+
+  <section class="card ds">
+    <h2 class="t-h2">Ícones</h2>
+    <div class="ds-icons" id="ds-icons"></div>
+  </section>
+</div>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="/design.js" defer></script>
+</body>
+</html>

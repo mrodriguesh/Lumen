@@ -28,21 +28,20 @@ class NoteForm : Form
 
     readonly WebView2 web;
     readonly string url, file, dataDir;
-    readonly bool dark;
     readonly Action<string> command;
     string key;
     bool compact;
     int fullHeight;
 
-    public NoteForm(string url, string data, bool dark, Action<string> command)
+    public NoteForm(string url, string data, Action<string> command)
     {
-        this.url = url; this.dark = dark; this.command = command; dataDir = data;
+        this.url = url; this.command = command; dataDir = data;
         file = Path.Combine(data, "understanding-panel.txt");
         Text = "Minha compreensão · Lumen";
         FormBorderStyle = FormBorderStyle.SizableToolWindow;  // sem botão na barra de tarefas; fica junto do Lumen
         ShowInTaskbar = false; TopMost = true; MaximizeBox = false; MinimizeBox = false;
         StartPosition = FormStartPosition.Manual; AutoScaleMode = AutoScaleMode.None;
-        BackColor = dark ? Color.FromArgb(28, 28, 30) : Color.FromArgb(245, 245, 247);
+        BackColor = Color.FromArgb(8, 9, 12);  // = --bg-base do ui.css
         web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = BackColor };
         Controls.Add(web);
         Load += async (s, e) => { try { await Attach(); } catch (Exception) { Hide(); } };
@@ -185,9 +184,9 @@ class NoteForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        int on = dark ? 1 : 0;
-        DwmSetWindowAttribute(Handle, 20, ref on, 4);  // moldura escura no tema escuro
-        int border = ColorTranslator.ToWin32(dark ? Color.FromArgb(58, 58, 60) : Color.FromArgb(205, 205, 210));
+        int on = 1;
+        DwmSetWindowAttribute(Handle, 20, ref on, 4);  // moldura escura (o Lumen é sempre escuro)
+        int border = ColorTranslator.ToWin32(Color.FromArgb(38, 41, 48));
         DwmSetWindowAttribute(Handle, 34, ref border, 4);  // borda discreta
         int round = 2;
         DwmSetWindowAttribute(Handle, 33, ref round, 4);  // cantos arredondados (Windows 11)

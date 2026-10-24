@@ -196,7 +196,7 @@ HOST = ("window.messages=[];window.hostListeners=[];window.chrome=window.chrome|
         "window.chrome.webview={postMessage:m=>messages.push(m),addEventListener:(t,f)=>hostListeners.push(f)};")
 
 # Problemas que a tela não pode ter, conferidos em cada captura.
-CHECKS = r"""() => {
+CHECKS = r"""(z) => {
   const out = [], vw = innerWidth, vh = innerHeight;
   const seen = (e) => { const r = e.getBoundingClientRect(), s = getComputedStyle(e);
     return r.width > 1 && r.height > 1 && s.visibility !== "hidden" && s.display !== "none" && +s.opacity > 0.05 && s.clipPath === "none" && !e.closest("[hidden],[inert],.sr"); };
@@ -209,7 +209,7 @@ CHECKS = r"""() => {
     if (!seen(e) || e.matches("#peek")) continue;  // a alça recolhida (12×84) é a própria janela: o hover nela abre a barra
     const r = e.getBoundingClientRect(), box = scroller(e)?.getBoundingClientRect();
     const inline = e.matches(".link-btn, .crumb") || getComputedStyle(e).display === "inline";
-    if (!inline && (r.width < 24 || r.height < 20) && !e.matches("input[type=checkbox], input[type=radio]")) out.push(`alvo pequeno ${Math.round(r.width)}×${Math.round(r.height)}: ${name(e)}`);
+    if (!inline && (r.width / z < 23.5 || r.height / z < 19.5) && !e.matches("input[type=checkbox], input[type=radio]")) out.push(`alvo pequeno ${Math.round(r.width / z)}×${Math.round(r.height / z)}: ${name(e)}`);
     const clipL = box ? Math.max(0, box.left) : 0, clipR = box ? Math.min(vw, box.right) : vw;
     if (r.right > clipR + 1 && r.left < clipR - 1) out.push(`cortado à direita: ${name(e)}`);
     if (r.left < clipL - 1 && r.right > clipL) out.push(`cortado à esquerda: ${name(e)}`);
@@ -232,7 +232,7 @@ class Harness:
         W = world()
         if patch: patch(W)
         log = []
-        ctx = self.browser.new_context(viewport={"width": w, "height": h}, device_scale_factor=self.zoom, reduced_motion="no-preference")
+        ctx = self.browser.new_context(viewport={"width": w, "height": h}, device_scale_factor=1, reduced_motion="no-preference")
         ctx.add_init_script(HOST)
         ctx.route("**/api/**", router(W, log))
         page = ctx.new_page()
@@ -246,6 +246,8 @@ class Harness:
                  "widget": "() => typeof state !== 'undefined' && state !== null"}.get(kind)
         if ready:
             page.wait_for_function(ready, timeout=10000)
+        if self.zoom != 1 and kind == "main":  # zoom da página (Ctrl + roda); a barra e a nota têm tamanho físico fixo (DPI no C#)
+            page.evaluate(f"document.documentElement.style.zoom = {self.zoom}")
         page.wait_for_timeout(300)
         page.evaluate("document.fonts.ready")
         return ctx, page, W, log, errs
@@ -259,7 +261,7 @@ class Harness:
             tag = f"{name}-{w}x{h}" + (f"@{int(self.zoom * 100)}" if self.zoom != 1 else "")
             file = self.out / f"{tag}.png"
             page.screenshot(path=str(file), animations="disabled")
-            found = page.evaluate(CHECKS) + [f"erro de página: {e}" for e in errs if "favicon" not in e]
+            found = page.evaluate(CHECKS, self.zoom if kind == "main" else 1) + [f"erro de página: {e}" for e in errs if "favicon" not in e]
             if found: self.problems[tag] = found
             self.shots.append(file)
             return page
@@ -287,7 +289,7 @@ def run(scenarios, filters=(), sizes=((1120, 860),), zooms=(1.0,), out=OUT):
             for zoom in zooms:
                 h = Harness(browser, url, out, zoom)
                 for name, kind, setup, patch, own in scenarios:
-                    if filters and not any(f in name for f in filters):
+                    if filters and not any(f in name for f in filters) or zoom != 1 and kind != "main":
                         continue
                     for w, hh in ([own] if own else sizes):
                         try:
@@ -399,6 +401,7 @@ SCENARIOS = [
     ("note", "note", "", None, (420, 520)),
     ("note-rec", "note", "", patch(recording=REC), (420, 520)),
     ("note-compact", "note", 'compact(true);', patch(recording={**REC, "paused": True, "paused_for": 30}), (420, 46)),
+    ("note-min", "note", "", patch(recording=REC), (300, 240)),  # o menor tamanho da janela (NoteForm.Least)
 ]
 
 

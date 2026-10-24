@@ -41,7 +41,7 @@ class WidgetForm : Form
         MaximizeBox = false; MinimizeBox = false;
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false; TopMost = true;
-        BackColor = Color.FromArgb(14, 14, 16);
+        BackColor = Color.FromArgb(8, 9, 12);  // = --bg-base do ui.css (fundo da barra)
         web = NewWeb();
         Controls.Add(web);
         animation.Tick += (s, e) => {
