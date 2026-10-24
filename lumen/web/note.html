@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="lumen-token" content="{{TOKEN}}">
 <title>Minha compreensão</title>
+<link rel="stylesheet" href="/ui.css">
 <link rel="stylesheet" href="/app.css">
+<script src="/ui.js" defer></script>
 <script src="/understanding-editor.js" defer></script>
 <script src="/pomodoro.js" defer></script>
 <script src="/note.js" defer></script>
@@ -14,15 +16,12 @@
 <body class="note-window">
 <header class="nw-bar" id="nw-bar">
   <div class="nw-title"><strong>Minha compreensão</strong><span id="nw-lesson"></span></div>
-  <button class="nw-rec" type="button" id="nw-rec" hidden><i aria-hidden="true"></i><span id="nw-rec-text"></span></button>
+  <button class="nw-rec" type="button" id="nw-rec" hidden><span class="live-dot" aria-hidden="true"></span><svg class="i" aria-hidden="true"><use id="nw-rec-ico" href="/icons.svg#pause"/></svg><span id="nw-rec-text"></span></button>
   <span class="pomo-slot" id="nw-pomo"></span>
   <div class="nw-tools">
-    <button class="tool-btn" type="button" id="nw-min" aria-label="Minimizar" title="Minimizar">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button>
-    <button class="tool-btn" type="button" id="nw-dock" aria-label="Voltar para o Lumen" title="Voltar para o Lumen">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M14 9.5h-4.5V14M9.5 14l6-6"/></svg></button>
-    <button class="tool-btn" type="button" id="nw-close" aria-label="Fechar janela flutuante" title="Fechar janela flutuante (a nota continua salva)">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
+    <button class="icon-btn" type="button" id="nw-min" aria-label="Minimizar" data-tip="Minimizar"><svg class="i"><use href="/icons.svg#minus"/></svg></button>
+    <button class="icon-btn" type="button" id="nw-dock" aria-label="Voltar para o Lumen" data-tip="Voltar para o Lumen"><svg class="i"><use href="/icons.svg#dock"/></svg></button>
+    <button class="icon-btn" type="button" id="nw-close" aria-label="Fechar janela flutuante" data-tip="Fechar (a nota continua salva)"><svg class="i"><use href="/icons.svg#x"/></svg></button>
   </div>
 </header>
 <main class="nw-body">
@@ -31,7 +30,7 @@
               autocapitalize="sentences" maxlength="12000" placeholder="O que você entendeu?"></textarea>
     <div class="u-foot"><span class="u-save" id="nw-save" aria-live="polite"></span><span id="nw-count"></span></div>
   </div>
-  <div class="nw-status" id="nw-status" data-tone="wait" role="status" aria-live="polite"><i aria-hidden="true"></i><span id="nw-ready"></span><button type="button" class="nw-go" id="nw-go" hidden>Processar</button></div>
+  <div class="nw-status" id="nw-status" data-tone="wait" role="status" aria-live="polite"><span id="nw-ready"></span><button type="button" class="btn primary sm nw-go" id="nw-go" hidden>Processar</button></div>
   <p class="nw-hint" id="nw-hint" aria-live="polite"></p>
 </main>
 </body>

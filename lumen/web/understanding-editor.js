@@ -190,7 +190,7 @@
       ui.box.dataset.tone = r.tone;
       ui.text.textContent = ui.compact && r.save[0] && r.phase !== "processing" ? `${r.save[0]} · ${r.label}` : r.label;
       if (ui.detail) ui.detail.textContent = r.detail;
-      ui.box.title = [r.label, r.detail, r.save[2]].filter(Boolean).join(" · ");
+      ui.box.dataset.tip = [r.label, r.detail, r.save[2]].filter(Boolean).join(" · ");
       if (ui.go) { ui.go.hidden = busy || ["preparing", "prep_failed", "recording", "busy"].includes(r.phase); ui.go.disabled = !r.can; ui.go.textContent = ui.compact ? (r.action === "Processar minha compreensão" ? "Processar" : r.action) : r.action; }
     };
     d.listeners.add(paint);
@@ -269,7 +269,7 @@
         if (focused) t.setSelectionRange(Math.min(a, t.value.length), Math.min(b, t.value.length));  // sem pular o cursor
         this.grow();
       }
-      if (this.saveBox) { this.saveBox.textContent = d.status[0]; this.saveBox.dataset.s = d.status[1]; this.saveBox.title = d.status[2] || ""; }
+      if (this.saveBox) { this.saveBox.textContent = d.status[0]; this.saveBox.dataset.s = d.status[1]; if (d.status[2]) this.saveBox.dataset.tip = d.status[2]; else delete this.saveBox.dataset.tip; }
       this.counts(); this.applyLock();
       this.onChange?.(d, kind);
     }

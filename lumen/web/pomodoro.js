@@ -72,7 +72,7 @@
       const icon = st.running ? "pause" : "play";
       if (v.icon !== icon) { v.icon = icon; v.play.innerHTML = svg(icon); if (v.sheetPlay) v.sheetPlay.innerHTML = svg(icon); }
       v.play.setAttribute("aria-label", st.running ? "Pausar Pomodoro" : s < st.total ? "Continuar Pomodoro" : "Iniciar Pomodoro");
-      v.play.title = v.play.getAttribute("aria-label") + " (não afeta a gravação)";
+      v.play.dataset.tip = v.play.getAttribute("aria-label") + " (não afeta a gravação)";
       v.time.setAttribute("aria-label", `Pomodoro: ${label}, ${clock(s)}${st.running ? "" : ", parado"}${v.sheet ? ". Abrir controles" : ""}`);
       v.root.style.setProperty("--pomo-p", st.total ? (1 - s / st.total).toFixed(4) : 0);
       if (!v.sheet || v.sheet.hidden) continue;
@@ -94,14 +94,14 @@
 
   function sheetHTML() {
     const field = (k, label, max) => `<label>${label}<span><input name="${k}" type="number" min="1" max="${max}" inputmode="numeric">${k === "cycles" ? "" : "<small>min</small>"}</span></label>`;
-    const sw = (k, label) => `<div class="pomo-row"><span id="pomo-${k}-l">${label}</span><button type="button" class="pomo-switch" role="switch" name="${k}" aria-labelledby="pomo-${k}-l" aria-checked="false"><span></span></button></div>`;
+    const sw = (k, label) => `<div class="pomo-row"><span id="pomo-${k}-l${views.length}">${label}</span><button type="button" class="pomo-switch" role="switch" name="${k}" aria-labelledby="pomo-${k}-l${views.length}" aria-checked="false"><span></span></button></div>`;
     return `<p class="pomo-phase"></p>
       <p class="pomo-big" aria-hidden="true"></p>
       <div class="pomo-dots" aria-hidden="true"></div>
       <div class="pomo-controls">
-        <button type="button" class="pomo-btn" data-act="reset" aria-label="Reiniciar etapa" title="Reiniciar (de novo: volta ao primeiro foco)">${svg("reset")}</button>
+        <button type="button" class="pomo-btn" data-act="reset" aria-label="Reiniciar etapa" data-tip="Reiniciar (de novo: volta ao primeiro foco)">${svg("reset")}</button>
         <button type="button" class="pomo-btn main" data-act="toggle"></button>
-        <button type="button" class="pomo-btn" data-act="skip" aria-label="Pular etapa" title="Pular para a próxima etapa">${svg("skip")}</button>
+        <button type="button" class="pomo-btn" data-act="skip" aria-label="Pular etapa" data-tip="Pular para a próxima etapa">${svg("skip")}</button>
       </div>
       <div class="pomo-presets" role="group" aria-label="Duração">
         <button type="button" data-preset="25" aria-pressed="false">25 min</button><button type="button" data-preset="50" aria-pressed="false">50 min</button><button type="button" data-preset="custom" aria-pressed="false">Personalizado</button>

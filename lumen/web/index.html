@@ -6,297 +6,323 @@
 <meta name="lumen-token" content="{{TOKEN}}">
 <title>Lumen</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='1' y='1' width='30' height='30' rx='8' fill='%233b6ff0'/%3E%3Ccircle cx='16' cy='16' r='8.4' fill='none' stroke='white' stroke-width='2.6'/%3E%3Ccircle cx='16' cy='16' r='3.8' fill='%23ffd60a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/ui.css">
 <link rel="stylesheet" href="/app.css">
+<script src="/ui.js" defer></script>
 <script src="/understanding-editor.js" defer></script>
 <script src="/pomodoro.js" defer></script>
 <script src="/app.js" defer></script>
 </head>
 <body>
-<div class="window">
+<div class="app" id="app">
 
-<!-- Barra da janela sobre o conteúdo: seletor central e ajustes (arrastável) -->
-<header class="titlebar">
-  <nav class="segmented nav" aria-label="Seções">
-    <button type="button" id="nav-new" aria-pressed="true">Nova aula</button>
-    <button type="button" id="nav-library" aria-pressed="false">Biblioteca</button>
+<!-- Navegação: rail de vidro com as quatro áreas e os Ajustes no pé (arrastável no topo) -->
+<aside class="rail" aria-label="Navegação">
+  <div class="rail-top">
+    <div class="lights" id="lights" hidden>
+      <button class="light close" type="button" data-window="close" aria-label="Fechar"><span></span></button>
+      <button class="light min" type="button" data-window="minimize" aria-label="Minimizar"><span></span></button>
+      <button class="light max" type="button" data-window="maximize" aria-label="Maximizar"><span></span></button>
+    </div>
+  </div>
+  <span class="brand" aria-hidden="true">
+    <svg viewBox="0 0 32 32"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5e5ce6"/><stop offset="1" stop-color="#0a84ff"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="9" fill="url(#g)"/><circle cx="16" cy="16" r="8.4" fill="none" stroke="#fff" stroke-width="2.6"/><circle cx="16" cy="16" r="3.8" fill="#ffd60a"/></svg>
+  </span>
+  <nav class="rail-nav" aria-label="Áreas do Lumen">
+    <button class="rail-item" type="button" id="nav-home" data-view="home" data-tip="Início" data-tip-pos="right"><svg class="i"><use href="/icons.svg#home"/></svg><span>Início</span></button>
+    <button class="rail-item" type="button" id="nav-new" data-view="new" data-tip="Nova aula" data-tip-pos="right"><svg class="i"><use href="/icons.svg#new"/></svg><span>Nova aula</span></button>
+    <button class="rail-item" type="button" id="nav-library" data-view="library" data-tip="Biblioteca" data-tip-pos="right"><svg class="i"><use href="/icons.svg#library"/></svg><span>Biblioteca</span></button>
+    <button class="rail-item" type="button" id="nav-integrations" data-view="integrations" data-tip="Notion e Obsidian" data-tip-pos="right"><svg class="i"><use href="/icons.svg#plug"/></svg><span>Integrações</span></button>
   </nav>
-  <button class="tool-btn" id="open-settings" type="button" aria-haspopup="dialog" aria-label="Ajustes" title="Ajustes">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
-  </button>
+  <div class="rail-foot">
+    <button class="rail-item" type="button" id="open-settings" data-view="settings" data-tip="Ajustes" data-tip-pos="right"><svg class="i"><use href="/icons.svg#gear"/></svg><span>Ajustes</span></button>
+  </div>
+</aside>
+
+<!-- Barra superior: onde estou, busca, o que o Lumen está fazendo e o Pomodoro (arrastável) -->
+<header class="topbar">
+  <p class="where" id="where"><span id="where-view">Início</span><span class="where-sub" id="where-sub" hidden></span></p>
+  <button class="search-btn" type="button" id="open-palette" aria-haspopup="dialog" aria-keyshortcuts="Control+K">
+    <svg class="i"><use href="/icons.svg#search"/></svg><span>Buscar ou ir para…</span><kbd>Ctrl K</kbd></button>
+  <div class="top-right">
+    <button class="status-pill" type="button" id="global-status" data-tone="ok" aria-live="polite">
+      <span class="status-ico" id="global-status-ico" aria-hidden="true"></span><span id="global-status-text">Pronto</span></button>
+    <span class="pomo-slot" id="u-pomo"></span>
+  </div>
 </header>
 
-<div class="body">
-  <!-- Barra lateral -->
-  <aside class="sidebar" id="sidebar">
-    <div class="side-top">
-    <div class="lights" id="lights" hidden>
-      <button class="light close" type="button" data-window="close" aria-label="Fechar" title="Fechar"></button>
-      <button class="light min" type="button" data-window="minimize" aria-label="Minimizar" title="Minimizar"></button>
-      <button class="light max" type="button" data-window="maximize" aria-label="Maximizar" title="Maximizar"></button>
-    </div>
-    <div class="app-name">
-      <svg class="appicon" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5e5ce6"/><stop offset="1" stop-color="#0a84ff"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="8" fill="url(#g)"/><circle cx="16" cy="16" r="8.4" fill="none" stroke="#fff" stroke-width="2.6"/><circle cx="16" cy="16" r="3.8" fill="#ffd60a"/></svg>
-      <span>Lumen</span>
-    </div>
-    </div>
-    <p class="side-h" id="side-h">Fontes</p>
-    <div role="tablist" aria-labelledby="side-h" aria-orientation="vertical" class="side-list">
-      <button role="tab" id="tab-recording" aria-controls="panel-recording" aria-selected="true" data-kind="recording" data-sub="Dê play na aula em qualquer site ou app e o Lumen grava o som do PC.">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4" class="fill"/></svg>
-        <span class="side-text"><span class="side-title">Gravar ao assistir</span><span class="badge" data-status="recording"></span></span>
-      </button>
-      <button role="tab" id="tab-file" aria-controls="panel-file" aria-selected="false" tabindex="-1" data-kind="file" data-sub="Um vídeo ou áudio que já está no seu computador.">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4.5 4.5v11.5a1 1 0 0 1-1 1h-11.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z"/><path d="M13.5 3.5V8.5h5"/><path d="m10 11.5 4.5 2.75L10 17z" class="fill"/></svg>
-        <span class="side-text"><span class="side-title">Arquivo local</span><span class="badge" data-status="file"></span></span>
-      </button>
-      <button role="tab" id="tab-captures" aria-controls="panel-captures" aria-selected="false" tabindex="-1" data-kind="captures" data-sub="Prints de sites, textos, slides ou código: o Lumen lê tudo e monta uma página no Notion.">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10.5" r="1.8" class="fill"/><path d="m4.5 17 4.6-4.4 3.2 3 2.6-2.4 4.6 4.3"/></svg>
-        <span class="side-text"><span class="side-title">Capturas de tela</span><span class="badge" data-status="captures"></span></span>
-      </button>
-    </div>
-    <div class="side-foot" id="side-status" aria-label="Estado do sistema"></div>
-  </aside>
+<main class="content" id="content">
 
-  <main class="content" id="content">
-    <!-- Nova aula -->
-    <div id="view-new" data-step="compose">
-      <div class="hero">
-        <h1 id="hero-title">Gravar ao assistir</h1>
-        <p id="hero-sub">Dê play na aula em qualquer site ou app e o Lumen grava o som do PC.</p>
-      </div>
+<!-- ================= Início ================= -->
+<div class="view" id="view-home" aria-labelledby="home-greet">
+  <header class="page-head">
+    <div>
+      <p class="eyebrow" id="home-date"></p>
+      <h1 class="t-display" id="home-greet" tabindex="-1">Olá</h1>
+      <p class="lead" id="home-lead">Grave ou escolha uma aula, escreva o que entendeu e deixe a IA local completar.</p>
+    </div>
+  </header>
 
-      <section class="card setup" id="setup" hidden aria-labelledby="setup-h">
-        <h2 id="setup-h">Antes de começar</h2>
-        <ul class="checks" id="checks"></ul>
+  <section class="card setup" id="setup" hidden aria-labelledby="setup-h">
+    <header class="card-head"><span class="setup-ico"><svg class="i"><use href="/icons.svg#sparkle"/></svg></span>
+      <div><h2 class="t-h3" id="setup-h">Antes de começar</h2><p class="muted t-sm">Falta pouco para a primeira aula. Tudo roda no seu PC.</p></div></header>
+    <ul class="checks" id="checks"></ul>
+  </section>
+
+  <div class="home-grid">
+    <section class="card hero-card" id="home-hero" aria-live="polite" aria-label="Agora"></section>
+    <section class="card" id="home-system" aria-labelledby="sys-h">
+      <header class="card-head"><h2 id="sys-h">Sistema</h2><button class="btn ghost sm" type="button" data-go="integrations">Integrações<svg class="i"><use href="/icons.svg#chevron-right"/></svg></button></header>
+      <div class="sys-list" id="side-status" aria-label="Estado do sistema"></div>
+    </section>
+    <section class="card" id="pending" aria-labelledby="pending-h">
+      <header class="card-head"><h2 id="pending-h">Continuar aprendendo</h2><button class="btn ghost sm" type="button" data-go="library" data-filter="pending" id="pending-all">Ver todas<svg class="i"><use href="/icons.svg#chevron-right"/></svg></button></header>
+      <div class="rows" id="pending-list" role="list"></div>
+    </section>
+    <section class="card" id="home-recent" aria-labelledby="recent-h">
+      <header class="card-head"><h2 id="recent-h">Salvas recentemente</h2><button class="btn ghost sm" type="button" data-go="library" data-filter="saved">Biblioteca<svg class="i"><use href="/icons.svg#chevron-right"/></svg></button></header>
+      <div class="rows" id="recent-list" role="list"></div>
+    </section>
+    <section class="card" id="home-reviews" hidden aria-labelledby="reviews-h">
+      <header class="card-head"><h2 id="reviews-h">Revisões</h2><span class="badge" id="reviews-count"></span></header>
+      <div class="rows" id="review-list" role="list"></div>
+      <p class="card-note faint t-caption">As revisões são marcadas na nota de estudo, no Obsidian.</p>
+    </section>
+  </div>
+</div>
+
+<!-- ================= Nova aula: fonte → minha compreensão → análise → salvar ================= -->
+<div class="view view-new" id="view-new" data-step="compose" hidden>
+  <ol class="stepper" id="stepper" aria-label="Etapas da aula">
+    <li data-s="compose"><span class="step-n">1</span><span>Fonte</span></li>
+    <li data-s="understand"><span class="step-n">2</span><span>Compreensão</span></li>
+    <li data-s="analysis"><span class="step-n">3</span><span>Análise</span></li>
+    <li data-s="save"><span class="step-n">4</span><span>Salvar</span></li>
+  </ol>
+
+  <div id="compose">
+    <header class="page-head">
+      <div><h1 class="t-h1">Nova aula</h1>
+        <p class="lead">Escolha a fonte. Depois você escreve o que entendeu, e só então a IA local analisa.</p></div>
+    </header>
+    <div class="compose-grid">
+      <section class="card source-card" aria-labelledby="hero-title">
+        <div class="segmented src-tabs" role="tablist" aria-label="Fonte da aula">
+          <button role="tab" id="tab-recording" aria-controls="panel-recording" aria-selected="true" data-kind="recording" data-sub="Dê play na aula em qualquer site ou app e o Lumen grava o som do PC."><svg class="i"><use href="/icons.svg#record"/></svg><span class="tab-label">Gravar ao assistir</span></button>
+          <button role="tab" id="tab-file" aria-controls="panel-file" aria-selected="false" tabindex="-1" data-kind="file" data-sub="Um vídeo ou áudio que já está no seu computador."><svg class="i"><use href="/icons.svg#file"/></svg><span class="tab-label">Arquivo local</span></button>
+          <button role="tab" id="tab-captures" aria-controls="panel-captures" aria-selected="false" tabindex="-1" data-kind="captures" data-sub="Prints de sites, textos, slides ou código: o Lumen lê tudo e monta a página."><svg class="i"><use href="/icons.svg#image"/></svg><span class="tab-label">Capturas de tela</span></button>
+        </div>
+        <div class="src-head"><h2 class="t-h2" id="hero-title">Gravar ao assistir</h2><p class="muted t-sm" id="hero-sub">Dê play na aula em qualquer site ou app e o Lumen grava o som do PC.</p></div>
+
+        <div role="tabpanel" id="panel-recording" aria-labelledby="tab-recording">
+          <div class="recorder" id="recorder" data-state="idle">
+            <div class="wave" id="rec-wave" aria-hidden="true"></div>
+            <div class="rec-clock"><span class="rec-dot" aria-hidden="true"></span><span class="rec-time" id="rec-time" role="timer" aria-label="Tempo gravado">00:00</span></div>
+            <div class="rec-controls">
+              <div class="rec-ctl side"><button class="round-btn danger" type="button" id="rec-discard" aria-label="Descartar gravação"><svg class="i"><use href="/icons.svg#trash"/></svg></button><span aria-hidden="true">Descartar</span></div>
+              <div class="rec-ctl"><button class="rec-main" type="button" id="rec-start" aria-label="Iniciar gravação">
+                <span class="halo" aria-hidden="true"></span><span class="core" aria-hidden="true"></span></button>
+                <span class="rec-label" id="rec-start-label" aria-hidden="true">Iniciar gravação</span></div>
+              <div class="rec-ctl side"><button class="round-btn" type="button" id="rec-pause" aria-label="Pausar captura"><svg class="i"><use href="/icons.svg#pause"/></svg></button><span aria-hidden="true" id="rec-pause-label">Pausar</span></div>
+            </div>
+            <p class="rec-hint" id="rec-hint" aria-live="polite"></p>
+            <div class="rec-recover" id="rec-recover" hidden>
+              <svg class="i"><use href="/icons.svg#alert"/></svg><span id="rec-recover-text"></span>
+              <button class="btn sm primary" type="button" id="rec-recover-use">Usar gravação</button>
+              <button class="btn sm ghost" type="button" id="rec-recover-drop">Descartar</button>
+            </div>
+          </div>
+          <p class="footnote rec-note"><svg class="i sm"><use href="/icons.svg#volume"/></svg>Deixe o volume ligado (pode ser baixo, mas não no mudo). Sons do sistema também entram.</p>
+        </div>
+
+        <div role="tabpanel" id="panel-file" aria-labelledby="tab-file" hidden>
+          <div class="drop" id="drop">
+            <span class="drop-icon"><svg class="i"><use href="/icons.svg#upload"/></svg></span>
+            <p><strong>Arraste um vídeo ou áudio para cá</strong></p>
+            <p class="muted t-sm">O arquivo não sai do seu PC.</p>
+            <button class="btn" type="button" data-pick="media">Escolher arquivo…</button>
+            <p class="faint t-caption" id="formats"></p>
+          </div>
+        </div>
+
+        <!-- Fontes sem aba (o app.js ainda as conhece): YouTube e Telegram -->
+        <div role="tabpanel" id="panel-youtube" hidden>
+          <label class="field">Link do vídeo
+            <span class="input-row"><input id="yt-url" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
+            <button class="btn" type="button" id="yt-check">Verificar</button></span></label>
+          <label class="field">Transcrição<textarea id="yt-text" rows="5" placeholder="0:00 Olá, hoje vamos falar sobre…"></textarea></label>
+          <div class="input-row"><button class="btn" type="button" data-pick="captions">Importar .srt / .vtt / .txt…</button>
+            <button class="btn" type="button" data-pick="ytcopy">Usar cópia local autorizada…</button></div>
+        </div>
+        <div role="tabpanel" id="panel-telegram" hidden>
+          <button class="btn" type="button" data-pick="telegram">Escolher arquivo do Telegram…</button>
+        </div>
+
+        <div role="tabpanel" id="panel-captures" aria-labelledby="tab-captures" hidden>
+          <div class="drop" id="drop-caps" tabindex="0">
+            <span class="drop-icon"><svg class="i"><use href="/icons.svg#image"/></svg></span>
+            <p><strong>Arraste capturas de tela para cá</strong></p>
+            <p class="muted t-sm">ou cole com <kbd>Ctrl</kbd> <kbd>V</kbd> · <kbd>Win</kbd> <kbd>Shift</kbd> <kbd>S</kbd> tira uma captura</p>
+            <button class="btn" type="button" data-pick="images">Escolher imagens…</button>
+            <p class="faint t-caption">png, jpg, webp ou bmp · até 30 por aula · lidas no seu PC pela IA de visão</p>
+          </div>
+          <div class="caps-grid" id="caps-grid" role="list" aria-label="Capturas adicionadas"></div>
+          <label class="field">Título da página <span class="opt">opcional</span>
+            <input id="caps-title" maxlength="120" placeholder="Ex.: Anotações sobre cache" autocomplete="off"></label>
+        </div>
+
+        <div class="watch" id="watch-row">
+          <label class="set-row"><span class="set-ico"><svg class="i"><use href="/icons.svg#screen"/></svg></span>
+            <span class="set-text"><strong>Assistir a tela junto</strong><small>Lê slides, quadro, código e tabelas e põe na página, com as imagens. Tudo no seu PC.</small></span>
+            <input type="checkbox" class="switch" role="switch" id="watch" aria-describedby="watch-status"></label>
+          <p class="field-hint watch-status" id="watch-status" aria-live="polite"></p>
+          <button class="btn sm" type="button" id="vision-dl" hidden><svg class="i"><use href="/icons.svg#download"/></svg>Baixar modelo de visão</button>
+        </div>
+
+        <div class="source" id="source" hidden aria-live="polite"></div>
       </section>
 
-      <div id="compose">
-        <section class="group" id="pending" hidden aria-labelledby="pending-h">
-          <h2 class="group-h" id="pending-h">Continuar aprendendo</h2>
-          <div class="card list" id="pending-list" role="list"></div>
+      <div class="compose-side">
+        <section class="card" id="lesson-reference" aria-labelledby="lesson-link-h">
+          <h2 class="side-h" id="lesson-link-h">Vídeo da aula</h2>
+          <label class="field"><span class="sr">Link da aula</span>
+            <span class="search-field"><svg class="i"><use href="/icons.svg#link"/></svg>
+            <input id="lesson-link" type="url" inputmode="url" maxlength="2000" placeholder="Link do YouTube (opcional)" autocomplete="off" aria-describedby="lesson-link-hint"></span></label>
+          <p class="field-hint" id="lesson-link-hint">Com um link do YouTube, a página ganha o player antes do resumo. Outros links ficam como referência.</p>
         </section>
 
-        <section class="group" aria-labelledby="src-h">
-          <h2 class="group-h" id="src-h">Fonte</h2>
-          <div class="card">
-            <div role="tabpanel" id="panel-recording" aria-labelledby="tab-recording">
-              <div class="recorder" id="recorder" data-state="idle">
-                <div class="wave" id="rec-wave" aria-hidden="true"></div>
-                <div class="rec-clock"><span class="rec-dot" aria-hidden="true"></span><span class="rec-time" id="rec-time" role="timer" aria-label="Tempo gravado">00:00</span></div>
-                <div class="rec-controls">
-                  <button class="round-btn" type="button" id="rec-discard" aria-label="Descartar gravação" title="Descartar">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg>
-                  </button>
-                  <button class="rec-main" type="button" id="rec-start" aria-label="Iniciar gravação">
-                    <span class="halo" aria-hidden="true"></span><span class="halo two" aria-hidden="true"></span>
-                    <span class="core" aria-hidden="true"></span>
-                  </button>
-                  <button class="round-btn" type="button" id="rec-pause" aria-label="Pausar captura">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path id="rec-pause-icon" d="M9 6v12M15 6v12"/></svg>
-                  </button>
-                </div>
-                <span class="rec-label" id="rec-start-label" aria-hidden="true">Iniciar gravação</span>
-                <p class="rec-hint" id="rec-hint" aria-live="polite"></p>
-                <div class="rec-recover" id="rec-recover" hidden>
-                  <span id="rec-recover-text"></span>
-                  <button class="btn" type="button" id="rec-recover-use">Usar gravação</button>
-                  <button class="btn plain" type="button" id="rec-recover-drop">Descartar</button>
-                </div>
-              </div>
-              <p class="footnote rec-note">Deixe o volume ligado (pode ser baixo, mas não no mudo). Sons do sistema também entram.</p>
-            </div>
-
-            <div role="tabpanel" id="panel-file" aria-labelledby="tab-file" hidden>
-              <div class="drop" id="drop">
-                <svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 15v3a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-3"/></svg>
-                <p><strong>Arraste um vídeo ou áudio para cá</strong></p>
-                <button class="btn" type="button" data-pick="media">Escolher arquivo…</button>
-                <p class="muted small" id="formats"></p>
-              </div>
-            </div>
-
-            <div role="tabpanel" id="panel-youtube" aria-labelledby="tab-youtube" hidden>
-              <label>Link do vídeo
-                <span class="row"><input id="yt-url" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
-                <button class="btn" type="button" id="yt-check">Verificar</button></span></label>
-              <p class="footnote">Este vídeo também será incluído como player na página do Notion.</p>
-              <p class="note">O YouTube só libera legendas pela API oficial para quem pode editar o vídeo. Forneça a transcrição de uma destas formas:</p>
-              <label>Transcrição <span class="muted">no YouTube: “…mais” → “Mostrar transcrição”, copie e cole</span>
-                <textarea id="yt-text" rows="5" placeholder="0:00 Olá, hoje vamos falar sobre…"></textarea></label>
-              <div class="row wrap">
-                <button class="btn" type="button" data-pick="captions">Importar .srt / .vtt / .txt…</button>
-                <button class="btn" type="button" data-pick="ytcopy">Usar cópia local autorizada…</button>
-              </div>
-            </div>
-
-            <div role="tabpanel" id="panel-telegram" aria-labelledby="tab-telegram" hidden>
-              <p>O Lumen não se conecta à sua conta do Telegram. Salve o vídeo pelo Telegram Desktop (botão direito → <em>Salvar como…</em>, normalmente em <em>Downloads\Telegram Desktop</em>) e escolha o arquivo.</p>
-              <button class="btn" type="button" data-pick="telegram">Escolher arquivo do Telegram…</button>
-            </div>
-
-            <div role="tabpanel" id="panel-captures" aria-labelledby="tab-captures" hidden>
-              <div class="drop" id="drop-caps" tabindex="0">
-                <svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10.5" r="1.8"/><path d="m4.5 17 4.6-4.4 3.2 3 2.6-2.4 4.6 4.3"/></svg>
-                <p><strong>Arraste capturas de tela para cá</strong></p>
-                <p class="muted small">ou cole com <kbd>Ctrl</kbd> + <kbd>V</kbd> (<kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> tira uma captura)</p>
-                <button class="btn" type="button" data-pick="images">Escolher imagens…</button>
-                <p class="muted small">png, jpg, webp ou bmp · até 30 por aula · lidas no seu PC pela IA de visão</p>
-              </div>
-              <div class="caps-grid" id="caps-grid" role="list" aria-label="Capturas adicionadas"></div>
-              <label>Título da página <span class="muted">opcional</span>
-                <input id="caps-title" maxlength="120" placeholder="Ex.: Anotações sobre cache" autocomplete="off"></label>
-            </div>
-
-            <div class="watch" id="watch-row">
-              <label class="switch-row"><span><span class="watch-title"><svg class="eye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3.2"/></svg>Assistir a tela junto</span><small>Lê slides, quadro, código e tabelas que aparecem na aula e põe na página, com as imagens. Tudo no seu PC.</small></span><input type="checkbox" class="switch" role="switch" id="watch" aria-describedby="watch-status"></label>
-              <p class="muted small" id="watch-status" aria-live="polite"></p>
-              <button class="btn small-btn" type="button" id="vision-dl" hidden>Baixar modelo de visão</button>
-            </div>
-
-            <div class="source" id="source" hidden aria-live="polite"></div>
+        <section class="card dest-card" id="dest-card" aria-labelledby="course-h">
+          <h2 class="side-h" id="course-h">Onde salvar</h2>
+          <label class="field obs-course" id="obs-course-row">Curso <span class="opt">opcional</span>
+            <input id="course-text" maxlength="120" autocomplete="off" placeholder="Ex.: Inteligência Artificial"></label>
+          <div class="dest notion-dest">
+            <span class="dest-icon" id="dest-icon" aria-hidden="true">📄</span>
+            <div class="dest-text"><small>A aula será salva em</small><span class="dest-path" id="dest-path"></span></div>
+            <button class="icon-btn sm" type="button" id="new-sub" aria-label="Criar subpágina dentro da página escolhida" data-tip="Nova subpágina aqui"><svg class="i"><use href="/icons.svg#plus"/></svg></button>
+            <button class="btn sm" type="button" id="dest-change" aria-expanded="false" aria-controls="picker">Alterar</button>
           </div>
-        </section>
-
-        <section class="group" id="lesson-reference" aria-labelledby="lesson-link-h">
-          <h2 class="group-h" id="lesson-link-h">Vídeo da aula</h2>
-          <div class="card">
-            <label>Link da aula <span class="muted">opcional</span>
-              <input id="lesson-link" type="url" inputmode="url" maxlength="2000" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" aria-describedby="lesson-link-hint"></label>
-            <p class="footnote" id="lesson-link-hint">Cole o link do YouTube para incluir o player em “Assistir à aula”, antes do resumo no Notion. Outros links ficam como referência.</p>
+          <div class="combo notion-dest">
+            <span class="search-field"><svg class="i"><use href="/icons.svg#search"/></svg>
+            <input id="course-filter" type="search" placeholder="Buscar página do Notion" aria-label="Buscar página do Notion"
+                   autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="course-results"></span>
+            <ul class="results" id="course-results" role="listbox" aria-label="Páginas encontradas" hidden></ul>
           </div>
-        </section>
-
-        <section class="group" id="dest-card" aria-labelledby="course-h">
-          <h2 class="group-h" id="course-h">Onde salvar</h2>
-          <div class="card">
-            <label class="obs-course" id="obs-course-row">Curso <span class="muted">opcional</span>
-              <input id="course-text" maxlength="120" autocomplete="off" placeholder="Ex.: Inteligência Artificial"></label>
-            <div class="combo notion-dest">
-              <input id="course-filter" type="search" placeholder="Buscar página do Notion" aria-label="Buscar página do Notion"
-                     autocomplete="off" spellcheck="false" class="search" role="combobox" aria-autocomplete="list"
-                     aria-expanded="false" aria-controls="course-results">
-              <ul class="results" id="course-results" role="listbox" aria-label="Páginas encontradas" hidden></ul>
-            </div>
-            <div class="dest notion-dest">
-              <span class="dest-icon" id="dest-icon" aria-hidden="true">📄</span>
-              <div class="dest-text"><small>A aula será salva em</small><span class="dest-path" id="dest-path"></span></div>
-              <button class="tool-btn" type="button" id="new-sub" aria-label="Criar subpágina dentro da página escolhida" title="Nova subpágina aqui">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-              </button>
-              <button class="btn small-btn" type="button" id="dest-change" aria-expanded="false" aria-controls="picker">Alterar</button>
-            </div>
-            <div class="picker notion-dest" id="picker" hidden>
-              <div class="chips" id="recents" aria-label="Usadas recentemente"></div>
-              <nav class="crumbs" id="crumbs" aria-label="Caminho"></nav>
-              <ul class="browse" id="browse" aria-label="Páginas"></ul>
-            </div>
-            <select id="course" hidden aria-label="Página do Notion onde a aula será salva"></select>
-            <p class="footnote notion-dest" id="course-note">O material será salvo diretamente na página escolhida, preservando o conteúdo existente.
-              <button class="link-btn" type="button" data-grant>Faltou alguma página? Dar acesso no Notion</button></p>
-            <div class="roots-hint notion-dest" id="roots-hint" role="note" hidden>
-              <p><strong>Suas páginas principais ainda não aparecem.</strong> O Notion só mostra ao Lumen o que foi liberado
-                para ele, e hoje ele vê só <span id="roots-seen"></span> e o que está dentro.</p>
-              <p class="muted small">Para cada página principal (as do topo da barra lateral, como Estudos ou Pessoal): abra no
-                Notion → <b>•••</b> no canto de cima → <b>Conexões</b> → <b>Lumen</b> → Confirmar. Tudo que estiver dentro dela
-                vem junto. Ou libere várias de uma vez:</p>
-              <button class="btn small-btn" type="button" data-grant>Liberar páginas principais no Notion</button>
-            </div>
-            <div class="new-page" id="new-course" hidden>
-              <p class="small" id="new-course-where"></p>
-              <label class="switch-row ai-row"><span>Enfeitar com IA<small>Ícone, capa e destaque criados a partir do título, no seu PC.</small></span><input type="checkbox" class="switch" role="switch" id="decorate"></label>
-              <figure class="cover-preview" id="cover-preview" hidden aria-live="polite">
-                <div class="cover-img" id="cover-img"><span class="cover-wait" id="cover-wait">Criando a capa…</span></div>
-                <span class="cover-emoji" id="cover-emoji" aria-hidden="true"></span>
-                <figcaption><span id="cover-sub"></span>
-                  <button class="btn plain small-btn" type="button" id="cover-again">✨ Gerar capa</button></figcaption>
-              </figure>
-              <div class="row">
-                <input id="new-course-name" placeholder="Nome da nova página (ex.: Módulo 3)" aria-label="Nome da nova página" maxlength="200">
-                <button class="btn plain" type="button" id="new-course-cancel">Cancelar</button>
-                <button class="btn primary small-btn" type="button" id="new-course-btn">Criar</button>
-              </div>
+          <div class="picker notion-dest" id="picker" hidden>
+            <div class="chips" id="recents" aria-label="Usadas recentemente"></div>
+            <nav class="crumbs" id="crumbs" aria-label="Caminho"></nav>
+            <ul class="browse" id="browse" aria-label="Páginas"></ul>
+          </div>
+          <select id="course" hidden aria-label="Página do Notion onde a aula será salva"></select>
+          <p class="field-hint notion-dest" id="course-note">O material entra na página escolhida, sem apagar o que já está nela.
+            <button class="link-btn" type="button" data-grant>Faltou alguma página?</button></p>
+          <div class="callout roots-hint notion-dest" id="roots-hint" role="note" hidden>
+            <p><strong>Suas páginas principais ainda não aparecem.</strong> O Notion só mostra ao Lumen o que foi liberado
+              para ele, e hoje ele vê só <span id="roots-seen"></span> e o que está dentro.</p>
+            <p class="muted t-sm">Em cada página principal: <b>•••</b> → <b>Conexões</b> → <b>Lumen</b> → Confirmar. Ou libere várias de uma vez:</p>
+            <button class="btn sm" type="button" data-grant><svg class="i"><use href="/icons.svg#external"/></svg>Liberar páginas no Notion</button>
+          </div>
+          <div class="new-page" id="new-course" hidden>
+            <p class="t-sm" id="new-course-where"></p>
+            <label class="set-row compact"><span class="set-text"><strong>Enfeitar com IA</strong><small>Ícone, capa e destaque criados a partir do título, no seu PC.</small></span><input type="checkbox" class="switch" role="switch" id="decorate"></label>
+            <figure class="cover-preview" id="cover-preview" hidden aria-live="polite">
+              <div class="cover-img" id="cover-img"><span class="cover-wait" id="cover-wait">Criando a capa…</span></div>
+              <span class="cover-emoji" id="cover-emoji" aria-hidden="true"></span>
+              <figcaption><span id="cover-sub"></span>
+                <button class="btn ghost sm" type="button" id="cover-again"><svg class="i"><use href="/icons.svg#sparkle"/></svg><span>Gerar capa</span></button></figcaption>
+            </figure>
+            <div class="input-row">
+              <input id="new-course-name" placeholder="Nome da nova página (ex.: Módulo 3)" aria-label="Nome da nova página" maxlength="200">
+              <button class="btn ghost sm" type="button" id="new-course-cancel">Cancelar</button>
+              <button class="btn primary sm" type="button" id="new-course-btn">Criar</button>
             </div>
           </div>
         </section>
 
-        <section class="group" aria-labelledby="review-h">
-          <h2 class="group-h" id="review-h">Revisar e gerar</h2>
-          <div class="card">
+        <section class="card" aria-labelledby="opts-h">
+          <h2 class="side-h" id="opts-h">Opções</h2>
+          <div class="opt-row" id="speed-setting">
+            <label for="speed"><span>Velocidade da fala</span><small class="faint" id="speed-hint">Vale a velocidade do áudio do arquivo, não a do player.</small></label>
+            <select id="speed">
+              <option value="auto">Automático</option>
+              <option value="1">Normal</option>
+              <option value="2">Acelerado 2×</option>
+              <option value="4">4× Ultra</option>
+            </select>
+          </div>
+          <div class="opt-row">
+            <label for="lang"><span>Idioma da página</span></label>
+            <select id="lang">
+              <option value="pt">Português</option>
+              <option value="original">Idioma original</option>
+            </select>
+          </div>
+          <details class="disclosure privacy-note">
+            <summary><svg class="i sm"><use href="/icons.svg#shield"/></svg>O que acontece com seus dados</summary>
             <dl class="summary" id="summary"></dl>
-            <div class="list-row" id="speed-setting">
-              <label for="speed" class="inline">Velocidade da fala no arquivo
-                <small class="muted" id="speed-hint">Vale a velocidade do áudio do arquivo, não a do player.</small></label>
-              <select id="speed" class="compact">
-                <option value="auto">Automático</option>
-                <option value="1">Normal</option>
-                <option value="2">Acelerado 2×</option>
-                <option value="4">4× Ultra</option>
-              </select>
-            </div>
-            <div class="list-row">
-              <label for="lang" class="inline">Idioma da página</label>
-              <select id="lang" class="compact">
-                <option value="pt">Português</option>
-                <option value="original">Idioma original</option>
-              </select>
-            </div>
-            <fieldset class="dup" id="dup" hidden>
-              <legend id="dup-legend">Esta aula parece já existir no Notion</legend>
-              <p class="muted small" id="dup-info"></p>
-              <label class="radio"><input type="radio" name="dup" value="open" checked> Abrir a página existente</label>
-              <label class="radio"><input type="radio" name="dup" value="replace"> Atualizar material (substitui a versão do Lumen se estiver nesta página)</label>
-              <label class="radio"><input type="radio" name="dup" value="new"> Adicionar outra cópia na página escolhida</label>
-            </fieldset>
-            <div class="actions">
-              <p class="muted small" id="go-hint" aria-live="polite"></p>
-              <button class="btn primary" type="button" id="go" disabled>Continuar</button>
-            </div>
-          </div>
+          </details>
         </section>
       </div>
+    </div>
 
-      <!-- Minha compreensão: o estudante escreve antes de qualquer IA (lumen/understanding.py) -->
-      <section class="understand" id="understand" hidden aria-labelledby="u-title">
-        <header class="u-head">
-          <span class="pomo-slot" id="u-pomo"></span>
-          <p class="u-eyebrow" id="u-lesson"></p>
-          <h1 id="u-title" tabindex="-1">Minha compreensão</h1>
-          <p>Escreva com suas próprias palavras o que você entendeu. Não precisa estar perfeito.</p>
-        </header>
-        <div class="paper" id="u-paper">
-          <button class="tool-btn u-detach" type="button" id="u-detach" aria-pressed="false" aria-label="Destacar numa janela flutuante">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="7" width="13" height="13" rx="2.5"/><path d="M10 4h10v10M20 4l-8.5 8.5"/></svg></button>
-          <textarea id="u-text" class="writing" aria-labelledby="u-title" spellcheck="true" autocomplete="off"
-                    autocapitalize="sentences" maxlength="12000" placeholder="O que você entendeu?"></textarea>
-          <div class="u-foot"><span class="u-save" id="u-save" aria-live="polite"></span><span id="u-count"></span></div>
-        </div>
-        <p class="u-float" id="u-float" hidden><span class="u-pulse" aria-hidden="true"></span>
-          <span>Aberta também na janela flutuante, por cima do vídeo. O texto é o mesmo nas duas.</span>
-          <button class="link-btn" type="button" id="u-float-back">Trazer de volta</button></p>
-        <div class="u-status" id="u-status" aria-live="polite" hidden></div>
-        <div class="u-actions">
-          <p class="u-hint" id="u-hint" aria-live="polite"></p>
-          <button class="btn plain" type="button" id="u-later">Escrever depois</button>
-          <button class="btn primary" type="button" id="u-go" disabled>Processar minha compreensão</button>
-        </div>
-      </section>
+    <fieldset class="callout dup" id="dup" hidden>
+      <legend id="dup-legend">Esta aula parece já existir no Notion</legend>
+      <p class="muted t-sm" id="dup-info"></p>
+      <label class="radio"><input type="radio" name="dup" value="open" checked> Abrir a página existente</label>
+      <label class="radio"><input type="radio" name="dup" value="replace"> Atualizar material (substitui a versão do Lumen se estiver nesta página)</label>
+      <label class="radio"><input type="radio" name="dup" value="new"> Adicionar outra cópia na página escolhida</label>
+    </fieldset>
 
-      <!-- Análise: a nota do estudante (intacta) e, separada, o que a IA observou sobre ela -->
+    <div class="action-bar">
+      <p class="action-hint" id="go-hint" aria-live="polite"></p>
+      <button class="btn primary lg" type="button" id="go" disabled>Continuar<svg class="i"><use href="/icons.svg#arrow-right"/></svg></button>
+    </div>
+  </div>
+
+  <!-- Minha compreensão: o estudante escreve antes de qualquer IA (lumen/understanding.py) -->
+  <section class="understand" id="understand" hidden aria-labelledby="u-title">
+    <header class="u-head">
+      <p class="eyebrow" id="u-lesson"></p>
+      <h1 class="t-h1" id="u-title" tabindex="-1">Minha compreensão</h1>
+      <p class="lead">Escreva com suas próprias palavras o que você entendeu. Não precisa estar perfeito.</p>
+    </header>
+    <div class="u-strip" aria-label="O que está acontecendo">
+      <div class="chip-status" id="u-cap" hidden></div>
+      <div class="chip-status u-status" id="u-status" aria-live="polite" hidden></div>
+      <p class="chip-status u-float" id="u-float" hidden><svg class="i sm"><use href="/icons.svg#detach"/></svg>
+        <span>Aberta também na janela flutuante, com o mesmo texto.</span>
+        <button class="link-btn" type="button" id="u-float-back">Trazer de volta</button></p>
+      <button class="btn sm u-detach" type="button" id="u-detach" aria-pressed="false" data-tip=""><svg class="i"><use href="/icons.svg#detach"/></svg><span id="u-detach-label">Destacar</span></button>
+    </div>
+    <div class="paper" id="u-paper">
+      <textarea id="u-text" class="writing" aria-labelledby="u-title" spellcheck="true" autocomplete="off"
+                autocapitalize="sentences" maxlength="12000" placeholder="O que você entendeu?"></textarea>
+      <div class="u-foot"><span class="u-save" id="u-save" aria-live="polite"></span><span id="u-count"></span></div>
+    </div>
+    <div class="u-actions">
+      <p class="u-hint" id="u-hint" aria-live="polite"></p>
+      <button class="btn ghost" type="button" id="u-later">Escrever depois</button>
+      <button class="btn primary lg" type="button" id="u-go" disabled data-kbd="Ctrl Enter" data-tip="Enviar a sua nota para a IA local">Processar minha compreensão</button>
+    </div>
+  </section>
+
+  <!-- Análise + Salvar: a nota (intacta) e a leitura da IA à esquerda; onde e como salvar à direita -->
+  <div class="study-grid">
+    <div class="study-main">
       <section class="understand" id="analysis" hidden aria-labelledby="a-title">
         <header class="u-head">
-          <p class="u-eyebrow" id="a-lesson"></p>
-          <h1 id="a-title" tabindex="-1">Análise concluída</h1>
-          <p id="a-sub">A IA comparou sua nota com a aula. Sua compreensão original continua exatamente como você escreveu.</p>
+          <p class="eyebrow" id="a-lesson"></p>
+          <h1 class="t-h1" id="a-title" tabindex="-1">Análise concluída</h1>
+          <p class="lead" id="a-sub">A IA comparou sua nota com a aula. Sua compreensão original continua exatamente como você escreveu.</p>
         </header>
         <article class="paper mine" aria-labelledby="mine-label">
           <div class="mine-head">
-            <span class="mine-label" id="mine-label">Você escreveu</span><span class="muted small" id="mine-when"></span>
-            <button class="btn plain small-btn" type="button" id="mine-edit">Editar</button>
+            <span class="eyebrow" id="mine-label">Você escreveu</span><span class="faint t-caption" id="mine-when"></span>
+            <button class="btn ghost sm" type="button" id="mine-edit"><svg class="i"><use href="/icons.svg#pen"/></svg><span>Editar</span></button>
           </div>
           <textarea id="mine-text" class="writing" aria-labelledby="mine-label" spellcheck="true" autocomplete="off" maxlength="12000" readonly></textarea>
           <div class="u-foot" id="mine-foot" hidden><span class="u-save" id="mine-save" aria-live="polite"></span>
-            <button class="btn small-btn" type="button" id="mine-again" hidden>Analisar de novo</button></div>
-          <details class="mine-original" id="mine-original" hidden>
+            <button class="btn sm" type="button" id="mine-again" hidden>Analisar de novo</button></div>
+          <details class="disclosure mine-original" id="mine-original" hidden>
             <summary>Compreensão original (antes da análise)</summary>
             <p class="writing" id="mine-original-text"></p>
           </details>
@@ -305,217 +331,281 @@
         <div class="u-actions" id="a-actions" hidden></div>
       </section>
 
-      <section class="card run" id="run" hidden aria-labelledby="run-h">
-        <h2 id="run-h" tabindex="-1">Gerando a aula</h2>
-        <ol class="stages" id="stages">
-          <li data-stage="prepare">Preparar a fonte</li>
-          <li data-stage="transcribe">Transcrever no PC</li>
-          <li data-stage="screen" hidden>Ler o que apareceu na tela</li>
-          <li data-stage="generate">Escrever o material a partir da sua compreensão</li>
-          <li data-stage="connect" hidden>Encontrar conexões no seu cofre</li>
-          <li data-stage="obsidian" hidden>Salvar no Obsidian</li>
-          <li data-stage="publish">Salvar na página escolhida do Notion</li>
-        </ol>
-        <div class="bar" id="bar" role="progressbar" aria-label="Progresso da etapa atual" aria-valuemin="0" aria-valuemax="100"><span></span></div>
-        <p id="detail" aria-live="polite"></p>
-        <p class="muted small" id="eta"></p>
-        <div class="dest-slot" id="run-dest" hidden></div>
-        <div class="result" id="result" aria-live="assertive"></div>
-        <div class="redo" id="redo" hidden>
-          <label><span>O que mudar? <span class="muted">opcional</span></span>
-            <textarea id="redo-note" rows="2" maxlength="300" placeholder="Ex.: mais detalhado, mais exemplos, foque na parte de…"></textarea></label>
-          <div class="dest-slot" id="redo-dest"></div>
-          <div class="actions">
-            <p class="muted small">A IA escreve uma versão nova a partir da mesma transcrição e a anterior é removida do Notion.
-              Escolher outra página move a aula para lá.</p>
-            <button class="btn" type="button" id="redo-cancel">Cancelar</button>
-            <button class="btn primary" type="button" id="redo-go">Refazer página</button>
-          </div>
+      <details class="card disclosure review-more" id="review-more">
+        <summary id="review-title">Revisar a transcrição e as telas <span class="opt">opcional</span></summary>
+        <div class="review-head">
+          <p class="muted t-sm" id="review-info"></p>
+          <label class="set-row compact only-flagged"><span class="set-text"><strong>Só marcados</strong></span><input type="checkbox" class="switch" role="switch" id="only-flagged"></label>
         </div>
-        <div class="actions" id="run-actions"></div>
-      </section>
-
-      <section class="card review" id="review" hidden aria-labelledby="review-h">
-        <h2 id="review-h">Salvar no Notion</h2>
-        <p class="muted small" id="review-desc">Cria a página da aula, escrita a partir da sua compreensão, e dentro dela a subpágina “Minha compreensão”, com a sua nota original e a análise.</p>
-        <details class="more" id="review-more">
-          <summary id="review-title">Revisar a transcrição e as telas <span class="muted">opcional</span></summary>
-          <div class="review-head">
-            <p class="muted small" id="review-info"></p>
-            <label class="switch-row compact-switch"><span>Só marcados</span><input type="checkbox" class="switch" role="switch" id="only-flagged"></label>
+        <div class="speed-row" id="speed-row">
+          <span class="t-label muted">Velocidade usada</span>
+          <div class="segmented" role="radiogroup" aria-label="Velocidade da fala" id="review-speed">
+            <label><input type="radio" name="rspeed" value="1"> Normal</label>
+            <label><input type="radio" name="rspeed" value="2"> 2×</label>
+            <label><input type="radio" name="rspeed" value="4"> 4× Ultra</label>
           </div>
-          <div class="speed-row" id="speed-row">
-            <span class="small">Velocidade usada:</span>
-            <div class="segmented" role="radiogroup" aria-label="Velocidade da fala" id="review-speed">
-              <label><input type="radio" name="rspeed" value="1"> Normal</label>
-              <label><input type="radio" name="rspeed" value="2"> 2×</label>
-              <label><input type="radio" name="rspeed" value="4"> 4× Ultra</label>
-            </div>
-            <button class="btn" type="button" id="retranscribe" disabled>Transcrever de novo</button>
-          </div>
-          <div class="segments" id="segments" role="list" aria-label="Trechos da transcrição"></div>
-          <section class="shots" id="shots" hidden aria-labelledby="shots-h">
-            <div class="shots-head"><h3 id="shots-h">O que apareceu na tela</h3><span class="muted small" id="shots-info"></span>
-              <button class="btn small-btn" type="button" id="shots-add" title="Também dá para soltar ou colar (Ctrl+V) imagens nesta área">＋ Adicionar capturas</button></div>
-            <div class="shot-grid" id="shot-grid" role="list"></div>
-          </section>
-        </details>
-        <label id="review-link-row">Link da aula <span class="muted">opcional</span>
-          <input id="review-link" type="url" inputmode="url" maxlength="2000" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" aria-describedby="review-link-hint">
-          <small class="muted" id="review-link-hint">No YouTube, o vídeo aparece como player antes do resumo no Notion.</small></label>
-        <label class="switch-row"><span>Incluir a transcrição completa na página<small>Vai recolhida no fim da página. Desligado por padrão: a transcrição pode ser privada.</small></span><input type="checkbox" class="switch" role="switch" id="include-transcript"></label>
-        <div class="dest-slot" id="review-dest"></div>
-        <div class="actions">
-          <p class="muted small" id="review-hint">Fica guardado em “Continuar aprendendo”.</p>
-          <button class="btn" type="button" id="review-cancel">Salvar depois</button>
-          <button class="btn primary" type="button" id="review-go">Criar página no Notion</button>
+          <button class="btn sm" type="button" id="retranscribe" disabled><svg class="i"><use href="/icons.svg#refresh"/></svg>Transcrever de novo</button>
         </div>
-      </section>
-    </div>
-
-    <!-- Biblioteca -->
-    <div id="view-library" hidden>
-      <div class="hero">
-        <h1>Biblioteca</h1>
-        <p>Aulas que o Lumen já criou no seu Notion.</p>
-      </div>
-      <div class="card list" id="library-list" aria-live="polite"></div>
-    </div>
-  </main>
-</div>
-</div>
-
-<dialog id="settings" aria-labelledby="set-h">
-  <form method="dialog" class="dlg-head">
-    <h2 id="set-h">Ajustes</h2>
-    <button class="btn primary small-btn" value="close">OK</button>
-  </form>
-  <div class="dlg-body">
-    <section class="desktop-settings">
-      <h3>Lumen sempre por perto</h3>
-      <p class="muted small">O Lumen fica escondido, deixando só uma pequena alça. Passe o mouse para revelar os controles; ao sair, ele se recolhe. Arraste pela alça superior quando estiver aberto para mover.</p>
-      <label>Barra flutuante
-        <select id="widget-position">
-          <option value="left">Lado esquerdo · padrão</option>
-          <option value="right">Lado direito</option>
-          <option value="top">Em cima</option>
-          <option value="bottom">Embaixo</option>
-          <option value="free">Posição livre</option>
-          <option value="off">Desativada</option>
-        </select>
-      </label>
-      <button class="btn" type="button" id="widget-reset">Restaurar posição</button>
-      <label class="switch-row"><span>Iniciar com o Windows<small>Abre discretamente, sem iniciar uma gravação</small></span><input type="checkbox" class="switch" role="switch" id="autostart"></label>
-      <p class="muted small" id="desktop-hint">Disponível na janela do Lumen.exe.</p>
-      <button class="btn" type="button" id="desktop-exit">Sair do Lumen</button>
-    </section>
-    <section>
-      <h3>Notion</h3>
-      <details>
-        <summary>Como conectar</summary>
-        <ol class="small">
-          <li>Abra <strong>notion.so/profile/integrations</strong> e crie uma integração <em>interna</em>.</li>
-          <li>Em <em>Capacidades</em>, deixe ler, atualizar e inserir conteúdo.</li>
-          <li>Copie o <em>token secreto</em> e cole abaixo. Ele fica no Gerenciador de Credenciais do Windows.</li>
-          <li>No Notion, abra a página dos seus cursos → ••• → <em>Conexões</em> → adicione a integração.</li>
-        </ol>
+        <div class="segments" id="segments" role="list" aria-label="Trechos da transcrição"></div>
+        <section class="shots" id="shots" hidden aria-labelledby="shots-h">
+          <div class="shots-head"><h3 class="t-h3" id="shots-h">O que apareceu na tela</h3><span class="muted t-sm" id="shots-info"></span>
+            <button class="btn sm" type="button" id="shots-add" data-tip="Também dá para soltar ou colar (Ctrl+V) imagens aqui"><svg class="i"><use href="/icons.svg#plus"/></svg>Adicionar capturas</button></div>
+          <div class="shot-grid" id="shot-grid" role="list"></div>
+        </section>
       </details>
-      <label>Token da integração
-        <span class="row"><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ntn_…">
-        <button class="btn" type="button" id="token-save">Salvar</button></span></label>
-      <p class="muted small" id="token-status"></p>
-      <p class="muted small">O Lumen só vê as páginas que você libera para a integração. Liberar uma página raiz libera
-        também tudo dentro dela. <button class="link-btn" type="button" data-grant>Dar acesso no Notion</button></p>
-      <label>Página raiz dos cursos
-        <span class="row"><select id="root"></select>
-        <button class="tool-btn" type="button" id="root-load" aria-label="Recarregar páginas" title="Recarregar páginas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg></button></span></label>
-    </section>
+    </div>
 
-    <section id="dest-settings">
-      <h3>Destinos do material</h3>
-      <p class="muted small">O Lumen escreve o material uma vez e salva o mesmo conteúdo em cada destino: o Notion para
-        organizar, o Obsidian para estudar a fundo e ligar ao seu segundo cérebro.</p>
-      <div class="segmented wide" role="radiogroup" aria-label="Destinos do material" id="dest-mode">
-        <label><input type="radio" name="dest_mode" value="both"> Notion + Obsidian<small>O mesmo material nos dois.</small></label>
-        <label><input type="radio" name="dest_mode" value="notion"> Só Notion<small>Como antes.</small></label>
-        <label><input type="radio" name="dest_mode" value="obsidian"> Só Obsidian<small>Sem precisar do Notion.</small></label>
+    <aside class="card review" id="review" hidden aria-labelledby="review-h">
+      <h2 class="t-h2" id="review-h">Salvar no Notion</h2>
+      <p class="muted t-sm" id="review-desc">Cria a página da aula, escrita a partir da sua compreensão, e dentro dela a subpágina “Minha compreensão”.</p>
+      <div class="dest-slot" id="review-dest"></div>
+      <label class="field" id="review-link-row">Link da aula <span class="opt">opcional</span>
+        <input id="review-link" type="url" inputmode="url" maxlength="2000" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" aria-describedby="review-link-hint">
+        <small class="field-hint" id="review-link-hint">No YouTube, o vídeo aparece como player antes do resumo.</small></label>
+      <label class="set-row"><span class="set-text"><strong>Incluir a transcrição</strong><small>Vai recolhida no fim da página. Desligado por padrão: a transcrição pode ser privada.</small></span><input type="checkbox" class="switch" role="switch" id="include-transcript"></label>
+      <div class="review-actions">
+        <button class="btn primary lg" type="button" id="review-go">Criar página no Notion</button>
+        <button class="btn ghost" type="button" id="review-cancel">Salvar depois</button>
+        <p class="faint t-caption" id="review-hint">Fica guardado em “Continuar aprendendo”.</p>
       </div>
-      <label>Cofre do Obsidian
-        <span class="row"><select id="vault" aria-describedby="vault-status"></select>
-        <button class="btn" type="button" id="vault-pick">Escolher pasta…</button></span></label>
-      <label>Pasta das notas de estudo
-        <input id="vault-folder" spellcheck="false" autocomplete="off" maxlength="200"></label>
-      <label>Pasta dos mapas mentais (Canvas)
-        <input id="canvas-folder" spellcheck="false" autocomplete="off" maxlength="200" placeholder="A mesma das notas"></label>
-      <label class="switch-row"><span>Mapa mental no Canvas<small>Um arquivo .canvas de verdade, com a nota no centro e ligações para as suas notas.</small></span><input type="checkbox" class="switch" role="switch" id="obs-canvas"></label>
-      <label class="switch-row"><span>Conexões com o cofre<small>A IA local procura notas suas ligadas à aula (nada do cofre sai do PC).</small></span><input type="checkbox" class="switch" role="switch" id="obs-connections"></label>
-      <label class="switch-row"><span>Revisões espaçadas<small>Datas de revisão na nota e no painel de estudos.</small></span><input type="checkbox" class="switch" role="switch" id="obs-review"></label>
-      <label>Intervalos das revisões (dias depois do estudo)
-        <input id="review-intervals" inputmode="numeric" spellcheck="false" autocomplete="off" placeholder="1, 3, 7, 14, 30, 60"></label>
-      <label class="switch-row"><span>Telas e gráficos no cofre<small>Só as imagens escolhidas; o vídeo nunca é copiado.</small></span><input type="checkbox" class="switch" role="switch" id="obs-attachments"></label>
-      <label class="switch-row"><span>Abrir no Obsidian ao terminar</span><input type="checkbox" class="switch" role="switch" id="obs-open"></label>
-      <p class="muted small" id="vault-status" aria-live="polite"></p>
-      <button class="btn" type="button" id="vault-dashboard">Abrir painel de estudos no Obsidian</button>
-    </section>
+    </aside>
+  </div>
 
-    <section>
-      <h3>Transcrição local</h3>
-      <p class="muted small" id="hw"></p>
-      <div class="segmented wide" role="radiogroup" aria-label="Qualidade da transcrição" id="quality"></div>
-      <p class="muted small" id="whisper-status"></p>
-      <button class="btn" type="button" id="whisper-dl" hidden>Baixar modelo</button>
-    </section>
+  <!-- Processamento: as etapas reais da tarefa, com o progresso real (ou indeterminado) e o resultado por destino -->
+  <section class="card run" id="run" hidden aria-labelledby="run-h">
+    <header class="run-head">
+      <span class="run-ico" aria-hidden="true"><svg class="i lg"><use href="/icons.svg#sparkle"/></svg></span>
+      <div><h2 class="t-h2" id="run-h" tabindex="-1">Gerando a aula</h2><p class="muted t-sm" id="eta"></p></div>
+    </header>
+    <ol class="pipeline" id="stages">
+      <li data-stage="prepare"><span class="ps-mark" aria-hidden="true"></span><span class="ps-label">Preparar a fonte</span></li>
+      <li data-stage="transcribe"><span class="ps-mark" aria-hidden="true"></span><span class="ps-label">Transcrever no PC</span></li>
+      <li data-stage="screen" hidden><span class="ps-mark" aria-hidden="true"></span><span class="ps-label">Ler o que apareceu na tela</span></li>
+      <li data-stage="generate"><span class="ps-mark" aria-hidden="true"></span><span class="ps-label">Escrever o material a partir da sua compreensão</span></li>
+      <li data-stage="connect" hidden><span class="ps-mark" aria-hidden="true"></span><span class="ps-label">Encontrar conexões no seu cofre</span></li>
+      <li data-stage="obsidian" hidden><span class="ps-mark" aria-hidden="true"></span><span class="ps-label">Salvar no Obsidian</span></li>
+      <li data-stage="publish"><span class="ps-mark" aria-hidden="true"></span><span class="ps-label">Salvar na página escolhida do Notion</span></li>
+    </ol>
+    <div class="stage-now" id="stage-now">
+      <p id="detail" aria-live="polite"></p>
+      <div class="progress" id="bar" role="progressbar" aria-label="Progresso da etapa atual" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+    </div>
+    <div class="dest-slot" id="run-dest" hidden></div>
+    <div class="result" id="result" aria-live="assertive"></div>
+    <div class="redo" id="redo" hidden>
+      <label class="field">O que mudar? <span class="opt">opcional</span>
+        <textarea id="redo-note" rows="2" maxlength="300" placeholder="Ex.: mais detalhado, mais exemplos, foque na parte de…"></textarea></label>
+      <div class="dest-slot" id="redo-dest"></div>
+      <div class="actions">
+        <p class="faint t-caption">A IA escreve uma versão nova a partir da mesma transcrição e a anterior é removida do Notion. Escolher outra página move a aula para lá.</p>
+        <button class="btn ghost" type="button" id="redo-cancel">Cancelar</button>
+        <button class="btn primary" type="button" id="redo-go">Refazer página</button>
+      </div>
+    </div>
+    <div class="actions" id="run-actions"></div>
+  </section>
+</div>
 
-    <section>
-      <h3>IA local (Ollama)</h3>
-      <label>Modelo
-        <span class="row"><input id="model" spellcheck="false" list="model-list">
-        <datalist id="model-list"></datalist>
-        <button class="btn" type="button" id="model-save">Usar</button></span></label>
-      <p class="muted small" id="ollama-status"></p>
-      <button class="btn" type="button" id="ollama-dl" hidden>Baixar modelo pelo Ollama</button>
-      <div class="segmented wide" role="radiogroup" aria-label="Profundidade do material" id="study-level">
-        <label><input type="radio" name="study_level" value="rapido"> Rápido<small>Uma passada da IA.</small></label>
-        <label><input type="radio" name="study_level" value="balanceado"> Balanceado<small>Padrão: material + conexões com o cofre.</small></label>
-        <label><input type="radio" name="study_level" value="profundo"> Profundo<small>Uma 2ª passada critica e melhora o material.</small></label>
+<!-- ================= Biblioteca ================= -->
+<div class="view" id="view-library" hidden aria-labelledby="lib-h">
+  <header class="page-head">
+    <div><h1 class="t-h1" id="lib-h">Biblioteca</h1><p class="lead">As aulas em andamento e as que já foram salvas no Notion ou no Obsidian.</p></div>
+    <button class="btn primary" type="button" data-go="new"><svg class="i"><use href="/icons.svg#new"/></svg>Nova aula</button>
+  </header>
+  <div class="toolbar">
+    <label class="search-field lib-search"><svg class="i"><use href="/icons.svg#search"/></svg>
+      <input id="lib-search" type="search" placeholder="Buscar por título ou curso" aria-label="Buscar na biblioteca" autocomplete="off" spellcheck="false"></label>
+    <div class="segmented" id="lib-filter" aria-label="Filtrar">
+      <button type="button" data-f="all" aria-pressed="true">Todas</button>
+      <button type="button" data-f="pending" aria-pressed="false">Em andamento <span class="count" id="lib-n-pending"></span></button>
+      <button type="button" data-f="saved" aria-pressed="false">Salvas <span class="count" id="lib-n-saved"></span></button>
+    </div>
+  </div>
+  <div class="card list-card" id="library-list" aria-live="polite"></div>
+</div>
+
+<!-- ================= Integrações: Notion e Obsidian ================= -->
+<div class="view" id="view-integrations" hidden aria-labelledby="integ-h">
+  <header class="page-head">
+    <div><h1 class="t-h1" id="integ-h">Integrações</h1><p class="lead">Para onde vai o material de cada aula. O Lumen escreve uma vez e salva o mesmo conteúdo em cada destino.</p></div>
+  </header>
+  <section class="card" id="dest-settings" aria-labelledby="dest-h">
+    <h2 class="side-h" id="dest-h">Destinos do material</h2>
+    <div class="segmented wide" role="radiogroup" aria-labelledby="dest-h" id="dest-mode">
+      <label><input type="radio" name="dest_mode" value="both"> Notion + Obsidian<small>O mesmo material nos dois</small></label>
+      <label><input type="radio" name="dest_mode" value="notion"> Só Notion<small>Organizar e acompanhar</small></label>
+      <label><input type="radio" name="dest_mode" value="obsidian"> Só Obsidian<small>Sem precisar do Notion</small></label>
+    </div>
+  </section>
+  <div class="integ-grid">
+    <section class="card integ" id="integ-notion" aria-labelledby="notion-h">
+      <header class="integ-head"><span class="integ-icon"><svg class="i lg"><use href="/icons.svg#page"/></svg></span>
+        <div><h2 class="t-h2" id="notion-h">Notion</h2><p class="muted t-sm">Página da aula e “Minha compreensão”</p></div>
+        <span class="badge" id="notion-badge"></span></header>
+      <div class="integ-sec">
+        <h3 class="eyebrow">Conexão</h3>
+        <label class="field">Token da integração interna
+          <span class="input-row"><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ntn_…">
+          <button class="btn" type="button" id="token-save">Salvar</button></span></label>
+        <p class="field-hint" id="token-status"></p>
+        <details class="disclosure">
+          <summary>Como conectar</summary>
+          <ol class="steps t-sm">
+            <li>Abra <strong>notion.so/profile/integrations</strong> e crie uma integração <em>interna</em>.</li>
+            <li>Em <em>Capacidades</em>, deixe ler, atualizar e inserir conteúdo.</li>
+            <li>Copie o <em>token secreto</em> e cole acima. Ele fica no Gerenciador de Credenciais do Windows.</li>
+            <li>No Notion, abra a página dos seus cursos → ••• → <em>Conexões</em> → adicione a integração.</li>
+          </ol>
+        </details>
+      </div>
+      <div class="integ-sec">
+        <h3 class="eyebrow">Destino</h3>
+        <label class="field">Página raiz dos cursos
+          <span class="input-row"><select id="root"></select>
+          <button class="icon-btn" type="button" id="root-load" aria-label="Recarregar páginas" data-tip=""><svg class="i"><use href="/icons.svg#refresh"/></svg></button></span></label>
+        <p class="field-hint">O Lumen só vê as páginas liberadas para a integração; liberar uma página raiz libera tudo dentro dela.
+          <button class="link-btn" type="button" data-grant>Dar acesso no Notion</button></p>
+      </div>
+      <div class="integ-foot">
+        <button class="btn danger sm" type="button" id="forget"><svg class="i"><use href="/icons.svg#power"/></svg>Desconectar Notion</button>
       </div>
     </section>
 
-    <section>
-      <h3>Assistir a tela junto</h3>
-      <label class="switch-row"><span>Ler a tela da aula<small>Slides, quadro, código e tabelas entram na página, com as imagens. Na gravação, a tela é capturada 1 vez por segundo e só as telas novas ficam; num arquivo, o vídeo é lido direto.</small></span><input type="checkbox" class="switch" role="switch" id="watch-set"></label>
-      <p class="muted small" id="vision-status"></p>
-      <button class="btn" type="button" id="vision-dl-set" hidden>Baixar modelo de visão</button>
-    </section>
-
-    <section>
-      <h3>Música de fundo</h3>
-      <label class="switch-row"><span>Filtrar música externa<small>Detecta e reduz músicas externas que podem interferir na transcrição do conteúdo estudado.</small></span><input type="checkbox" class="switch" role="switch" id="music-set" aria-describedby="music-status"></label>
-      <div class="segmented wide" role="radiogroup" aria-label="Modo do filtro de música" id="music-mode" hidden>
-        <label><input type="radio" name="music_mode" value="conservador"> Conservador<small>Nunca corta fala. Para aulas e palestras importantes.</small></label>
-        <label><input type="radio" name="music_mode" value="balanceado"> Balanceado<small>Padrão: tira a música sem arriscar a fala.</small></label>
-        <label><input type="radio" name="music_mode" value="agressivo"> Agressivo<small>Tira mais música e letra; pode remover mais áudio.</small></label>
+    <section class="card integ" id="integ-obsidian" aria-labelledby="obsidian-h">
+      <header class="integ-head"><span class="integ-icon"><svg class="i lg"><use href="/icons.svg#notebook"/></svg></span>
+        <div><h2 class="t-h2" id="obsidian-h">Obsidian</h2><p class="muted t-sm">Nota de estudo, mapa mental e revisões</p></div>
+        <span class="badge" id="obsidian-badge"></span></header>
+      <div class="integ-sec">
+        <h3 class="eyebrow">Cofre</h3>
+        <label class="field"><span class="sr">Cofre do Obsidian</span>
+          <span class="input-row"><select id="vault" aria-describedby="vault-status" aria-label="Cofre do Obsidian"></select>
+          <button class="btn" type="button" id="vault-pick"><svg class="i"><use href="/icons.svg#folder"/></svg>Escolher pasta…</button></span></label>
+        <p class="field-hint" id="vault-status" aria-live="polite"></p>
       </div>
-      <p class="muted small" id="music-status"></p>
-      <button class="btn" type="button" id="music-dl" hidden>Baixar filtro de música</button>
-    </section>
-
-    <section>
-      <h3>Capas com IA</h3>
-      <p class="muted small" id="covers-status"></p>
-      <button class="btn" type="button" id="covers-dl" hidden>Baixar gerador de capas</button>
-    </section>
-
-    <section>
-      <h3>Privacidade e dados</h3>
-      <label class="switch-row"><span>Guardar gravações e transcrições<small>Normalmente são apagadas sozinhas após o uso</small></span><input type="checkbox" class="switch" role="switch" id="keep"></label>
-      <div class="row wrap">
-        <button class="btn" type="button" id="clear">Limpar histórico e dados locais</button>
-        <button class="btn danger" type="button" id="forget">Desconectar Notion</button>
+      <div class="integ-sec">
+        <h3 class="eyebrow">Estudos</h3>
+        <label class="set-row"><span class="set-text"><strong>Mapa mental no Canvas</strong><small>Um .canvas de verdade, com a nota no centro.</small></span><input type="checkbox" class="switch" role="switch" id="obs-canvas"></label>
+        <label class="set-row"><span class="set-text"><strong>Conexões com o cofre</strong><small>A IA local procura notas suas ligadas à aula.</small></span><input type="checkbox" class="switch" role="switch" id="obs-connections"></label>
+        <label class="set-row"><span class="set-text"><strong>Revisões espaçadas</strong><small>Datas de revisão na nota e no painel de estudos.</small></span><input type="checkbox" class="switch" role="switch" id="obs-review"></label>
+        <label class="field review-intervals">Intervalos das revisões (dias)
+          <input id="review-intervals" inputmode="numeric" spellcheck="false" autocomplete="off" placeholder="1, 3, 7, 14, 30, 60"></label>
+        <label class="set-row"><span class="set-text"><strong>Telas e gráficos no cofre</strong><small>Só as imagens escolhidas; o vídeo nunca é copiado.</small></span><input type="checkbox" class="switch" role="switch" id="obs-attachments"></label>
+        <label class="set-row"><span class="set-text"><strong>Abrir no Obsidian ao terminar</strong></span><input type="checkbox" class="switch" role="switch" id="obs-open"></label>
       </div>
-      <p class="muted small">Nada é enviado a terceiros além do Notion. Sem telemetria.</p>
+      <details class="disclosure integ-sec">
+        <summary>Avançado</summary>
+        <label class="field">Pasta das notas de estudo
+          <input id="vault-folder" spellcheck="false" autocomplete="off" maxlength="200"></label>
+        <label class="field">Pasta dos mapas mentais (Canvas)
+          <input id="canvas-folder" spellcheck="false" autocomplete="off" maxlength="200" placeholder="A mesma das notas"></label>
+      </details>
+      <div class="integ-foot">
+        <button class="btn sm" type="button" id="vault-dashboard"><svg class="i"><use href="/icons.svg#external"/></svg>Abrir painel de estudos</button>
+      </div>
     </section>
   </div>
+</div>
+
+<!-- ================= Ajustes ================= -->
+<div class="view" id="view-settings" hidden aria-labelledby="set-h">
+  <header class="page-head"><div><h1 class="t-h1" id="set-h">Ajustes</h1><p class="lead">Tudo roda no seu PC. Nada é enviado a terceiros além do Notion; sem telemetria.</p></div></header>
+  <div class="settings-layout">
+    <nav class="settings-nav" id="settings-nav" aria-label="Categorias de ajustes">
+      <button type="button" data-cat="general" aria-current="true"><svg class="i"><use href="/icons.svg#sidebar"/></svg>Geral</button>
+      <button type="button" data-cat="capture"><svg class="i"><use href="/icons.svg#screen"/></svg>Captura</button>
+      <button type="button" data-cat="transcription"><svg class="i"><use href="/icons.svg#wave"/></svg>Transcrição</button>
+      <button type="button" data-cat="ai"><svg class="i"><use href="/icons.svg#cpu"/></svg>IA local</button>
+      <button type="button" data-cat="covers"><svg class="i"><use href="/icons.svg#image"/></svg>Capas com IA</button>
+      <button type="button" data-cat="privacy"><svg class="i"><use href="/icons.svg#shield"/></svg>Privacidade e dados</button>
+    </nav>
+    <div class="settings-panels">
+      <section class="card set-panel desktop-settings" data-cat="general" aria-labelledby="set-general-h">
+        <h2 class="t-h2" id="set-general-h">Geral</h2>
+        <h3 class="eyebrow">Lumen sempre por perto</h3>
+        <div class="set-row"><span class="set-text"><strong>Barra flutuante</strong><small>Fica escondida numa alça na borda da tela. Passe o mouse para ver os controles.</small></span>
+          <span class="input-row narrow"><select id="widget-position" aria-label="Posição da barra flutuante">
+            <option value="left">Lado esquerdo · padrão</option>
+            <option value="right">Lado direito</option>
+            <option value="top">Em cima</option>
+            <option value="bottom">Embaixo</option>
+            <option value="free">Posição livre</option>
+            <option value="off">Desativada</option>
+          </select>
+          <button class="icon-btn" type="button" id="widget-reset" aria-label="Restaurar posição" data-tip=""><svg class="i"><use href="/icons.svg#reset"/></svg></button></span></div>
+        <label class="set-row"><span class="set-text"><strong>Iniciar com o Windows</strong><small>Abre discretamente, sem iniciar uma gravação.</small></span><input type="checkbox" class="switch" role="switch" id="autostart"></label>
+        <div class="set-row"><span class="set-text"><strong>Sair do Lumen</strong><small id="desktop-hint">Disponível na janela do Lumen.exe.</small></span>
+          <button class="btn danger sm" type="button" id="desktop-exit"><svg class="i"><use href="/icons.svg#power"/></svg>Sair</button></div>
+      </section>
+
+      <section class="card set-panel" data-cat="capture" hidden aria-labelledby="set-capture-h">
+        <h2 class="t-h2" id="set-capture-h">Captura</h2>
+        <h3 class="eyebrow">Assistir a tela junto</h3>
+        <label class="set-row"><span class="set-text"><strong>Ler a tela da aula</strong><small>Slides, quadro, código e tabelas entram na página, com as imagens. Na gravação, a tela é olhada 1 vez por segundo e só as telas novas ficam.</small></span><input type="checkbox" class="switch" role="switch" id="watch-set"></label>
+        <p class="field-hint" id="vision-status"></p>
+        <button class="btn sm" type="button" id="vision-dl-set" hidden><svg class="i"><use href="/icons.svg#download"/></svg>Baixar modelo de visão</button>
+        <h3 class="eyebrow">Música de fundo</h3>
+        <label class="set-row"><span class="set-text"><strong>Filtrar música externa</strong><small>Detecta e reduz músicas externas que podem interferir na transcrição do conteúdo estudado.</small></span><input type="checkbox" class="switch" role="switch" id="music-set" aria-describedby="music-status"></label>
+        <div class="segmented wide" role="radiogroup" aria-label="Modo do filtro de música" id="music-mode" hidden>
+          <label><input type="radio" name="music_mode" value="conservador"> Conservador<small>Nunca corta fala</small></label>
+          <label><input type="radio" name="music_mode" value="balanceado"> Balanceado<small>Padrão: tira a música sem arriscar a fala</small></label>
+          <label><input type="radio" name="music_mode" value="agressivo"> Agressivo<small>Tira mais música; pode remover mais áudio</small></label>
+        </div>
+        <p class="field-hint" id="music-status"></p>
+        <button class="btn sm" type="button" id="music-dl" hidden><svg class="i"><use href="/icons.svg#download"/></svg>Baixar filtro de música</button>
+      </section>
+
+      <section class="card set-panel" data-cat="transcription" hidden aria-labelledby="set-tr-h">
+        <h2 class="t-h2" id="set-tr-h">Transcrição local</h2>
+        <p class="field-hint" id="hw"></p>
+        <div class="segmented wide" role="radiogroup" aria-label="Qualidade da transcrição" id="quality"></div>
+        <p class="field-hint" id="whisper-status"></p>
+        <button class="btn sm" type="button" id="whisper-dl" hidden><svg class="i"><use href="/icons.svg#download"/></svg>Baixar modelo</button>
+      </section>
+
+      <section class="card set-panel" data-cat="ai" hidden aria-labelledby="set-ai-h">
+        <h2 class="t-h2" id="set-ai-h">IA local (Ollama)</h2>
+        <h3 class="eyebrow">Profundidade do material</h3>
+        <div class="segmented wide" role="radiogroup" aria-label="Profundidade do material" id="study-level">
+          <label><input type="radio" name="study_level" value="rapido"> Rápido<small>Uma passada da IA</small></label>
+          <label><input type="radio" name="study_level" value="balanceado"> Balanceado<small>Material + conexões com o cofre</small></label>
+          <label><input type="radio" name="study_level" value="profundo"> Profundo<small>Uma 2ª passada critica e melhora</small></label>
+        </div>
+        <p class="field-hint" id="ollama-status"></p>
+        <button class="btn sm" type="button" id="ollama-dl" hidden><svg class="i"><use href="/icons.svg#download"/></svg>Baixar modelo pelo Ollama</button>
+        <details class="disclosure">
+          <summary>Avançado</summary>
+          <label class="field">Modelo de texto do Ollama
+            <span class="input-row"><input id="model" spellcheck="false" list="model-list">
+            <datalist id="model-list"></datalist>
+            <button class="btn" type="button" id="model-save">Usar</button></span></label>
+        </details>
+      </section>
+
+      <section class="card set-panel" data-cat="covers" hidden aria-labelledby="set-cov-h">
+        <h2 class="t-h2" id="set-cov-h">Capas com IA</h2>
+        <p class="field-hint" id="covers-status"></p>
+        <button class="btn sm" type="button" id="covers-dl" hidden><svg class="i"><use href="/icons.svg#download"/></svg>Baixar gerador de capas</button>
+      </section>
+
+      <section class="card set-panel" data-cat="privacy" hidden aria-labelledby="set-priv-h">
+        <h2 class="t-h2" id="set-priv-h">Privacidade e dados</h2>
+        <label class="set-row"><span class="set-text"><strong>Guardar gravações e transcrições</strong><small>Normalmente são apagadas sozinhas após o uso.</small></span><input type="checkbox" class="switch" role="switch" id="keep"></label>
+        <div class="set-row"><span class="set-text"><strong>Limpar histórico e dados locais</strong><small>Apaga o histórico, as transcrições guardadas e as notas de compreensão deste PC. As páginas no Notion ficam.</small></span>
+          <button class="btn danger sm" type="button" id="clear"><svg class="i"><use href="/icons.svg#trash"/></svg>Limpar</button></div>
+        <p class="field-hint">O áudio e o vídeo nunca saem do PC. Ao Notion vai só o texto da página; o log não guarda conteúdo.</p>
+      </section>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+
+<!-- Busca global (Ctrl+K): telas, ajustes, ações e aulas -->
+<dialog class="dlg palette" id="palette" aria-label="Buscar ou ir para">
+  <div class="pal-search"><svg class="i"><use href="/icons.svg#search"/></svg>
+    <input id="pal-input" type="text" role="combobox" aria-expanded="true" aria-controls="pal-list" aria-autocomplete="list"
+           placeholder="Buscar aulas, telas e ações…" autocomplete="off" spellcheck="false"><kbd>Esc</kbd></div>
+  <ul class="pal-list" id="pal-list" role="listbox" aria-label="Resultados"></ul>
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>

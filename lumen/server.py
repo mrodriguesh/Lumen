@@ -23,6 +23,8 @@ STATIC = {"/": ("index.html", "text/html"), "/app.css": ("app.css", "text/css"),
           "/note": ("note.html", "text/html"), "/note.js": ("note.js", "text/javascript"),
           "/understanding-editor.js": ("understanding-editor.js", "text/javascript"),
           "/pomodoro.js": ("pomodoro.js", "text/javascript"),
+          "/ui.css": ("ui.css", "text/css"), "/ui.js": ("ui.js", "text/javascript"),
+          "/icons.svg": ("icons.svg", "image/svg+xml"), "/design": ("design.html", "text/html"),
           "/fonts/inter-latin.woff2": ("fonts/inter-latin.woff2", "font/woff2"),
           "/fonts/inter-latin-ext.woff2": ("fonts/inter-latin-ext.woff2", "font/woff2")}
 TOKEN = secrets.token_urlsafe(24)
@@ -413,7 +415,7 @@ def _upload(h):
     name = Path(h._query().get("name", "")).name
     image = Path(name).suffix.lower() in sources.IMAGES  # captura de tela (arrastada ou colada com Ctrl+V)
     if not image and Path(name).suffix.lower() not in sources.MEDIA:
-        raise AppError("Formato não suportado.", "Use um destes formatos: " + ", ".join(sources.MEDIA + sources.IMAGES) + ".")
+        raise AppError("Formato não suportado.", "Use um destes formatos: " + ", ".join([*sources.MEDIA, *sources.IMAGES]) + ".")
     n = int(h.headers.get("Content-Length") or 0)
     if image and n > sources.MAX_IMAGE_BYTES:
         raise AppError("A imagem é grande demais (máx. 25 MB).", "Reduza a imagem ou tire outra captura.")

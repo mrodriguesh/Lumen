@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="lumen-token" content="{{TOKEN}}">
   <title>Lumen · barra flutuante</title>
+  <link rel="stylesheet" href="/ui.css">
   <link rel="stylesheet" href="/widget.css">
+  <script defer src="/ui.js"></script>
   <script defer src="/understanding-editor.js"></script>
   <script defer src="/pomodoro.js"></script>
   <script defer src="/widget.js"></script>
@@ -15,33 +17,32 @@
   <main class="notch" aria-label="Controles rápidos do Lumen">
     <div class="rail">
       <button id="drag" class="grip" aria-label="Arrastar barra flutuante"><span></span></button>
-      <button id="open" class="orb brand" aria-label="Abrir Lumen"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 5v22M5 16h22M8.2 8.2l15.6 15.6M8.2 23.8L23.8 8.2M11.8 5.8l8.4 20.4M5.8 11.8l20.4 8.4M5.8 20.2l20.4-8.4M11.8 26.2l8.4-20.4"/></svg></button>
-      <button id="action" class="action" aria-label="Iniciar gravação"><span class="record-symbol" aria-hidden="true"></span><span id="action-label">Gravar</span></button>
-      <button id="note-btn" class="orb note-orb" aria-label="Minha compreensão" aria-controls="note-panel" aria-expanded="false" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19.5h4l10-10a2.8 2.8 0 0 0-4-4l-10 10v4Z"/><path d="m13.5 7 3.5 3.5"/></svg></button>
-      <button id="settings" class="orb settings" aria-label="Abrir ajustes" aria-controls="preferences" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="m9.5 3-.5 2-2 .9-1.9-.5-2.5 4.3L4 11v2l-1.4 1.3 2.5 4.3 1.9-.5 2 .9.5 2h5l.5-2 2-.9 1.9.5 2.5-4.3L20 13v-2l1.4-1.3-2.5-4.3-1.9.5-2-.9-.5-2Z"/></svg></button>
+      <button id="open" class="orb brand" aria-label="Abrir Lumen" data-tip="" data-tip-pos="right"><svg class="i"><use href="/icons.svg#lumen"/></svg></button>
+      <button id="action" class="action" aria-label="Iniciar gravação" data-tip="" data-tip-pos="right"><span class="record-symbol" aria-hidden="true"></span><span id="action-label">Gravar</span></button>
+      <button id="note-btn" class="orb note-orb" aria-label="Minha compreensão" aria-controls="note-panel" aria-expanded="false" data-tip="" data-tip-pos="right" hidden><svg class="i"><use href="/icons.svg#pen"/></svg></button>
+      <button id="settings" class="orb settings" aria-label="Abrir ajustes" aria-controls="preferences" aria-expanded="false" data-tip="Ajustes" data-tip-pos="right"><svg class="i"><use href="/icons.svg#gear"/></svg></button>
     </div>
     <section id="recording-panel" class="panel" aria-label="Estado do Lumen">
-      <header><span id="pomo-main" class="pomo-slot"></span><h1>Lumen</h1><span class="live-dot" aria-hidden="true"></span></header>
-      <p id="status" class="status" role="status" aria-live="polite">Pronto para gravar</p>
+      <header><span class="w-status"><span class="st-ico" aria-hidden="true"></span><span id="status" class="status" role="status" aria-live="polite">Pronto para gravar</span></span><h1 class="sr">Lumen</h1><span id="pomo-main" class="pomo-slot"></span></header>
       <div class="timer">
         <span id="time" class="time" aria-label="Tempo de gravação">00:00</span>
         <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        <button id="pause" class="pause-pill" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path id="pause-icon" d="M8.5 5.5v13M15.5 5.5v13"/></svg><span id="pause-label">Pausar captura</span></button>
+        <button id="pause" class="pause-pill" hidden><svg class="i" aria-hidden="true"><use id="pause-icon" href="/icons.svg#pause"/></svg><span id="pause-label">Pausar captura</span></button>
       </div>
       <p id="detail" class="detail"></p>
       <footer>
         <span id="eye" class="eye" role="status" hidden><span class="eye-icon" aria-hidden="true"><svg viewBox="0 0 18 16"><rect x="1" y="1" width="16" height="11" rx="2.5"/><path d="M6 14.6h6"/></svg><i></i></span><span id="eye-text"></span><b id="eye-n" hidden></b></span>
-        <span id="music" class="music-chip" role="img" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg></span>
+        <span id="music" class="music-chip" role="img" hidden><svg class="i"><use href="/icons.svg#music"/></svg></span>
         <span id="job" role="status" hidden></span>
-        <button id="exit" aria-label="Sair do Lumen"><span aria-hidden="true"></span></button>
+        <button id="exit" aria-label="Sair do Lumen" data-tip="" data-tip-pos="top"><svg class="i"><use href="/icons.svg#power"/></svg></button>
       </footer>
     </section>
     <section id="note-panel" class="panel note-panel" aria-labelledby="note-title" hidden>
       <header class="note-head">
-        <button id="note-back" class="prefs-back" aria-label="Voltar à gravação">‹</button>
+        <button id="note-back" class="prefs-back" aria-label="Voltar à gravação"><svg class="i"><use href="/icons.svg#chevron-left"/></svg></button>
         <h1 id="note-title">Minha compreensão</h1>
         <span id="pomo-note" class="pomo-slot"></span>
-        <button id="note-detach" class="note-tool" aria-label="Destacar numa janela flutuante"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="7" width="13" height="13" rx="2.5"/><path d="M10 4h10v10M20 4l-8.5 8.5"/></svg></button>
+        <button id="note-detach" class="note-tool" aria-label="Destacar numa janela flutuante" data-tip="" data-tip-pos="left"><svg class="i"><use href="/icons.svg#detach"/></svg></button>
       </header>
       <p id="note-lesson" class="note-lesson"></p>
       <textarea id="note-text" class="note-text" aria-labelledby="note-title" spellcheck="true" autocomplete="off" autocapitalize="sentences" maxlength="12000" placeholder="O que você entendeu?"></textarea>
@@ -49,7 +50,7 @@
       <div id="note-status" class="note-status" data-tone="wait" role="status" aria-live="polite"><i aria-hidden="true"></i><span id="note-ready"></span><button id="note-go" type="button" hidden>Processar</button></div>
     </section>
     <section id="preferences" class="panel preferences" aria-label="Ajustes da barra flutuante" hidden>
-      <header><button id="prefs-back" class="prefs-back" aria-label="Voltar à gravação">‹</button><h1 id="prefs-title">Ajustes</h1></header>
+      <header><button id="prefs-back" class="prefs-back" aria-label="Voltar à gravação"><svg class="i"><use href="/icons.svg#chevron-left"/></svg></button><h1 id="prefs-title">Ajustes</h1></header>
       <div id="prefs-content" class="prefs-content">
       <section data-page="menu" class="prefs-watch" aria-label="Assistir a tela junto">
         <span class="eye-icon" aria-hidden="true"><svg viewBox="0 0 18 16"><rect x="1" y="1" width="16" height="11" rx="2.5"/><path d="M6 14.6h6"/></svg><i></i></span>
@@ -57,32 +58,32 @@
         <button id="prefs-watch" class="switch" role="switch" aria-labelledby="watch-label" aria-checked="false"><span></span></button>
       </section>
       <nav data-page="menu" class="prefs-menu" aria-label="Categorias de ajustes">
-        <button data-category="desktop">Barra flutuante<span aria-hidden="true">›</span></button>
-        <button data-category="notion">Notion<span aria-hidden="true">›</span></button>
-        <button data-category="transcription">Transcrição<span aria-hidden="true">›</span></button>
-        <button data-category="ai">IA local<span aria-hidden="true">›</span></button>
-        <button data-category="covers">Capas com IA<span aria-hidden="true">›</span></button>
-        <button data-category="privacy">Privacidade e dados<span aria-hidden="true">›</span></button>
+        <button data-category="desktop"><svg class="i"><use href="/icons.svg#sidebar"/></svg><span>Barra flutuante</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
+        <button data-category="notion"><svg class="i"><use href="/icons.svg#page"/></svg><span>Notion</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
+        <button data-category="transcription"><svg class="i"><use href="/icons.svg#wave"/></svg><span>Transcrição</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
+        <button data-category="ai"><svg class="i"><use href="/icons.svg#cpu"/></svg><span>IA local</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
+        <button data-category="covers"><svg class="i"><use href="/icons.svg#image"/></svg><span>Capas com IA</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
+        <button data-category="privacy"><svg class="i"><use href="/icons.svg#shield"/></svg><span>Privacidade e dados</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
       </nav>
       <section data-page="desktop" hidden>
       <p class="prefs-label">Posição na tela</p>
       <div class="placements" role="group" aria-label="Posição da barra">
-        <button type="button" data-position="left" aria-label="Esquerda" aria-pressed="false">←</button>
-        <button type="button" data-position="right" aria-label="Direita" aria-pressed="false">→</button>
-        <button type="button" data-position="top" aria-label="Em cima" aria-pressed="false">↑</button>
-        <button type="button" data-position="bottom" aria-label="Embaixo" aria-pressed="false">↓</button>
-        <button type="button" data-position="free" aria-label="Livre" aria-pressed="false">↔</button>
+        <button type="button" data-position="left" aria-label="Esquerda" aria-pressed="false"><svg class="i"><use href="/icons.svg#arrow-left"/></svg></button>
+        <button type="button" data-position="right" aria-label="Direita" aria-pressed="false"><svg class="i"><use href="/icons.svg#arrow-right"/></svg></button>
+        <button type="button" data-position="top" aria-label="Em cima" aria-pressed="false"><svg class="i"><use href="/icons.svg#arrow-up"/></svg></button>
+        <button type="button" data-position="bottom" aria-label="Embaixo" aria-pressed="false"><svg class="i"><use href="/icons.svg#arrow-down"/></svg></button>
+        <button type="button" data-position="free" aria-label="Livre" aria-pressed="false"><svg class="i"><use href="/icons.svg#move"/></svg></button>
       </div>
       <p id="position-caption" class="position-caption"></p>
       <button id="prefs-off" class="prefs-button">Desativar barra</button>
       <div class="prefs-row"><span id="startup-label">Iniciar com o Windows</span><button id="prefs-autostart" class="switch" role="switch" aria-labelledby="startup-label" aria-checked="false"><span></span></button></div>
-      <div class="prefs-actions"><button id="prefs-reset" aria-label="Restaurar posição">↺</button><button id="prefs-exit">Sair do Lumen</button></div>
+      <div class="prefs-actions"><button id="prefs-reset" aria-label="Restaurar posição"><svg class="i"><use href="/icons.svg#reset"/></svg><span>Restaurar</span></button><button id="prefs-exit"><svg class="i"><use href="/icons.svg#power"/></svg><span>Sair do Lumen</span></button></div>
       <p class="prefs-note">Com a barra desativada, abra o Lumen pela bandeja do Windows.</p>
       </section>
       <section data-page="notion" hidden>
         <p id="prefs-token-status" class="prefs-note"></p>
         <label class="prefs-field">Token da integração<span class="prefs-input-row"><input id="prefs-token" type="password" autocomplete="off" spellcheck="false" placeholder="ntn_…"><button id="prefs-token-save" class="prefs-button">Salvar</button></span></label>
-        <details class="prefs-note"><summary>Como conectar</summary><p>Crie uma integração interna no Notion com acesso de leitura, atualização e inserção. Copie o token e conecte a integração à página dos cursos em ••• → Conexões.</p><a href="https://www.notion.so/profile/integrations" target="_blank" rel="noreferrer">Abrir integrações ↗</a></details>
+        <details class="prefs-note"><summary>Como conectar</summary><p>Crie uma integração interna no Notion com acesso de leitura, atualização e inserção. Copie o token e conecte a integração à página dos cursos em ••• → Conexões.</p><a href="https://www.notion.so/profile/integrations" target="_blank" rel="noreferrer">Abrir integrações<svg class="i"><use href="/icons.svg#external"/></svg></a></details>
         <label class="prefs-field">Página raiz dos cursos<select id="prefs-root"></select></label>
         <button id="prefs-root-load" class="prefs-button">Recarregar páginas</button>
       </section>
@@ -95,7 +96,7 @@
       <section data-page="ai" hidden>
         <label class="prefs-field">Modelo Ollama<span class="prefs-input-row"><input id="prefs-model" spellcheck="false" list="prefs-model-list" maxlength="100"><button id="prefs-model-save" class="prefs-button">Usar</button></span><datalist id="prefs-model-list"></datalist></label>
         <p id="prefs-ollama-status" class="prefs-note"></p>
-        <a class="prefs-link" href="https://ollama.com/download" target="_blank" rel="noreferrer">Instalar Ollama ↗</a>
+        <a class="prefs-link" href="https://ollama.com/download" target="_blank" rel="noreferrer">Instalar Ollama<svg class="i"><use href="/icons.svg#external"/></svg></a>
         <button id="prefs-ollama-dl" class="prefs-button" data-download="ollama" hidden>Baixar modelo</button>
       </section>
       <section data-page="covers" hidden>
@@ -103,7 +104,7 @@
         <button id="prefs-covers-dl" class="prefs-button" data-download="covers" hidden>Baixar gerador de capas</button>
       </section>
       <section data-page="privacy" hidden>
-        <div class="prefs-row"><span id="keep-label">Guardar gravações<br>e transcrições</span><button id="prefs-keep" class="switch" role="switch" aria-labelledby="keep-label" aria-checked="false"><span></span></button></div>
+        <div class="prefs-row"><span id="keep-label">Guardar gravações e transcrições</span><button id="prefs-keep" class="switch" role="switch" aria-labelledby="keep-label" aria-checked="false"><span></span></button></div>
         <p class="prefs-note">Normalmente são apagadas após o uso.</p>
         <label class="prefs-field">Idioma das páginas<select id="prefs-language"><option value="pt">Português</option><option value="original">Idioma original</option></select></label>
         <button id="prefs-clear" class="prefs-button">Limpar histórico e dados locais</button>
@@ -111,8 +112,9 @@
         <p class="prefs-note">Processamento no PC. Sem telemetria. Só o conteúdo publicado é enviado ao Notion.</p>
       </section>
       <section data-page="confirm" hidden>
+        <p class="prefs-confirm-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#alert"/></svg></p>
         <p id="prefs-confirm-text" class="prefs-note"></p>
-        <div class="prefs-input-row"><button id="prefs-cancel" class="prefs-button">Cancelar</button><button id="prefs-confirm" class="prefs-button danger">Confirmar</button></div>
+        <div class="prefs-input-row"><button id="prefs-cancel" class="prefs-button">Cancelar</button><button id="prefs-confirm" class="prefs-button danger solid">Confirmar</button></div>
       </section>
       </div>
       <p id="prefs-feedback" class="prefs-feedback" role="status" aria-live="polite"></p>

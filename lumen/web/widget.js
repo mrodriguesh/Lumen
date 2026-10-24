@@ -34,13 +34,13 @@ function render(d) {
     $("#eye-text").textContent = eye.text;
     $("#eye-n").hidden = !eye.n;
     $("#eye-n").textContent = eye.n || "";
-    $("#eye").title = eye.tip;
+    $("#eye").dataset.tip = eye.tip;
     $("#eye").setAttribute("aria-label", eye.tip);
   }
   const music = r.active ? r.music_filter : d.music;  // a gravação vale pelo ajuste com que começou
   $("#music").hidden = !music;
   const musicTip = r.isolated ? `Filtro de música ativo: o som do ${r.isolated} fica fora da gravação.` : "Filtro de música ativo";
-  $("#music").title = musicTip;
+  $("#music").dataset.tip = musicTip;
   $("#music").setAttribute("aria-label", musicTip);
   document.body.dataset.state = r.error ? "error" : r.active ? "live" : "idle";
   document.body.dataset.heard = String(!!r.heard);
@@ -48,14 +48,16 @@ function render(d) {
   document.body.dataset.paused = String(paused);
   $("#pause").hidden = !r.active || !!r.error;
   $("#pause-label").textContent = paused ? "Retomar captura" : "Pausar captura";
-  $("#pause-icon").setAttribute("d", paused ? "M8 5.5v13l10.5-6.5Z" : "M8.5 5.5v13M15.5 5.5v13");
-  $("#pause").title = `${paused ? "Retomar" : "Pausar"} a captura do som e da tela (${Shortcuts.capture.label}). O vídeo não é pausado.`;
+  $("#pause-icon").setAttribute("href", "/icons.svg#" + (paused ? "play" : "pause"));
+  $("#pause").dataset.tip = `${paused ? "Retomar" : "Pausar"} a captura do som e da tela. O vídeo não é pausado.`;
+  $("#pause").dataset.kbd = Shortcuts.capture.label;
   Pomodoro.feed(d.pomodoro);
   const label = r.active ? "Parar e usar gravação" : "Iniciar gravação";
   $("#action").setAttribute("aria-label", label);
   $("#action-label").textContent = r.active ? "Parar" : "Gravar";
   $("#time").textContent = clock(r.active ? r.seconds : 0);
-  $("#status").textContent = r.error ? "Gravação interrompida" : paused ? "Captura pausada" : r.active ? "Gravando o som do PC" : j.status === "running" ? (j.kind === "analyze" ? "Analisando sua compreensão…" : "Preparando a aula…") : j.review ? "O que você entendeu?" : "Pronto para gravar";
+  document.body.dataset.job = j.status === "running" ? "running" : "";
+  $("#status").textContent = r.error ? "Gravação interrompida" : paused ? "Captura pausada" : r.active ? "Gravando" : j.status === "running" ? (j.kind === "analyze" ? "Analisando sua nota" : j.kind === "download" ? "Baixando" : "Preparando a aula") : j.review ? "Escreva sua compreensão" : "Pronto para gravar";
   $("#detail").textContent = r.error || (paused ? `Pausada há ${clock(r.paused_for)} · nada é gravado` : r.active && !r.heard ? "Dê play com o volume ligado." : "");
   const left = Number.isFinite(j.eta_total) ? ` · faltam ~${j.eta_total < 90 ? `${Math.max(5, Math.round(j.eta_total / 5) * 5)} s` : `${Math.round(j.eta_total / 60)} min`}` : "";
   $("#job").textContent = j.status === "running" ? `${j.detail || j.stage || "Processando"}${Number.isFinite(j.progress) ? ` · ${Math.round(j.progress * 100)}%` : ""}${left}` : j.review ? "Abra o Lumen e escreva sua compreensão" : "";
@@ -375,7 +377,7 @@ async function detachNote() {  // a mesma nota numa janela flutuante, maior e po
 $("#note-btn").addEventListener("click", () => showNote(!noteOpen));
 $("#note-back").addEventListener("click", () => { showNote(false); $("#note-btn").focus(); });
 $("#note-detach").addEventListener("click", detachNote);
-$("#note-detach").title = `Destacar numa janela flutuante (${Notes.shortcutLabel})`;
+$("#note-detach").dataset.kbd = Notes.shortcutLabel;
 document.addEventListener("keydown", (e) => { if (noteOpen && Notes.isShortcut(e)) { e.preventDefault(); detachNote(); } });
 function syncPresentation() {
   if (!host) return;

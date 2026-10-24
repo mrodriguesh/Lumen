@@ -54,14 +54,14 @@ async function leave(dock) {  // fechar ou voltar nunca descarta nada: o texto j
 function compact(on) {  // “minimizar”: fica só a barra, por cima do vídeo, sem esconder a nota de vez
   document.body.classList.toggle("compact", on);
   $("#nw-min").setAttribute("aria-label", on ? "Mostrar a nota" : "Minimizar");
-  $("#nw-min").title = on ? "Mostrar a nota" : "Minimizar";
+  $("#nw-min").dataset.tip = on ? "Mostrar a nota" : "Minimizar";
   host?.postMessage(on ? "note:minimize" : "note:restore");
   if (!on) $("#nw-text").focus();
 }
 $("#nw-min").addEventListener("click", () => compact(!document.body.classList.contains("compact")));
 $("#nw-dock").addEventListener("click", () => leave(true));
 $("#nw-close").addEventListener("click", () => leave(false));
-$("#nw-dock").title += ` (${Notes.shortcutLabel})`;
+$("#nw-dock").dataset.kbd = Notes.shortcutLabel;
 const tools = "button, input, .pomo-sheet";  // clicar neles não arrasta nem minimiza a janela
 $("#nw-bar").addEventListener("pointerdown", (e) => {  // arrastar pela barra (o Windows move a janela)
   if (e.button === 0 && !e.target.closest(tools)) host?.postMessage("note:drag");
@@ -83,8 +83,10 @@ function renderRec(r) {
   if (!r.active) return;
   b.dataset.paused = String(paused);
   $("#nw-rec-text").textContent = paused ? "Pausada" : mmss(r.seconds);
+  $("#nw-rec-ico").setAttribute("href", "/icons.svg#" + (paused ? "play" : "pause"));
   b.setAttribute("aria-label", paused ? `Captura pausada há ${mmss(r.paused_for)}. Retomar captura` : `Gravando, ${mmss(r.seconds)}. Pausar captura`);
-  b.title = (paused ? "Captura pausada: nada é gravado. Clique para retomar" : "Gravando. Clique para pausar a captura (o vídeo continua)") + ` (${Shortcuts.capture.label})`;
+  b.dataset.tip = paused ? "Captura pausada: nada é gravado. Clique para retomar" : "Gravando. Clique para pausar a captura (o vídeo continua)";
+  b.dataset.kbd = Shortcuts.capture.label;
 }
 async function pollRec() {
   if (document.hidden || recBusy) return;

@@ -283,8 +283,11 @@ class Http(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError):  # só serve arquivos da pasta de uploads do Lumen
             urllib.request.urlopen(urllib.request.Request(
                 self.url + "/api/capture?path=" + urllib.parse.quote(str(outside)) + "&t=" + server.TOKEN), timeout=10)
-        with self.assertRaises(urllib.error.HTTPError):
+        with self.assertRaises(urllib.error.HTTPError) as bad:
             self.post("/api/upload?name=virus.exe", data=b"x")
+        err = json.loads(bad.exception.read())["error"]  # a mensagem do formato, não “Pedido inválido.”
+        self.assertEqual(err["message"], "Formato não suportado.")
+        self.assertIn(".mp4", err["action"]); self.assertIn(".png", err["action"])
         state = json.loads(urllib.request.urlopen(urllib.request.Request(
             self.url + "/api/state", headers={"X-Lumen-Token": server.TOKEN}), timeout=10).read())
         self.assertEqual(state["sources"]["captures"]["id"], "compativel")
