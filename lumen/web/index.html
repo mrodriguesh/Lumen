@@ -260,7 +260,8 @@
             <label class="field">Cofre
               <span class="input-row"><select id="q-vault" aria-label="Cofre do Obsidian"></select>
               <button class="icon-btn" type="button" id="q-vault-pick" aria-label="Escolher a pasta do cofre" data-tip="Escolher a pasta do cofre…"><svg class="i"><use href="/icons.svg#folder"/></svg></button></span></label>
-            <label class="set-row compact"><span class="set-text"><strong>Mapa mental no Canvas</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_canvas"></label>
+            <label class="set-row compact"><span class="set-text"><strong>Mapa conceitual</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_canvas"></label>
+            <label class="set-row compact"><span class="set-text"><strong>Painel visual</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_board"></label>
             <label class="set-row compact"><span class="set-text"><strong>Conexões com o cofre</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_connections"></label>
             <label class="set-row compact"><span class="set-text"><strong>Revisões espaçadas</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_review"></label>
             <button class="link-btn" type="button" data-go-integ>Pastas, anexos e intervalos em Integrações</button>
@@ -509,7 +510,7 @@
 
     <section class="card integ" id="integ-obsidian" aria-labelledby="obsidian-h">
       <header class="integ-head"><span class="integ-icon"><svg class="i lg"><use href="/icons.svg#notebook"/></svg></span>
-        <div><h2 class="t-h2" id="obsidian-h">Obsidian</h2><p class="muted t-sm">Nota de estudo, mapa mental e revisões</p></div>
+        <div><h2 class="t-h2" id="obsidian-h">Obsidian</h2><p class="muted t-sm">Nota de estudo, mapa conceitual, painel visual e revisões</p></div>
         <span class="badge" id="obsidian-badge"></span></header>
       <div class="integ-sec">
         <h3 class="eyebrow">Cofre</h3>
@@ -520,7 +521,13 @@
       </div>
       <div class="integ-sec">
         <h3 class="eyebrow">Estudos</h3>
-        <label class="set-row"><span class="set-text"><strong>Mapa mental no Canvas</strong><small>Um .canvas de verdade, com a nota no centro.</small></span><input type="checkbox" class="switch" role="switch" id="obs-canvas" data-cfg="obsidian_canvas"></label>
+        <label class="set-row"><span class="set-text"><strong>Mapa conceitual</strong><small>Um .canvas com os conceitos e as relações entre eles, a nota no centro.</small></span><input type="checkbox" class="switch" role="switch" id="obs-canvas" data-cfg="obsidian_canvas"></label>
+        <label class="set-row"><span class="set-text"><strong>Painel visual</strong><small id="board-hint">Um segundo .canvas com as telas e os gráficos da aula, compostos para reconhecer e lembrar.</small></span><input type="checkbox" class="switch" role="switch" id="obs-board" data-cfg="obsidian_board"></label>
+        <div class="segmented wide board-density" role="radiogroup" aria-label="Imagens do painel visual" id="board-density">
+          <label><input type="radio" name="board_density" value="compacto"> Compacto<small>Até 5 imagens</small></label>
+          <label><input type="radio" name="board_density" value="equilibrado"> Equilibrado<small>Até 10 imagens</small></label>
+          <label><input type="radio" name="board_density" value="visual"> Visual<small>Até 15 imagens</small></label>
+        </div>
         <label class="set-row"><span class="set-text"><strong>Conexões com o cofre</strong><small>A IA local procura notas suas ligadas à aula.</small></span><input type="checkbox" class="switch" role="switch" id="obs-connections" data-cfg="obsidian_connections"></label>
         <label class="set-row"><span class="set-text"><strong>Revisões espaçadas</strong><small>Datas de revisão na nota e no painel de estudos.</small></span><input type="checkbox" class="switch" role="switch" id="obs-review" data-cfg="obsidian_review"></label>
         <label class="field review-intervals">Intervalos das revisões (dias)

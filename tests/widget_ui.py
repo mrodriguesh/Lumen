@@ -20,7 +20,7 @@ try:
     cfg = dict(root_page_id="", root_page_title="", quality="equilibrado", ollama_model="qwen3:8b",
                page_language="pt", keep_temp=False, widget="left", autostart=True, destinations="notion", watch_screen=False,
                music_filter=False, music_mode="balanceado", study_level="balanceado", obsidian_vault="", obsidian_folder="",
-               obsidian_canvas_folder="", obsidian_canvas=True, obsidian_connections=True, obsidian_review=True,
+               obsidian_canvas_folder="", obsidian_canvas=True, obsidian_board=True, obsidian_board_density="equilibrado", obsidian_connections=True, obsidian_review=True,
                obsidian_attachments=True, obsidian_open=False, review_intervals=[1, 3, 7])
     recording = {"active": False, "seconds": 0, "level": 0, "heard": False}
     job = {"status": "idle", "review": False}

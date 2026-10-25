@@ -284,7 +284,10 @@ def _apply_settings(body):
             rel = str(body[k] or "").strip().replace("\\", "/").strip("/")[:200]
             vault.inside(Path(cfg["obsidian_vault"] or "."), rel)  # recusa “..”, caminho absoluto e pasta oculta
             cfg[k] = rel
-    for k in ("obsidian_canvas", "obsidian_connections", "obsidian_review", "obsidian_attachments", "obsidian_open"):
+    if body.get("obsidian_board_density") in ("compacto", "equilibrado", "visual"):
+        cfg["obsidian_board_density"] = body["obsidian_board_density"]
+    for k in ("obsidian_canvas", "obsidian_board", "obsidian_connections", "obsidian_review", "obsidian_attachments",
+              "obsidian_open"):
         if k in body:
             cfg[k] = body[k] is True
     if "review_intervals" in body:
@@ -522,7 +525,7 @@ def _open(h):
         path = folder / "Lumen Dashboard.md"
     else:
         ob = (store.history().get(str(body.get("key") or "")) or {}).get("obsidian") or {}
-        rel = ob.get("canvas" if body.get("what") == "canvas" else "note")
+        rel = ob.get({"canvas": "canvas", "board": "board"}.get(body.get("what"), "note"))
         if not rel:
             raise AppError("Esta aula ainda não foi salva no Obsidian.", "Use “Salvar no Obsidian”.")
         path = root / rel

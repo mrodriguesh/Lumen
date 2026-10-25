@@ -839,7 +839,9 @@ function updateGo() {
   rows.push(["No seu PC", local + (watching ? " A tela é lida por IA local." : "") + " O vídeo e o áudio não são enviados."]);
   if (usesNotion()) rows.push(["Enviado ao Notion", "A página da aula e a subpágina “Minha compreensão” (sua nota e a análise)"
     + (watching ? ", com as imagens das telas que você mantiver." : ".")]);
-  if (usesObsidian()) rows.push(["No Obsidian", "Nota de estudo, mapa mental (Canvas), perguntas, revisões e conexões com o seu cofre, na pasta do Lumen."]);
+  if (usesObsidian()) rows.push(["No Obsidian", ["Nota de estudo com perguntas", S.config.obsidian_canvas && "mapa conceitual (Canvas)",
+    S.config.obsidian_board && S.config.obsidian_attachments && "painel visual com as telas da aula (Canvas)",
+    S.config.obsidian_review && "revisões", S.config.obsidian_connections && "conexões com o seu cofre"].filter(Boolean).join(", ") + ", na pasta do Lumen."]);
   $("#summary").replaceChildren(...rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
 
   let why = "";
@@ -959,7 +961,8 @@ function renderJob(j) {
       nt?.status === "ok" && el("a", { class: "btn primary", href: nt.url, target: "_blank", rel: "noopener" }, icon("external"), "Abrir no Notion"),
       nt?.status === "ok" && nt.understanding_url && el("a", { class: "btn", href: nt.understanding_url, target: "_blank", rel: "noopener" }, "Abrir minha compreensão"),
       ob?.status === "ok" && el("button", { class: "btn" + (nt ? "" : " primary"), type: "button", onclick: () => openObsidian(r.key, "note") }, icon("notebook"), "Abrir no Obsidian"),
-      ob?.status === "ok" && ob.canvas && el("button", { class: "btn", type: "button", onclick: () => openObsidian(r.key, "canvas") }, icon("map"), "Abrir mapa mental"),
+      ob?.status === "ok" && ob.canvas && el("button", { class: "btn", type: "button", onclick: () => openObsidian(r.key, "canvas") }, icon("map"), "Abrir mapa conceitual"),
+      ob?.status === "ok" && ob.board && el("button", { class: "btn", type: "button", onclick: () => openObsidian(r.key, "board") }, icon("image"), "Abrir painel visual"),
       nt && nt.status !== "ok" && el("button", { class: "btn primary", type: "button", onclick: () => redeliver(r.key, "notion") }, icon("refresh"), "Tentar de novo só o Notion"),
       ob && ob.status !== "ok" && el("button", { class: "btn primary", type: "button", onclick: () => redeliver(r.key, "obsidian", ob.conflict) },
         icon("refresh"), ob.conflict ? "Substituir mesmo assim (com backup)" : "Tentar de novo só o Obsidian"),
@@ -986,8 +989,11 @@ function doneLines(r) {  // uma linha por destino: o que foi feito ou o que falh
     ? `Página “${r.title}” em ${r.course}, com a subpágina “Minha compreensão”.` : `${nt.error} ${nt.action || ""}`));
   if (ob) out.push(line("Obsidian", ob.status === "ok", ob.status === "ok"
     ? [{ created: "Nota criada", updated: "Nota atualizada (suas anotações ficaram)", unchanged: "Nota já estava em dia" }[ob.state] || "Nota salva",
-       ob.canvas ? "mapa mental (Canvas)" : null, `${ob.connections} ${ob.connections === 1 ? "conexão" : "conexões"} com o cofre`,
-       `${ob.questions} perguntas de revisão`, ob.canvas_error].filter(Boolean).join(" · ")
+       ob.canvas ? "mapa conceitual" : null,
+       ob.board ? `painel visual (${ob.board_images} ${ob.board_images === 1 ? "imagem" : "imagens"})`
+         : ob.board_skipped === "sem-imagens" ? "painel visual: sem imagens úteis nesta aula" : null,
+       `${ob.connections} ${ob.connections === 1 ? "conexão" : "conexões"} com o cofre`,
+       `${ob.questions} perguntas de revisão`, ob.canvas_error, ob.board_error].filter(Boolean).join(" · ")
     : `${ob.error} ${ob.action || ""}`));
   return out;
 }
@@ -1558,6 +1564,14 @@ function renderDestSettings() {  // Destinos do material: o cofre só é escolhi
   if (document.activeElement !== $("#canvas-folder")) $("#canvas-folder").value = c.obsidian_canvas_folder;
   if (document.activeElement !== $("#review-intervals")) $("#review-intervals").value = (c.review_intervals || []).join(", ");
   for (const i of $$("[data-cfg]")) i.checked = c[i.dataset.cfg];  // Integrações e a configuração rápida da Nova aula
+  for (const r of $("#board-density").querySelectorAll("input")) {
+    r.checked = r.value === c.obsidian_board_density;
+    r.disabled = !c.obsidian_board || !c.obsidian_attachments;
+  }
+  for (const i of $$("[data-cfg=obsidian_board]")) i.disabled = !c.obsidian_attachments;
+  $("#board-hint").textContent = c.obsidian_attachments
+    ? "Um segundo .canvas com as telas e os gráficos da aula, compostos para reconhecer e lembrar. Só imagens reais da aula."
+    : "Precisa de “Telas e gráficos no cofre”, logo abaixo: o painel é feito das imagens da aula.";
   $("#review-intervals").disabled = !c.obsidian_review;
   $("#vault-status").textContent = o.error || (!c.obsidian_vault ? (o.vaults.length > 1
     ? "Há mais de um cofre neste PC: escolha qual o Lumen deve usar." : "Escolha o cofre para ligar o Obsidian.")
@@ -1603,9 +1617,12 @@ function renderDestRows() {
   vault.dataset.tip = oOk ? `${c.obsidian_vault}${o.folder ? " › " + o.folder : ""}` : st[0] === "error" ? o.error : "";
   vault.replaceChildren(...(!oOn ? [] : oOk ? [el("span", { class: "dest-vault-name" }, name), o.folder ? el("span", { class: "dest-vault-dir" }, "/ " + shortDir(o.folder)) : null].filter(Boolean)
     : [el("span", { class: "dest-msg" }, st[0] === "error" ? "O cofre escolhido não foi encontrado." : "Notas, revisões e mapas mentais no seu cofre.")]));
-  $("#dest-feats").textContent = oOk ? ["Nota de estudo", c.obsidian_canvas && "Mapa no Canvas"].filter(Boolean).join(" · ") : "";
+  const visual = c.obsidian_board && c.obsidian_attachments;  // o painel só existe com as imagens no cofre
+  $("#dest-feats").textContent = oOk ? ["Nota de estudo", c.obsidian_canvas && "Mapa conceitual", visual && "Painel visual"]
+    .filter(Boolean).join(" · ") : "";
   $("#dest-obs-help").hidden = !oOn;
-  $("#dest-obs-help").dataset.tip = `No seu cofre, o Lumen cria ${andList(["uma nota de estudo com perguntas", c.obsidian_canvas && "um mapa mental no Canvas",
+  $("#dest-obs-help").dataset.tip = `No seu cofre, o Lumen cria ${andList(["uma nota de estudo com perguntas", c.obsidian_canvas && "um mapa conceitual (as ideias e as relações)",
+    visual && "um painel visual (as telas e os gráficos da aula, para lembrar)",
     c.obsidian_review && "as datas de revisão", c.obsidian_connections && "links para as suas notas ligadas à aula",
     c.obsidian_attachments && "as telas escolhidas"].filter(Boolean))}.`;
   if (!oOn) $("#obs-quick").hidden = true;
@@ -1693,6 +1710,7 @@ $("#music-mode").addEventListener("change", (e) => saveSettings({ music_mode: e.
 $("#music-dl").addEventListener("click", () => download({ what: "music" }));
 $("#dest-mode").addEventListener("change", (e) => setDestinations(e.target.value));
 $("#study-level").addEventListener("change", (e) => saveSettings({ study_level: e.target.value }));
+$("#board-density").addEventListener("change", (e) => saveSettings({ obsidian_board_density: e.target.value }));
 for (const id of ["#vault", "#q-vault"])
   $(id).addEventListener("change", (e) => saveSettings({ obsidian_vault: e.target.value }, e.target.value ? "Cofre do Obsidian escolhido." : ""));
 for (const id of ["#vault-pick", "#q-vault-pick"]) $(id).addEventListener("click", async () => {
@@ -1813,7 +1831,8 @@ function savedRow(it, compact = false) {
     el("span", { class: "lib-actions" },
       it.url ? act("external", "Notion", "Abrir no Notion", { href: it.url, target: "_blank", rel: "noopener" }) : null,
       ob ? act("notebook", "Obsidian", "Abrir no Obsidian", { type: "button", onclick: () => openObsidian(it.key, "note") }) : null,
-      ob && it.obsidian.canvas ? act("map", "Mapa", "Abrir o mapa mental", { type: "button", onclick: () => openObsidian(it.key, "canvas") }) : null,
+      ob && it.obsidian.canvas ? act("map", "Mapa", "Abrir o mapa conceitual", { type: "button", onclick: () => openObsidian(it.key, "canvas") }) : null,
+      ob && it.obsidian.board ? act("image", "Painel", "Abrir o painel visual", { type: "button", onclick: () => openObsidian(it.key, "board") }) : null,
       !ob && it.lumen_id && usesObsidian() ? el("button", { class: "btn ghost sm", type: "button", "data-tip": "Cria a nota de estudo desta aula no cofre, sem chamar a IA de novo",
         onclick: () => { showView("new"); redeliver(it.key, "obsidian"); } }, icon("plus"), compact ? "Obsidian" : "Salvar no Obsidian") : null));
 }

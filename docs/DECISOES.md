@@ -933,3 +933,44 @@ Incremental sobre a v1: mesmos detector, separador, emenda, cache, recuo e integ
   (Pronto, Gravando, Pausada…) com a frase inteira na dica. Os controles completos ficam na janela principal e na nota.
 - Correção encontrada nos testes: recusar um envio (`_upload`) sem ler o corpo derrubava a conexão às vezes
   (WinError 10053) e a mensagem de erro se perdia; agora o corpo é lido antes, até 64 MB.
+
+## Painel visual: o segundo Canvas (25/10/2026; `lumen/board.py`, `lumen/obsidian.py`)
+- **Dois Canvas com papéis diferentes.** O Mapa conceitual (`canvas.py`, sem mudança) diz como as ideias se relacionam;
+  o Painel visual (`board.py`) é uma prancha das imagens da aula para reconhecer e lembrar. Nomes: o “Mapa - <Título>”
+  ficou (nenhum link quebra) e o novo é “Painel - <Título>.canvas”. A nota embute o mapa e linka o painel em
+  “Mapas da aula”: dois Canvas grandes embutidos na mesma nota pesam e se atrapalham.
+- **Sem extração nova de quadros.** A captura (`vision.Watch`: tela parada 1,5 s, sem bordas pretas, sem apps
+  pessoais), o vídeo (`vision.extract`, quadros-chave pelo PyAV, que já traz o FFmpeg), a deduplicação (miniatura 54×96
+  e texto lido) e o filtro do modelo de visão (fora rosto do professor, propaganda e tela vazia) já existiam. O painel
+  escolhe entre as telas do pacote e os gráficos da aula; nenhuma imagem nova vai para o cofre por causa dele, e
+  nenhuma é gerada, buscada fora ou enviada para fora do PC.
+- **Escolha local e determinística, sem IA:** tipo da tela, termos em comum com os tópicos da aula (o horário só
+  desempata), o que o estudante escreveu e o que a análise da nota dele destacou (não há horário na compreensão: o
+  vínculo é por texto), captura feita por ele, perto de um momento-chave, qualidade. Retorno decrescente por conceito
+  (com teto, para uma aula visual de um tema só não ficar com 3 imagens) e as quase iguais saem pela mesma régua da
+  captura (`vision._diff`). Nota mínima: aula só de fala não ganha painel (“sem imagens úteis”). O gráfico do Lumen só
+  domina a prancha se não houver tela larga.
+- **Composição** pelo tipo da aula (`map_kind` e as relações): editorial (a imagem principal com o cartão ao lado,
+  primárias alternando lados em alturas desencontradas e a faixa de baixo como peças empilhadas, larguras variadas),
+  sequência (tutorial: zigue-zague com setas) e comparação (“contrasta com” com imagem dos dois lados). “Pessoa” não
+  existe: o modelo de visão descarta essas telas. Verificado no Obsidian 1.14 (perfil isolado + CDP) com 3, 6, 10, 13
+  e 15 imagens, uma sequência e a última aula real: 0 sobreposições, nenhum texto cortado.
+- **Edições do usuário.** O manifesto da aula guarda as posições que o Lumen gravou (`board_layout`) e os cards que o
+  usuário já moveu (`board_user`), fora do JSON Canvas. Movido fica onde ele pôs, mesmo se a imagem saiu da escolha;
+  criado por ele fica; uma peça nova que caia em cima de algo mantido desce; o que o Lumen mantém no lugar não se
+  move por causa de algo que o usuário pôs em cima. Sem manifesto, tudo no arquivo conta como do usuário.
+- **Correção no Mapa conceitual:** o atalho “arquivo igual ao gravado → layout novo” apagava posições do usuário
+  preservadas numa fusão anterior; agora só vale quando o gravado era o layout puro (`canvas_hash` vazio depois de uma
+  fusão).
+- **Anexos:** o nome diz o que a imagem é (`03m09 título · aula data.jpg`), porque é o rótulo do Obsidian no painel;
+  nome antigo que já existe fica. Num retry dias depois, a imagem que já está no cofre é usada (antes a tela entrava só
+  com o texto). Ao reprocessar, sai só o anexo que o Lumen gravou, que nada mais usa e com o mesmo tamanho; com os
+  anexos desligados nada é apagado.
+- **Correção na gravação** (`obsidian._write`): com o Obsidian aberto, um arquivo novo criado como temporário oculto e
+  renomeado às vezes não era notado (ele ignora nomes com ponto), e a imagem aparecia como “não encontrada” até
+  reiniciar; na verificação ele perdeu 4 de 33. Arquivo novo agora nasce com o nome final (criação exclusiva, apagado
+  se falhar no meio); arquivo que já existe segue com a troca atômica. Depois da correção: 30 de 30.
+- **Não feito:** etapa nova no processamento (a escolha leva milissegundos: não há progresso a mostrar), prévia do
+  painel dentro do Lumen (o destino é o Obsidian), mapas temáticos por pessoa ou por local (não há esse dado),
+  imagens externas.
+

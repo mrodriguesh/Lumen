@@ -32,7 +32,9 @@ DEFAULTS = {
     "obsidian_vault": "",       # pasta do cofre (escolhida pelo usuário; vault.vaults() só sugere)
     "obsidian_folder": "",      # pasta das notas dentro do cofre; vazio = vault.default_folder
     "obsidian_canvas_folder": "",  # pasta dos mapas (.canvas); vazio = a mesma das notas
-    "obsidian_canvas": True,    # mapa mental como Canvas
+    "obsidian_canvas": True,    # mapa conceitual como Canvas
+    "obsidian_board": True,     # painel visual: segundo Canvas, com as imagens reais da aula (precisa dos anexos)
+    "obsidian_board_density": "equilibrado",  # compacto (até 5 imagens) | equilibrado (até 10) | visual (até 15)
     "obsidian_connections": True,  # procurar conexões no cofre (IA local, só no PC)
     "obsidian_review": True,    # revisões espaçadas na nota e no painel
     "obsidian_attachments": True,  # telas e gráficos copiados para o cofre (nunca o vídeo)

@@ -210,11 +210,29 @@ Para cada aula, no Obsidian:
   - perguntas de active recall com a resposta escondida, teste de compreensão e flashcards;
   - erros comuns, aplicações e conexões com notas reais do cofre;
   - perguntas em aberto, linha do tempo, revisões e "Possíveis notas permanentes".
-- **Mapa mental** `Mapa - Título da aula.canvas`, um Canvas de verdade:
+- **Mapa conceitual** `Mapa - Título da aula.canvas`, um Canvas de verdade, para entender como as ideias se
+  relacionam:
   - a nota no centro e os ramos ao redor, com as relações da aula nas setas;
   - embaixo, os grupos Processo, Conexões, Exemplos e Relações.
+- **Painel visual** `Painel - Título da aula.canvas`, um segundo Canvas, para reconhecer e lembrar a aula: uma prancha
+  com as telas e os gráficos que a aula mostrou.
+  - Só imagens reais: as telas capturadas (as mesmas de "O que apareceu na tela") e os gráficos feitos com os dados da
+    aula. Nada é gerado nem buscado na internet.
+  - A escolha é local e sem IA: pesam o tipo (diagrama, gráfico e tabela antes de slide de texto), o conceito da aula
+    que a tela mostra, o que **você** escreveu em "Minha compreensão" e as capturas que você mesmo fez. Telas quase
+    iguais contam uma vez. Uma aula só de fala não ganha painel.
+  - Composição pelo tipo da aula: a imagem mais representativa domina, com as outras em volta e um cartão curto ao
+    lado de cada uma; passo a passo vira sequência com setas; um contraste da aula vira duas colunas. No topo, o
+    título e os links para a nota e o mapa.
+  - **Densidade** em Integrações → Obsidian: Compacto (até 5 imagens), Equilibrado (até 10, padrão) ou Visual (até 15).
+    Precisa de "Telas e gráficos no cofre"; com a opção desligada, não há painel.
+  - A nota leva o mapa embutido e o painel por link, em "Mapas da aula".
 
-  Pode mover os cards: ao reprocessar, o que você moveu ou criou fica.
+  Nos dois Canvas você pode mover e redimensionar os cards e criar os seus: ao reprocessar, o que você moveu ou criou
+  fica, inclusive uma imagem que saiu da escolha do Lumen mas que você tinha posicionado.
+- **Anexos** em `Anexos`, com o nome do que mostram (`03m09 design dramatico · aula 2026-10-25.jpg`), que é o rótulo do
+  Obsidian em cima de cada imagem no painel. Ao reprocessar, só sai o anexo que o próprio Lumen gravou e nada mais usa;
+  uma imagem sua nunca é tocada.
 - **Lumen Dashboard**: para revisar hoje, atrasados, recentes, não revisados, por curso, por Anchor Topic, com
   dúvidas e ideias para notas permanentes. Usa o Bases, um plugin nativo do Obsidian.
 

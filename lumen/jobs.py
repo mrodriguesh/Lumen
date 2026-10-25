@@ -643,7 +643,7 @@ def _deliver(pkg, dests, spec, cfg, token, shots, force=False):
     if "obsidian" in dests:
         if plan:
             plan.at("obsidian")
-        _set(stage="obsidian", detail="Salvando no Obsidian (nota, mapa mental e conexões)…", progress=None)
+        _set(stage="obsidian", detail="Salvando no Obsidian (nota, mapas e conexões)…", progress=None)
         assets = {"charts": gifs, "screens": {}}
         if cfg["obsidian_attachments"]:
             for s in pkg["screens"]:

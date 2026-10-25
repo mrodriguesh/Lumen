@@ -140,7 +140,7 @@ try:
     buttons = ev("[...document.querySelectorAll('#run-actions .btn')].map(b => b.textContent)")
     ok = ev("[...document.querySelectorAll('#result .dest-line')].map(l => [l.dataset.ok, l.querySelector('b').textContent])")
     check(["true", "Obsidian"] in ok and ["false", "Notion"] in ok and "3 conexões com o cofre" in text, f"linhas por destino: {ok} {text!r}")
-    check("Tentar de novo só o Notion" in buttons and "Abrir no Obsidian" in buttons and "Abrir mapa mental" in buttons,
+    check("Tentar de novo só o Notion" in buttons and "Abrir no Obsidian" in buttons and "Abrir mapa conceitual" in buttons,
           f"botões: {buttons}")
     check(ev("document.querySelector('#result').className") == "result partial", "parcial não é erro genérico")
     shot("4-resultado-parcial")

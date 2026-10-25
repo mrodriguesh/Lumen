@@ -23,7 +23,7 @@ import urllib.parse
 from datetime import date, datetime
 from pathlib import Path
 
-from . import AppError, canvas, store, vault
+from . import AppError, board, canvas, store, vault
 from .canvas import md
 from .llm import fmt_time
 from .package import QUESTION_KINDS, norm
@@ -262,8 +262,11 @@ def render(pkg, ctx):
     summary = [p.strip() for p in re.split(r"\n\s*\n", lesson["summary"]) if p.strip()]
     s.append("## Visão geral\n" + _callout("abstract", "Ideia central", md(summary[0]), fold="")
              + ("\n\n" + _paras("\n\n".join(summary[1:])) if summary[1:] else ""))
-    if ctx.get("canvas"):
-        s.append(f"## Mapa mental\n![[{ctx['canvas']}]]")
+    maps = ([f"![[{ctx['canvas']}]]"] if ctx.get("canvas") else []) + (
+        [f"[[{ctx['board']}|Abrir o painel visual]] · as imagens da aula, organizadas para reconhecer e lembrar."]
+        if ctx.get("board") else [])
+    if maps:  # o mapa embutido; o painel por link (dois canvas grandes na mesma nota pesam e se atrapalham)
+        s.append("## Mapas da aula\n" + "\n\n".join(maps))
     concepts = []
     for t in lesson["topics"]:
         when = _when(t.get("timestamp"), yt)
@@ -432,8 +435,24 @@ def check(text, known):
 # --- Writer --------------------------------------------------------------------------------------------------
 
 def _write(path, data, binary=False):
-    """Arquivo temporário oculto na mesma pasta (o Obsidian ignora nomes com ponto) e troca atômica."""
+    """Arquivo novo: criado direto com o nome final (criação exclusiva, nunca sobrescreve). Com o Obsidian aberto,
+    um temporário oculto renomeado às vezes não é notado (ele ignora nomes com ponto e perde o “renomear”), e a
+    imagem aparecia como “não encontrada” até reiniciar. Arquivo que já existe: temporário oculto e troca atômica,
+    para nunca ficar pela metade."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        try:
+            f = open(path, "xb" if binary else "x", **({} if binary else {"encoding": "utf-8", "newline": "\n"}))
+        except FileExistsError:
+            pass  # apareceu agora: segue pela troca atômica
+        else:
+            try:
+                with f:
+                    f.write(data)
+            except BaseException:
+                path.unlink(missing_ok=True)  # nada pela metade no cofre (disco cheio, cancelado)
+                raise
+            return
     tmp = path.with_name("." + path.name + ".lumen-tmp")
     if binary:
         tmp.write_bytes(data)
@@ -499,17 +518,37 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
 
     # Tudo é calculado antes de gravar: uma nota em conflito não deixa canvas nem anexos pela metade.
     # Anexos: só as telas escolhidas e os gráficos desenhados; o vídeo nunca entra no cofre.
-    images, charts, writes = {}, {}, []
+    images, charts, writes, own, pics = {}, {}, [], {}, []  # own: anexo → tamanho; pics: o que o painel pode usar
     if cfg["obsidian_attachments"]:
         attach, slug = folder / "Anexos", clean(lesson["title"], 40).casefold()
-        named = [(f"tela {int(k) + 1:02d}.jpg", k, v, images) for k, v in (assets.get("screens") or {}).items()]
-        named += [(f"grafico {i + 1}.gif", i, v, charts) for i, v in enumerate(assets.get("charts") or [])]
-        for suffix, k, data, into in named:
+        shots, gifs, named = assets.get("screens") or {}, assets.get("charts") or [], []
+        for sc in pkg["screens"]:
+            k = sc["id"]
+            what = (f"{int(sc['t']) // 60:02d}m{int(sc['t']) % 60:02d}" if sc.get("t") is not None and not sc["manual"]
+                    else f"captura {int(k) + 1:02d}")
+            # o que a imagem é vem primeiro: é o rótulo que o Obsidian mostra em cima dela no painel
+            names = [f"{pkg['date']} {slug} tela {int(k) + 1:02d}.jpg",
+                     f"{what} {clean(sc.get('titulo') or 'tela', 36).casefold()} · {slug} {pkg['date']}.jpg"]
+            named.append((names, k, shots.get(k), images, "tela"))
+        for i, c in enumerate(pkg.get("charts") or []):
+            names = [f"{pkg['date']} {slug} grafico {i + 1}.gif",
+                     f"grafico {i + 1} {clean(c.get('titulo') or 'grafico', 36).casefold()} · {slug} {pkg['date']}.gif"]
+            named.append((names, i, gifs[i] if i < len(gifs) else None, charts, "grafico"))
+        for names, k, data, into, source in named:
+            # o nome que já existe fica (os embeds continuam valendo); um arquivo novo ganha o nome que diz o que é
+            paths = [_within(attach / n, folder) for n in names]
+            f = next((x for x in paths if x.exists()), paths[-1])
             if data:
-                f = _within(attach / f"{pkg['date']} {slug} {suffix}", folder)
                 if not (f.exists() and f.stat().st_size == len(data)):
                     writes.append((f, data))
-                into[k] = f.name
+            elif f.exists():  # tentar de novo dias depois: a imagem da aula já não está no PC, mas está no cofre
+                data = f.read_bytes()
+            else:
+                continue
+            into[k] = f.name
+            rel = f.relative_to(root).as_posix()
+            own[rel] = len(data)
+            pics.append({"key": f"{source}:{k}", "source": source, "ref": k, "file": rel, "data": data})
         known |= {n.casefold() for n in [*images.values(), *charts.values()]}
 
     out = {"status": "ok", "vault": str(root), "connections": len([c for c in pkg["connections"] if c["note"] in files]),
@@ -539,13 +578,53 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
                 final = fresh if same else canvas.merge(old, fresh)
                 if canvas.check(final, layout=False):
                     final = fresh
-            plan = (cpath, canvas.dumps(final))
+            plan = (cpath, canvas.dumps(final), final is fresh)
         except (AppError, OSError, ValueError, KeyError, TypeError) as e:
             log.warning("obsidian: canvas não gerado: %s", type(e).__name__)
             out["canvas_error"] = str(e) if isinstance(e, AppError) else "Não foi possível gerar o mapa mental."
 
-    def note(canvas_name):
-        ctx = {"name": name, "canvas": canvas_name, "files": files, "images": images, "charts": charts,
+    # Painel visual: um segundo canvas, só com imagens reais da aula (board.py); precisa dos anexos no cofre
+    bplan = None  # (caminho, JSON, layout calculado, imagens, composição, arquivos que ele mostra)
+    out.update(board_error=None, board_skipped=None)
+    if cfg.get("obsidian_board"):
+        if not cfg["obsidian_attachments"]:
+            out["board_skipped"] = "anexos"
+        else:
+            try:
+                bp = board.plan(pkg, pics, cfg.get("obsidian_board_density") or "equilibrado")
+                if not bp:
+                    out["board_skipped"] = "sem-imagens"
+                else:
+                    bpath = _board_of(root, maps, lid, prev)
+                    if not bpath:
+                        bbase = f"Painel - {title}"
+                        bfree = _free(bbase, ".canvas", taken, None, [f"{bbase} ({course})" if course else bbase,
+                                                                      f"{bbase} · {lid[3:9]}"])
+                        bpath = maps / f"{bfree}.canvas"
+                    _within(bpath, maps)
+                    fresh, units = board.build(bp, pkg, name, plan[0].name if plan else None, files)
+                    probs = board.check(fresh)
+                    if probs:
+                        raise AppError("O painel visual não passou na verificação (" + probs[0] + ").", "Tente de novo.")
+                    final, moved = fresh, set()
+                    if bpath.exists():  # o que o usuário moveu ou criou no painel fica (board.merge)
+                        try:
+                            old = json.loads(bpath.read_text("utf-8"))
+                        except ValueError:
+                            old = None
+                        known_prev = prev.get("board") and isinstance(prev.get("board_layout"), dict)
+                        final, moved = board.merge(old, fresh, units, prev["board_layout"] if known_prev else None,
+                                                   prev.get("board_user") or ())
+                        if canvas.check(final, layout=False):
+                            final, moved = fresh, set()
+                    bplan = (bpath, canvas.dumps(final), board.layout(final), len(bp["assets"]), bp["kind"]["name"],
+                             board.files_of(final), sorted(moved))
+            except (AppError, OSError, ValueError, KeyError, TypeError, IndexError) as e:
+                log.warning("obsidian: painel visual não gerado: %s", type(e).__name__)
+                out["board_error"] = str(e) if isinstance(e, AppError) else "Não foi possível gerar o painel visual."
+
+    def note(canvas_name, board_name=None):
+        ctx = {"name": name, "canvas": canvas_name, "board": board_name, "files": files, "images": images, "charts": charts,
                "template": template, "review_dates": dates, "created": created, "notion": notion,
                "transcript": transcript}
         fm, block = fields(pkg, ctx), render(pkg, ctx)
@@ -558,29 +637,51 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
                           and not (same and k == "updated")}, block, force)
         return r, "unchanged" if r == text.replace("\r\n", "\n") else "updated"
 
-    result, state = note(plan[0].name if plan else None)  # conflito → AppError aqui, antes de gravar qualquer coisa
-    probs = check(result, known | ({plan[0].name.casefold()} if plan else set()))
+    cname, bname = (plan[0].name if plan else None), (bplan[0].name if bplan else None)
+    result, state = note(cname, bname)  # conflito → AppError aqui, antes de gravar qualquer coisa
+    probs = check(result, known | {n.casefold() for n in (cname, bname) if n})
     if probs:
         log.warning("obsidian: nota recusada na validação: %s", probs[0].split(":")[0])  # sem nomes de notas
         raise AppError(f"O material para o Obsidian não passou na validação ({probs[0]}).", "Tente de novo.")
     for f, data in writes:
         _write(f, data, binary=True)
     if plan:
-        cpath, data = plan
+        cpath, data, pure = plan
         try:
             if not cpath.exists() or cpath.read_text("utf-8") != data:
                 if cpath.exists():
                     _backup(cpath, lid)
                 _write(cpath, data)
-            out.update(canvas=cpath.relative_to(root).as_posix(), canvas_hash=hashlib.sha256(data.encode()).hexdigest()[:12])
+            out.update(canvas=cpath.relative_to(root).as_posix(),
+                       canvas_hash=hashlib.sha256(data.encode()).hexdigest()[:12] if pure else None)
         except OSError as e:
             log.warning("obsidian: canvas não gravado: errno=%s", e.errno)
             out["canvas_error"] = "Não foi possível gravar o mapa mental no cofre."
-            result, state = note(None)  # sem o mapa embutido: nenhum link quebrado
+            cname = None
+    shown = set()
+    if bplan:
+        bpath, data, written, count, kind, shown, moved = bplan
+        try:
+            if not bpath.exists() or bpath.read_text("utf-8") != data:
+                if bpath.exists():
+                    _backup(bpath, lid)
+                _write(bpath, data)
+            out.update(board=bpath.relative_to(root).as_posix(), board_hash=hashlib.sha256(data.encode()).hexdigest()[:12],
+                       board_layout=written, board_user=moved, board_images=count, board_kind=kind,
+                       board_version=board.VERSION)
+        except OSError as e:
+            log.warning("obsidian: painel visual não gravado: errno=%s", e.errno)
+            out["board_error"] = "Não foi possível gravar o painel visual no cofre."
+            bname, shown = None, set()
+    if (cname, bname) != ((plan[0].name if plan else None), (bplan[0].name if bplan else None)):
+        result, state = note(cname, bname)  # sem o que não foi gravado: nenhum link quebrado
     if state != "unchanged":
         if text is not None:
             _backup(path, lid)
         _write(path, result)
+    if cfg["obsidian_attachments"]:  # com os anexos desligados nada é apagado: só deixam de entrar
+        _tidy(root, folder, prev.get("files"), set(own) | shown)
+        out["files"] = own
     canvas_name = out.get("canvas")
     out.update(note=path.relative_to(root).as_posix(), state=state)
     log.info("obsidian: nota %s; canvas %s; %d conexões; %d anexos", state, "ok" if canvas_name else "não",
@@ -591,6 +692,38 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
         except (AppError, OSError, ValueError) as e:
             log.warning("obsidian: painel/revisões: %s", type(e).__name__)
     return out
+
+
+def _tidy(root, folder, before, used):
+    """Anexos que o próprio Lumen gravou para esta aula e que nada usa mais (a tela saiu, o nome mudou): saem do
+    cofre. Só os da lista dele (o manifesto), do mesmo tamanho de quando gravou e dentro da pasta do Lumen: uma
+    imagem que o usuário pôs ou trocou nunca é tocada."""
+    if not isinstance(before, dict):
+        return
+    for rel, size in before.items():
+        if rel in used or not isinstance(rel, str):
+            continue
+        try:
+            f = _within(root / rel, folder)
+            if f.is_file() and f.stat().st_size == size:
+                f.unlink()
+                log.info("obsidian: anexo antigo removido")
+        except (AppError, OSError):
+            continue
+
+
+def _board_of(root, maps, lid, prev):
+    """O painel desta aula: o do manifesto ou o que tem o cabeçalho desta aula (id estável). Nunca dois."""
+    if prev.get("board") and (root / prev["board"]).is_file():
+        return root / prev["board"]
+    head = board.head_id(lid)
+    for f in sorted(maps.rglob("*.canvas")):
+        try:
+            if head in f.read_text("utf-8"):
+                return f
+        except OSError:
+            continue
+    return None
 
 
 def _canvas_of(root, maps, lid, prev):

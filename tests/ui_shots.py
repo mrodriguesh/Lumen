@@ -58,7 +58,7 @@ def world():
                page_language="pt", keep_temp=False, watch_screen=True, music_filter=False, music_mode="balanceado",
                widget="left", autostart=True, destinations="both", study_level="balanceado",
                obsidian_vault=r"C:\Users\Estudante\Cérebro", obsidian_folder="C04 Claude Obsidian/16 Lumen",
-               obsidian_canvas_folder="", obsidian_canvas=True, obsidian_connections=True, obsidian_review=True,
+               obsidian_canvas_folder="", obsidian_canvas=True, obsidian_board=True, obsidian_board_density="equilibrado", obsidian_connections=True, obsidian_review=True,
                obsidian_attachments=True, obsidian_open=False, review_intervals=[1, 3, 7, 14, 30, 60])
     ready = lambda phase, label, tone="wait", detail="": {"phase": phase, "label": label, "detail": detail, "tone": tone, "blocked": tone != "ok"}
     pending = [
@@ -88,7 +88,7 @@ def world():
     history = [
         {"key": "h1", "lumen_id": "L1", "title": "Transformers e atenção", "course": "Estudos › Inteligência Artificial",
          "created": iso(days=2), "url": "https://www.notion.so/h1",
-         "obsidian": {"status": "ok", "note": "16 Lumen/2026-10-22 - Transformers e atenção.md", "canvas": "16 Lumen/Mapa - Transformers.canvas",
+         "obsidian": {"status": "ok", "note": "16 Lumen/2026-10-22 - Transformers e atenção.md", "canvas": "16 Lumen/Mapa - Transformers.canvas", "board": "16 Lumen/Painel - Transformers.canvas",
                       "connections": 4, "questions": 12, "state": "created", "at": iso(days=2)}},
         {"key": "h2", "lumen_id": "L2", "title": "Gradiente descendente na prática", "course": "Estudos › Inteligência Artificial",
          "created": iso(days=6), "url": "https://www.notion.so/h2", "obsidian": {"status": "ok", "note": "n.md", "canvas": None, "connections": 2, "questions": 9, "state": "created", "at": iso(days=6)}},
@@ -349,7 +349,8 @@ JOB = {"status": "running", "kind": "process", "stage": "generate", "detail": "E
 DONE = {"status": "done", "kind": "process", "dests": ["obsidian", "notion"], "result": {
     "key": "k2", "title": "Complexidade de algoritmos e notação O", "course": "Estudos › Inteligência Artificial",
     "notion": {"status": "ok", "url": "https://notion.so/x", "understanding_url": "https://notion.so/y"},
-    "obsidian": {"status": "ok", "note": "n.md", "canvas": "c.canvas", "connections": 4, "questions": 12, "state": "created"}}}
+    "obsidian": {"status": "ok", "note": "n.md", "canvas": "c.canvas", "board": "p.canvas", "board_images": 8, "connections": 4,
+                 "questions": 12, "state": "created"}}}
 
 
 def run_js(job, url="/api/finish"):
@@ -524,11 +525,12 @@ def walk(out=OUT / "percurso"):
                                                    " && $('#dest-path').textContent.includes('Inteligência Artificial') && $('#dest-change').textContent === 'Alterar'"))
             m.click("#dest-obs-change")  # configuração rápida do cofre: a mesma chave de Integrações
             step("destino-obsidian", until("() => !$('#obs-quick').hidden && $('#dest-obs-change').textContent === 'Pronto'"))
-            m.click("#obs-quick .set-row:has-text('Canvas')")
-            step("sem-canvas", until("() => !$('#dest-feats').textContent.includes('Canvas') && !$('#obs-canvas').checked"))
-            m.click("#obs-quick .set-row:has-text('Canvas')")
+            m.click("#obs-quick .set-row:has-text('Painel visual')")  # a mesma chave de Integrações
+            step("sem-painel", until("() => !$('#dest-feats').textContent.includes('Painel visual') && !$('#obs-board').checked"
+                                     " && $('#dest-feats').textContent.includes('Mapa conceitual')"))
+            m.click("#obs-quick .set-row:has-text('Painel visual')")
             m.keyboard.press("Escape")
-            step("com-canvas", until("() => $('#obs-quick').hidden && $('#dest-feats').textContent.includes('Mapa no Canvas') && $('#obs-canvas').checked"))
+            step("com-painel", until("() => $('#obs-quick').hidden && $('#dest-feats').textContent.includes('Painel visual') && $('#obs-board').checked"))
             m.click("#rec-start")
             step("gravando", until("() => recorder.dataset.state === 'live' && document.querySelector('#global-status').dataset.tone === 'rec'"))
             w = ctx.new_page()
