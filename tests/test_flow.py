@@ -3,6 +3,7 @@ import http.client
 import json
 import threading
 import time
+import types
 import unittest
 from unittest import mock
 
@@ -489,6 +490,77 @@ class Destinations(unittest.TestCase):
         self.assertTrue((self.lumen / "01 - Cursos/Biologia/00 - Biologia.md").exists())  # a nota do curso
         info = server.inspect(SPEC)
         self.assertEqual(info["duplicate"]["obsidian"]["status"], "ok")
+
+    def test_organize_moves_the_lesson_in_both_destinations(self):
+        """A organizar → curso/módulo: no Obsidian a pasta vai junto; no Notion a aula entra na página do módulo (criada
+        sob demanda, dentro do curso) e a versão anterior sai. Organizar de novo para o mesmo lugar não mexe em nada."""
+        self.assertEqual(full(dict(SPEC))["status"], "done")
+        key = "yt:dQw4w9WgXcQ"
+        e = store.history()[key]
+        none_page = e["page_id"]
+        self.assertEqual(self.fake.pages[none_page]["title"], notion.NO_COURSE)
+        self.assertIn("/90 - A organizar/", e["obsidian"]["note"])
+        bio = catalog.create_course("Biologia")
+        mod = catalog.create_module(bio["id"], "Plantas", 2)
+        llm._chat.reset_mock()
+        cls = {"type": "course", "course_id": bio["id"], "module_id": mod["id"], "lesson": 3}
+        jobs.start("organize", jobs.organize, {"key": key, "classification": cls})
+        j = wait()
+        self.assertEqual(j["status"], "done", j.get("error"))
+        llm._chat.assert_not_called()  # sem IA: o pacote guardado
+        e = store.history()[key]
+        page = self.fake.pages[e["page_id"]]
+        self.assertEqual((page["title"], self.fake.pages[page["parent"]]["title"]), ("Plantas", "Biologia"))
+        self.assertEqual(self.fake.pages[page["parent"]]["parent"], self.root)
+        self.assertIn("Plantas produzem glicose.", json.dumps(page["blocks"], ensure_ascii=False))
+        self.assertNotIn("Plantas produzem glicose.", json.dumps(self.fake.pages[none_page]["blocks"], ensure_ascii=False))
+        self.assertEqual(e["obsidian"]["note"], "Estudos/01 - Cursos/Biologia/02 - Plantas/03 - Fotossíntese/Fotossíntese.md")
+        self.assertTrue((self.vault / e["obsidian"]["note"]).is_file())
+        self.assertEqual(e["classification"]["module"], "Plantas")
+        self.assertEqual(catalog.course(catalog.load(), bio["id"])["notion_page_id"], page["parent"])  # guardado
+        pages, blocks = len(self.fake.pages), len(page["blocks"])
+        jobs.start("organize", jobs.organize, {"key": key, "classification": cls})
+        j = wait()
+        self.assertEqual(j["result"]["notion"]["note"], "No Notion, a aula já estava no lugar certo.")
+        self.assertEqual((len(self.fake.pages), len(page["blocks"])), (pages, blocks))
+
+    def test_free_content_gets_its_own_page_and_course_rename_reaches_notion(self):
+        free = self.fake.add_page("Conteúdo gratuito")
+        store.save_config({**store.load_config(), "notion_free_page_id": free, "notion_free_page_title": "Conteúdo gratuito"})
+        j = full({**SPEC, "classification": {"type": "free", "category": "IA"}})
+        self.assertEqual(j["status"], "done", j.get("error"))
+        e = store.history()["yt:dQw4w9WgXcQ"]
+        own = self.fake.pages[e["page_id"]]
+        self.assertEqual((own["parent"], own["title"], e["notion_own"]), (free, "Fotossíntese", True))
+        self.assertIn("/02 - Conteúdo gratuito/IA/", e["obsidian"]["note"])
+        # para um curso: a página que o Lumen criou só para este material fica vazia e vai para a lixeira
+        bio = catalog.create_course("Biologia")
+        jobs.start("organize", jobs.organize, {"key": "yt:dQw4w9WgXcQ", "classification": {"type": "course",
+                                                                                           "course_id": bio["id"]}})
+        self.assertEqual(wait()["status"], "done")
+        self.assertTrue(self.fake.pages[own["id"]]["in_trash"])
+        # renomear o curso no Lumen: o id fica; a pasta, a nota do curso e a página do Notion acompanham
+        cid = catalog.course(catalog.load(), bio["id"])["notion_page_id"]
+        h = types.SimpleNamespace(_json=lambda: {"id": bio["id"], "name": "Biologia Vegetal"})
+        self.assertEqual(server._catalog_course(h)["course"]["id"], bio["id"])
+        self.assertEqual(self.fake.pages[cid]["title"], "Biologia Vegetal")
+        e = store.history()["yt:dQw4w9WgXcQ"]
+        self.assertTrue(e["obsidian"]["note"].startswith("Estudos/01 - Cursos/Biologia Vegetal/"))
+        self.assertTrue((self.vault / e["obsidian"]["note"]).is_file())
+        self.assertIn("Cursos › Biologia Vegetal", (self.vault / e["obsidian"]["note"]).read_text("utf-8"))
+        lib = server._history()
+        it = next(x for x in lib["items"] if x["key"] == "yt:dQw4w9WgXcQ")
+        self.assertEqual(it["crumbs"], ["Cursos", "Biologia Vegetal"])
+
+    def test_reprocessing_without_touching_the_organization_keeps_it(self):
+        bio = catalog.create_course("Biologia")
+        cls = {"type": "course", "course_id": bio["id"]}
+        self.assertEqual(full({**SPEC, "classification": cls})["status"], "done")
+        note = store.history()["yt:dQw4w9WgXcQ"]["obsidian"]["note"]
+        j = full({**SPEC, "mode": "replace"})  # sem classificação no pedido (aula antiga, outro cliente)
+        self.assertEqual(j["status"], "done", j.get("error"))
+        self.assertEqual(store.history()["yt:dQw4w9WgXcQ"]["obsidian"]["note"], note)
+        self.assertEqual(store.history()["yt:dQw4w9WgXcQ"]["classification"]["course_id"], bio["id"])
 
     def test_destination_not_ready_stops_before_any_work(self):
         store.save_config({**store.load_config(), "obsidian_vault": str(self.vault / "nao-existe")})

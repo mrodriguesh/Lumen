@@ -323,7 +323,7 @@ def rename_dir(cfg, old, new, lid="area"):
     """Renomeia uma pasta de estrutura (curso, módulo) com tudo dentro: Canvas e manifesto acompanham."""
     root, home = obsidian.folders(cfg)
     _inside(new, home)
-    if not old.exists() or old == new:
+    if not old.exists() or str(old) == str(new):  # Path no Windows ignora maiúsculas: compara o texto
         return False
     obsidian._within(old, home)
     if new.exists() and os.path.normcase(str(new)) != os.path.normcase(str(old)):
