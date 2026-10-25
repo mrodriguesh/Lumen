@@ -301,6 +301,8 @@ function renderSource() {
     el("div", { class: "tags" }, ...tags.map(([t, c]) => el("span", { class: "badge", "data-tone": c === "ok" ? "ok" : c || "" },
       c ? icon(c === "ok" ? "check" : "alert") : null, t))));
   box.hidden = false;
+  if (f.duplicate?.classification && !orgTouched) setOrg(f.duplicate.classification, false);  // reprocessar não a tira do lugar
+  else renderOrg();
   $("#dup").hidden = !f.duplicate;
   if (f.duplicate) {
     const d = f.duplicate, when = d.created || d.obsidian?.at || "";
@@ -441,397 +443,325 @@ Pomodoro.setContext(() => S?.recording?.active ? "gravando uma aula"
   : U && (step === "understand" || step === "analysis") && view === "new" ? U.title || "" : "");
 Pomodoro.watch();
 $("#lesson-link").addEventListener("change", () => currentSpec() && inspect());
-$("#course-text").addEventListener("input", () => updateGo());
-
-// ---------- cursos ----------
-let pages = [], pagesState = "idle", rootOk = null;  // idle | loading | ok | error
+// ---------- Organização do estudo (lumen/catalog.py): tipo → curso → módulo → aula. Uma escolha, os dois destinos ----------
+let catalogData = { courses: [], categories: [], last: null, notion: null, notionModules: {} };
+let rootOk = null;
+let org = { type: "inbox" }, orgTouched = false;  // a organização da próxima aula (o padrão é “organizar depois”)
+let orgView = null;                                 // os destinos em palavras (POST /api/organize/preview)
 const rootReady = () => !!(S?.has_token && S.config.root_page_id && rootOk !== false);
-function gotPages(r) {
-  pages = r.courses; pagesState = "ok"; pagesAt = Date.now();
-  if (rootOk !== r.root_ok && S) { rootOk = r.root_ok; renderChecks(); }
-  try { localStorage.setItem("lumen.pages", JSON.stringify({ courses: r.courses, root_ok: r.root_ok, root: r.root })); } catch {}
-}
-async function loadCourses() {
-  pages = [];
-  if (S?.has_token) {
-    // o Notion leva alguns segundos para listar tudo: mostra já a última lista e troca quando a nova chegar
-    let cached = null;
-    try { cached = JSON.parse(localStorage.getItem("lumen.pages")); } catch {}
-    if (cached?.root === S.config.root_page_id && Array.isArray(cached.courses)) {
-      pages = cached.courses; pagesState = "ok"; rootOk = cached.root_ok; renderChecks(); renderCourses();
-    } else { pagesState = "loading"; renderResults(); }
-    try { gotPages(await api("/api/courses")); }
-    catch (e) { if (pagesState !== "ok") pagesState = "error"; fail(e); }  // com a lista guardada, segue usando ela
-  } else pagesState = "idle";
-  renderCourses();
-  renderResults();
-}
-// Notion só mostra à integração as páginas liberadas: o botão abre a tela oficial de acesso
-const GRANT_URL = "https://www.notion.so/profile/integrations";
+const GRANT_URL = "https://www.notion.so/profile/integrations";  // o Notion só mostra o que foi liberado à integração
 for (const b of document.querySelectorAll("[data-grant]")) b.addEventListener("click", () => window.open(GRANT_URL, "_blank"));
-function renderCourses(want) {  // seletor escondido = destino escolhido; a tela usa o cartão e o navegador
-  const sel = $("#course"), prev = want || sel.value;
-  const top = pages.filter((p) => p.top), rest = pages.filter((p) => !p.top);
-  const opts = rootReady() ? [el("option", { value: "__none__" }, "Sem curso (organizar depois)")]
-    : [el("option", { value: "__none__", disabled: "" }, "Sem curso — escolha a página raiz em Ajustes")];
-  opts.push(...pages.map((p) => el("option", { value: p.id, "data-title": p.title }, p.path)));
-  // sem nenhuma página do topo do workspace: explica como liberar (o Notion não as envia sem permissão)
-  const seen = rest.filter((p) => !p.path.includes(" › ")).map((p) => `“${p.title}”`);
-  $("#roots-hint").hidden = pagesState !== "ok" || top.length > 0 || !seen.length;
-  $("#roots-seen").textContent = seen.slice(0, 3).join(", ") + (seen.length > 3 ? ` e mais ${seen.length - 3}` : "");
-  if (rootReady()) opts.push(el("option", { value: "__new__" }, "Novo curso em “" + (S?.config.root_page_title || "página raiz") + "”…"));
-  sel.replaceChildren(...opts);
-  if ([...sel.options].some((o) => o.value === prev && !o.disabled)) sel.value = prev;
-  else if (!rootReady() && pages.length) sel.value = (top[0] || rest[0]).id;
-  else if (prev && prev !== "__none__" && prev !== "__new__") toast("A página escolhida não existe mais no Notion; escolha outra.", true);
-  courseChanged();
-}
-
-// ---------- busca de páginas (combobox) ----------
-const fold = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();  // sem acento/maiúscula
-const search = $("#course-filter"), results = $("#course-results");
-let hits = [], active = -1;
-function highlight(text, q) {
-  const i = q ? fold(text).indexOf(q) : -1;
-  if (i < 0) return [text];
-  return [text.slice(0, i), el("mark", {}, text.slice(i, i + q.length)), text.slice(i + q.length)];
-}
-function renderResults() {
-  if (document.activeElement !== search) return;
-  const q = fold(search.value.trim());
-  const info = (t) => [el("li", { class: "r-info", role: "presentation" }, t)];
-  let items;
-  if (pagesState === "loading") items = info("Carregando páginas do Notion…");
-  else if (pagesState === "idle") items = info("Conecte o Notion em Integrações para ver suas páginas.");
-  else if (pagesState === "error") items = info("Não foi possível carregar as páginas. Clique no campo de novo para tentar outra vez.");
-  else {
-    const scored = [];
-    for (const p of pages) {
-      const t = fold(p.title), path = fold(p.path);
-      const s = !q ? (p.top ? 2 : 3) : t.startsWith(q) ? 0 : t.includes(q) ? 1 : path.includes(q) ? 2 : -1;
-      if (s >= 0) scored.push([s, p]);
-    }
-    scored.sort((a, b) => a[0] - b[0] || a[1].path.localeCompare(b[1].path, "pt-BR", { numeric: true }));
-    hits = scored.slice(0, 60).map(([, p]) => p);
-    const typed = search.value.trim();
-    if (typed && !pages.some((p) => fold(p.title) === q)) hits.push({ create: typed });
-    active = hits.length ? Math.min(active, hits.length - 1) : -1;  // campo vazio: nada pré-selecionado
-    items = hits.length ? [
-      el("li", { class: "r-count", role: "presentation" },
-        q ? `${scored.length} página${scored.length === 1 ? "" : "s"} encontrada${scored.length === 1 ? "" : "s"}` : `${pages.length} páginas — digite para filtrar`),
-      ...hits.map((p, i) => {
-        if (p.create) {
-          const sel = selectedPage();
-          const li = el("li", { role: "option", id: "r-" + i, class: "r-create", "aria-selected": String(i === active) },
-            el("span", { class: "r-title" }, `Criar página “${p.create}”`),
-            el("span", { class: "r-path" }, `dentro de ${sel ? sel.path : (S?.config.root_page_title || "página raiz")}`));
-          li.addEventListener("mousedown", (e) => { e.preventDefault(); createFromSearch(p.create); });
-          return li;
-        }
-        const parent = p.path.slice(0, Math.max(0, p.path.length - p.title.length)).replace(/ › $/, "");
-        const li = el("li", { role: "option", id: "r-" + i, "aria-selected": String(i === active) },
-          el("span", { class: "r-title" }, ...highlight(p.title, q)),
-          parent ? el("span", { class: "r-path" }, parent) : p.top ? el("span", { class: "r-path r-top" }, "Página raiz do Notion") : null);
-        li.addEventListener("mousedown", (e) => { e.preventDefault(); choosePage(p); });
-        li.addEventListener("mousemove", () => { if (active !== i) { active = i; markActive(); } });
-        return li;
-      })] : info(`Nenhuma página com “${search.value.trim()}”.`);
-    if (hits.length && hits.every((h) => h.create)) items.splice(0, 1, el("li", { class: "r-count", role: "presentation" }, "Nenhuma página com esse nome"));
-  }
-  results.replaceChildren(...items);
-  results.hidden = false;
-  search.setAttribute("aria-expanded", "true");
-  markActive();
-}
-function markActive() {
-  results.querySelectorAll("[role=option]").forEach((li, i) => li.setAttribute("aria-selected", String(i === active)));
-  const cur = results.querySelector(`#r-${active}`);
-  if (cur) { search.setAttribute("aria-activedescendant", cur.id); cur.scrollIntoView({ block: "nearest" }); }
-  else search.removeAttribute("aria-activedescendant");
-}
-function closeResults() {
-  results.hidden = true; search.setAttribute("aria-expanded", "false"); search.removeAttribute("aria-activedescendant");
-}
-function createFromSearch(name) {
-  search.value = "";
-  closeResults();
-  openNewPage(name);
-}
-function choosePage(p) {
-  if (p.create) return createFromSearch(p.create);
-  renderCourses(p.id);
-  search.value = "";
-  closeResults();
-  search.blur();  // ao voltar para a janela, a lista não reabre sozinha
-  courseChanged();
-  toast(`A aula será salva em “${p.path}”.`);
-}
-search.addEventListener("input", () => { active = 0; renderResults(); });
-search.addEventListener("focus", () => {
-  active = -1;
-  if (pagesState === "error") loadCourses();  // nova tentativa ao voltar ao campo
-  // sobe a busca para o alto da área de conteúdo, para a lista de resultados caber inteira
-  const box = $("#content"), top = search.getBoundingClientRect().top - box.getBoundingClientRect().top;
-  if (top > 120) box.scrollTop += top - 90;  // imediato: a rolagem suave era interrompida pelo clique
-  renderResults();
-});
-search.addEventListener("blur", () => setTimeout(closeResults, 120));
-search.addEventListener("keydown", (e) => {
-  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-    e.preventDefault();
-    if (results.hidden) return renderResults();
-    if (!hits.length) return;
-    active = e.key === "ArrowDown" ? (active + 1) % hits.length : (active - 1 + hits.length) % hits.length;
-    markActive();
-  } else if (e.key === "Enter") {
-    if (!results.hidden && hits[active]) { e.preventDefault(); choosePage(hits[active]); }
-  } else if (e.key === "Escape") {
-    if (!results.hidden) { e.preventDefault(); e.stopPropagation(); closeResults(); }
-  }
-});
-function courseChanged() {
-  const sp = selectedPage();
-  if ($("#course").value === "__new__") openNewPage("", true);
-  // quadro “Nova página” aberto: acompanha a página escolhida (antes ficava preso no destino antigo)
-  else if (!$("#new-course").hidden && sp && newParent?.id !== sp.id) openNewPage($("#new-course-name").value);
-  renderDest();
-  renderBrowse();
-  updateGo();
-}
-$("#course").addEventListener("change", courseChanged);
-
-// ---------- navegador de páginas ----------
-let level = null;  // página cujas subpáginas estão na lista (null = páginas principais do Notion)
-let recent = [];
-try { recent = JSON.parse(localStorage.getItem("lumen.recent")) || []; } catch {}
-function remember(id) {
-  if (!id || id === "__new__") return;
-  recent = [id, ...recent.filter((x) => x !== id)].slice(0, 5);
-  try { localStorage.setItem("lumen.recent", JSON.stringify(recent)); } catch {}
-}
-const pageIcon = (p) => p?.icon || icon("page", "sm");  // o emoji é da página (Notion); sem ele, o ícone do Lumen
-const byTitle = (a, b) => (b.top - a.top) || a.title.localeCompare(b.title, "pt-BR", { numeric: true });
-function tree() {
-  const by = new Map(pages.map((p) => [p.id, p])), kids = new Map();
-  for (const p of pages) {
-    const k = p.parent && by.has(p.parent) ? p.parent : null;
-    if (!kids.has(k)) kids.set(k, []);
-    kids.get(k).push(p);
-  }
-  return { by, kids };
-}
-function trail(p, by) {  // da página principal até p
-  const out = [];
-  for (let i = 0; p && i < 60; i++) { out.unshift(p); p = by.get(p.parent); }
+const fold = (t) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();  // sem acento/maiúscula
+const LABELS = { course: "Cursos", free: "Conteúdo gratuito", single: "Aulas avulsas", inbox: "A organizar" };
+const TYPE_LOOK = { course: ["library", "Curso"], free: ["play", "Conteúdo gratuito"], single: ["file", "Aula avulsa"],
+  inbox: ["folder", "A organizar"] };
+const courseOf = (id) => catalogData.courses.find((c) => c.id === id) || null;
+const byOrder = (a, b) => (a.order || 999) - (b.order || 999) || a.name.localeCompare(b.name, "pt-BR", { numeric: true });
+const modName = (m) => (m.order ? String(m.order).padStart(2, "0") + " - " : "") + m.name;
+function withNames(c) {  // os nomes vêm do catálogo: renomear um curso vale para todas as aulas
+  const out = { ...c }, course = courseOf(c.course_id);
+  if (course) { out.course = course.name; out.platform = course.platform; }
+  const m = course?.modules.find((x) => x.id === c.module_id);
+  if (m) out.module = m.name;
   return out;
 }
-function renderDest() {
-  const p = selectedPage(), v = $("#course").value;
-  $("#dest-icon").replaceChildren(p ? pageIcon(p) : icon(v === "__none__" ? "folder" : "page", "sm"));
-  if ($("#picker").hidden) $("#dest-change").textContent = p || v === "__none__" ? "Alterar" : "Escolher";
-  if (!p) return $("#dest-path").replaceChildren(v === "__none__" ? "Sem curso (organizar depois)" : "Escolha uma página");
-  const t = trail(p, tree().by), shown = t.length > 3 ? t.slice(-3) : t;
-  $("#dest-path").dataset.tip = t.map((x) => x.title).join(" › ");
-  $("#dest-path").replaceChildren(...(t.length > 3 ? [el("span", { class: "up" }, "…"), el("span", { class: "sep" }, "›")] : []),
-    ...shown.flatMap((x, i) => [i ? el("span", { class: "sep", "aria-hidden": "true" }, "›") : null,
-      el("span", { class: i === shown.length - 1 ? "" : "up" }, x.title)]).filter(Boolean));
+function crumbsOf(c) {  // os mesmos rótulos de catalog.breadcrumb
+  const xs = [LABELS[c.type] || LABELS.inbox, ...(c.type === "course" ? [c.course, c.module] : [c.category])].filter(Boolean);
+  if (c.lesson) xs[xs.length - 1] += ` · Aula ${String(c.lesson).padStart(2, "0")}`;
+  return xs;
 }
-function pick(id) {
-  $("#course").value = id;
-  courseChanged();
+const orgClass = (c = org) => Object.fromEntries(["type", "course_id", "module_id", "lesson", "category"]
+  .filter((k) => c[k] !== undefined && c[k] !== null && c[k] !== "").map((k) => [k, c[k]]));
+const sameOrg = (a, b) => JSON.stringify(orgClass(a)) === JSON.stringify(orgClass(b));
+function trailNodes(xs) {  // “A › B › C”: os anteriores mais apagados, o último em destaque
+  return xs.flatMap((x, i) => [i ? el("span", { class: "sep", "aria-hidden": "true" }, "›") : null,
+    el("span", { class: i < xs.length - 1 ? "up" : "" }, x)]).filter(Boolean);
 }
-function renderBrowse() {
-  if ($("#picker").hidden) return;
-  const { by, kids } = tree(), cur = $("#course").value;
-  if (level && !by.has(level)) level = null;
-  const lv = level ? by.get(level) : null;
-  // usadas recentemente (+ “organizar depois”)
-  const chip = (label, id, ic) => el("button", { type: "button", class: "chip" + (cur === id ? " on" : ""), "data-tip": label,
-    onclick: () => { const p = by.get(id); level = p ? (kids.has(p.id) ? p.id : p.parent || null) : level; pick(id); } }, ic, label);
-  $("#recents").replaceChildren(...recent.filter((id) => by.has(id)).map((id) => chip(by.get(id).title, id, pageIcon(by.get(id)))),
-    ...(rootReady() ? [chip("Organizar depois", "__none__", icon("folder", "sm"))] : []));
-  // caminho clicável
-  const crumbs = [el("button", { type: "button", class: "crumb" + (lv ? "" : " cur"), onclick: () => { level = null; renderBrowse(); } }, "Notion")];
-  if (lv) for (const x of trail(lv, by)) crumbs.push(el("span", { class: "sep", "aria-hidden": "true" }, "›"),
-    el("button", { type: "button", class: "crumb" + (x.id === lv.id ? " cur" : ""), onclick: () => { level = x.id; pick(x.id); } }, x.title));
-  $("#crumbs").replaceChildren(...crumbs);
-  // páginas deste nível: clicar escolhe; se tiver subpáginas, entra nela
-  const list = (kids.get(level) || []).slice().sort(byTitle);
-  $("#browse").replaceChildren(...(list.length ? list.map((p) => {
-    const n = (kids.get(p.id) || []).length;
-    return el("li", {}, el("button", { type: "button", class: "brow" + (p.id === cur ? " on" : ""), "aria-current": String(p.id === cur),
-      onclick: () => { if (n) level = p.id; pick(p.id); } },
-      el("span", { class: "b-icon", "aria-hidden": "true" }, pageIcon(p)), el("span", { class: "b-title" }, p.title),
-      n ? el("span", { class: "b-count", "aria-label": `${n} subpáginas` }, String(n), icon("chevron-right")) : null));
-  }) : [el("li", { class: "b-empty" }, pagesState === "loading" ? "Carregando páginas do Notion…"
-    : `Nenhuma subpágina em “${lv?.title || "Notion"}”. Use “Nova subpágina” (+) para criar uma.`)]));
+
+async function loadCatalog(withNotion = true) {
+  try { Object.assign(catalogData, await api("/api/catalog")); } catch (e) { fail(e); }
+  renderOrg();
+  if (withNotion && usesNotion() && S?.has_token && S.config.root_page_id) {
+    try {
+      const r = await api("/api/catalog?notion=1");
+      catalogData.notion = r.notion || [];
+      if (r.root_ok !== undefined && rootOk !== r.root_ok) { rootOk = r.root_ok; renderChecks(); renderDestRows(); }
+    } catch { /* sem rede: os cursos do Lumen continuam valendo */ }
+  }
 }
-function setPicker(open) {
-  if ($("#picker").hidden === !open) return;
-  $("#picker").hidden = !open;
-  $("#dest-card").classList.toggle("picking", open);  // a busca e a dica só aparecem com o navegador aberto
-  $("#dest-change").setAttribute("aria-expanded", String(open));
-  if (open) {  // abre mostrando onde a página escolhida está
-    $("#dest-change").textContent = "Pronto";
-    setObsQuick(false);
-    const p = selectedPage(), { kids } = tree();
-    level = p ? (kids.has(p.id) ? p.id : p.parent || null) : null;
-    renderBrowse();  // sem foco automático na busca: as sugestões cobririam a lista de páginas
-  } else renderDest();
+
+function setOrg(c, touched = true) {
+  org = orgClass(c);
+  if (!org.type) org.type = "inbox";
+  orgTouched = touched;
+  renderOrg();
 }
+function suggestions() {  // nunca aplicadas sozinhas: um botão “Usar”
+  const out = [...(found?.suggest || [])];
+  const last = catalogData.last;
+  if (last && !out.some((s) => s.why === "continuar") && Date.now() - new Date(last.at).getTime() < 12 * 3600e3 && last.type !== "inbox")
+    out.unshift({ why: "continuar", classification: { ...last, lesson: last.lesson ? Math.min(999, last.lesson + 1) : undefined } });
+  return out.filter((s) => !sameOrg(s.classification, org) && (s.classification.type !== "course" || courseOf(s.classification.course_id)));
+}
+function renderOrg() {
+  const c = withNames(org), [ic, label] = TYPE_LOOK[c.type] || TYPE_LOOK.inbox, rest = crumbsOf(c).slice(1);
+  $("#org-ico").replaceChildren(icon(ic));
+  $("#org-ico").dataset.type = c.type;
+  $("#org-type").textContent = label;
+  $("#org-path").replaceChildren(...(rest.length ? trailNodes(rest) : [c.type === "inbox" ? "Organizar depois" : "Sem tema"]));
+  $("#org-path").dataset.tip = crumbsOf(c).join(" › ");
+  const s = suggestions()[0], box = $("#org-suggest");
+  box.hidden = !s;
+  if (s) {
+    const why = { continuar: "Continuar em", nome: "Parece pertencer a", youtube: "Vídeo do YouTube?" }[s.why] || "Sugestão";
+    box.replaceChildren(icon("sparkle", "sm"), el("span", {}, `${why} `, el("strong", {}, crumbsOf(withNames(s.classification)).slice(s.classification.type === "course" ? 1 : 0).join(" › "))),
+      el("button", { class: "btn ghost sm", type: "button", onclick: () => setOrg(s.classification) }, "Usar"));
+  }
+  previewOrg();
+  updateGo();
+}
+let previewSeq = 0, previewTimer = null;
+function previewOrg() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(async () => {
+    const seq = ++previewSeq;
+    try {
+      const r = await api("/api/organize/preview", { classification: orgClass(), title: found?.title || "" });
+      if (seq === previewSeq) { orgView = r; renderDestRows(); }
+    } catch { if (seq === previewSeq) { orgView = null; renderDestRows(); } }
+  }, 120);
+}
+$("#org-change").addEventListener("click", () => openOrg(org));
+
 function setObsQuick(open) {  // configuração rápida do cofre, no próprio cartão (os mesmos ajustes de Integrações)
   if ($("#obs-quick").hidden === !open) return;
   $("#obs-quick").hidden = !open;
   $("#dest-obs-change").setAttribute("aria-expanded", String(open));
-  if (open) setPicker(false);
   renderDestRows();
 }
-$("#dest-change").addEventListener("click", () => setPicker($("#picker").hidden));
-// fecham com Esc ou clicando fora (do painel e da linha do destino)
+// fecha com Esc ou clicando fora (do painel e da linha do Obsidian)
 document.addEventListener("keydown", (e) => {
-  if (e.key !== "Escape" || e.defaultPrevented) return;
-  if (!$("#picker").hidden) { e.preventDefault(); setPicker(false); $("#dest-change").focus(); }
-  else if (!$("#obs-quick").hidden) { e.preventDefault(); setObsQuick(false); $("#dest-obs-change").focus(); }
+  if (e.key === "Escape" && !e.defaultPrevented && !$("#obs-quick").hidden) { e.preventDefault(); setObsQuick(false); $("#dest-obs-change").focus(); }
 });
 document.addEventListener("pointerdown", (e) => {
-  if (!$("#picker").hidden && !e.target.closest("#picker, .dest, .combo, #course-note")) setPicker(false);
   if (!$("#obs-quick").hidden && !e.target.closest("#obs-quick, #dest-obsidian")) setObsQuick(false);
 });
 
-// Ao voltar para a janela, atualiza a lista de páginas em segundo plano (no máximo a cada 30 s),
-// para aparecer o que foi criado, renomeado ou conectado no Notion enquanto o Lumen estava aberto.
-let pagesAt = 0, refreshing = false;
-async function refreshPagesSilently() {
-  if (refreshing || pagesState === "loading" || !S?.has_token) return;
-  if (Date.now() - pagesAt < 30_000) return;
-  refreshing = true;
-  try {
-    gotPages(await api("/api/courses"));
-    renderCourses();                                   // mantém a página escolhida, se ela ainda existir
-    if (!results.hidden) renderResults();
-  } catch { /* silencioso: a lista anterior continua valendo */ } finally { refreshing = false; }
+// ---------- diálogo “Organizar estudo” (Nova aula e o “Organizar” de cada aula da Biblioteca) ----------
+const orgDlg = $("#org-dlg");
+let draft = { type: "inbox" }, orgItem = null;  // orgItem: a aula salva que está sendo reorganizada
+function openOrg(start, item = null) {
+  orgItem = item;
+  draft = { ...orgClass(start) };
+  $("#org-dlg-sub").textContent = item ? item.title : "Vale para o Notion e para o Obsidian. Dá para mudar depois, na Biblioteca.";
+  $("#org-save").textContent = item ? "Mover para cá" : "Salvar";
+  for (const r of $$("input[name=org_type]")) r.checked = r.value === (draft.type || "inbox");
+  $("#org-lesson").value = draft.lesson || "";
+  $("#org-category").value = draft.category || "";
+  $("#org-cats").replaceChildren(...(catalogData.categories || []).map((c) => el("option", { value: c })));
+  $("#org-decorate-row").hidden = !(usesNotion() && S?.has_token);
+  $("#org-hint").textContent = "";
+  closeOrgForms();
+  fillCourses(); orgFields();
+  orgDlg.showModal();
+  (orgDlg.querySelector("input[name=org_type]:checked") || orgDlg.querySelector("input[name=org_type]")).focus();
+  if (usesNotion() && S?.has_token && catalogData.notion === null) loadCatalog().then(() => orgDlg.open && fillCourses());
 }
-window.addEventListener("focus", refreshPagesSilently);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshPagesSilently(); });
-
-// ---------- criar subpágina no Notion ----------
-let newParent = null;  // {id, path}
-function selectedPage() {
-  return pages.find((p) => p.id === $("#course").value) || null;
+function orgFields() {
+  const t = draft.type || "inbox";
+  $("#org-course-fields").hidden = t !== "course";
+  $("#org-cat-fields").hidden = !["free", "single"].includes(t);
+  previewDraft();
 }
-function openNewPage(name = "", atRoot = false) {
-  const root = pages.find((p) => p.id === S?.config.root_page_id);
-  const sel = atRoot ? null : selectedPage();
-  newParent = sel ? { id: sel.id, path: sel.path }
-    : { id: S?.config.root_page_id, path: root ? root.path : (S?.config.root_page_title || "página raiz") };
-  if (!newParent.id) return toast("Conecte o Notion em Integrações primeiro.", true);
-  $("#new-course-where").replaceChildren("Nova página dentro de ", el("strong", {}, newParent.path),
-    sel ? "" : el("span", { class: "muted" }, " (escolha outra página antes para criar dentro dela)"));
-  $("#new-course").hidden = false;
-  $("#new-course-name").value = name;
-  $("#new-course-name").focus();
-  preview = null;
-  if (typeof showCoverIdle === "function") showCoverIdle();
+function fillCourses() {
+  const sel = $("#org-course"), mine = catalogData.courses.slice().sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const fromNotion = (catalogData.notion || []).filter((p) => !mine.some((c) => fold(c.name) === fold(p.title)));
+  sel.replaceChildren(el("option", { value: "" }, mine.length || fromNotion.length ? "Escolha o curso…" : "Nenhum curso ainda: crie o primeiro"),
+    ...mine.map((c) => el("option", { value: c.id }, c.name + (c.platform ? ` · ${c.platform}` : ""))),
+    ...(fromNotion.length ? [el("optgroup", { label: "Páginas de curso no Notion" }, ...fromNotion.map((p) => el("option", { value: "notion:" + p.id }, p.title)))] : []));
+  sel.value = draft.course_id && courseOf(draft.course_id) ? draft.course_id : "";
+  fillModules();
 }
-function closeNewPage() {
-  $("#new-course").hidden = true;
-  $("#cover-preview").hidden = true;
-  if ($("#course").value === "__new__") { $("#course").value = "__none__"; updateGo(); }
-}
-async function createCourse() {
-  const name = $("#new-course-name").value.trim();
-  if (!name) return $("#new-course-name").focus();
-  const same = pages.find((p) => p.title.toLowerCase() === name.toLowerCase() && p.path === `${newParent.path} › ${p.title}`);
-  if (same) {  // evita página repetida no mesmo lugar
-    $("#course").value = same.id; closeNewPage(); courseChanged();
-    return toast(`“${same.title}” já existe aí; ela foi escolhida como destino.`);
+async function fillModules() {
+  const sel = $("#org-module"), c = courseOf(draft.course_id);
+  $("#org-new-module").disabled = sel.disabled = !c;
+  const mods = (c?.modules || []).slice().sort(byOrder);
+  const extra = (catalogData.notionModules[c?.id] || []).filter((p) => !mods.some((m) => fold(m.name) === fold(p.title)));
+  sel.replaceChildren(el("option", { value: "" }, c ? (mods.length ? "Sem módulo" : "Sem módulo (este curso não tem)") : "Escolha o curso antes"),
+    ...mods.map((m) => el("option", { value: m.id }, modName(m))),
+    ...(extra.length ? [el("optgroup", { label: "Subpáginas do curso no Notion" }, ...extra.map((p) => el("option", { value: "notion:" + p.id }, p.title)))] : []));
+  sel.value = draft.module_id && mods.some((m) => m.id === draft.module_id) ? draft.module_id : "";
+  if (c?.notion_page_id && usesNotion() && S?.has_token && !catalogData.notionModules[c.id]) {
+    catalogData.notionModules[c.id] = [];
+    try {
+      const r = await api(`/api/catalog?notion=1&course_id=${encodeURIComponent(c.id)}`);
+      catalogData.notionModules[c.id] = (r.notion || []).filter((p) => p.title !== "Minha compreensão");
+      if (orgDlg.open && draft.course_id === c.id && catalogData.notionModules[c.id].length) fillModules();
+    } catch { /* sem rede: só os módulos do Lumen */ }
   }
-  const btn = $("#new-course-btn"), deco = $("#decorate").checked;
+}
+function closeOrgForms() { $("#org-course-form").hidden = $("#org-module-form").hidden = true; }
+$("#org-types").addEventListener("change", (e) => { draft.type = e.target.value; orgFields(); });
+$("#org-course").addEventListener("change", async (e) => {
+  const v = e.target.value;
+  if (v.startsWith("notion:")) {  // adota a página que já existe no Notion (nunca cria outra)
+    const title = e.target.selectedOptions[0].textContent;
+    try {
+      const r = await api("/api/catalog/course", { name: title, notion_page_id: v.slice(7) });
+      await loadCatalog(false);
+      draft.course_id = r.course.id;
+      toast(`Curso “${r.course.name}” adotado do Notion.`);
+    } catch (err) { fail(err); draft.course_id = ""; }
+    fillCourses();
+  } else { draft.course_id = v; draft.module_id = ""; fillModules(); }
+  previewDraft();
+});
+$("#org-module").addEventListener("change", async (e) => {
+  const v = e.target.value;
+  if (v.startsWith("notion:")) {
+    try {
+      const r = await api("/api/catalog/module", { course_id: draft.course_id, name: e.target.selectedOptions[0].textContent, notion_page_id: v.slice(7) });
+      await loadCatalog(false);
+      draft.module_id = r.module.id;
+    } catch (err) { fail(err); draft.module_id = ""; }
+    fillModules();
+  } else draft.module_id = v;
+  previewDraft();
+});
+$("#org-lesson").addEventListener("input", (e) => { draft.lesson = parseInt(e.target.value, 10) || ""; previewDraft(); });
+$("#org-category").addEventListener("input", (e) => { draft.category = e.target.value.trim(); previewDraft(); });
+// novo curso: nome e plataforma bastam; o parecido é avisado, nunca unido sozinho
+function similarTo(name, list) {
+  const n = fold(name.trim()).replace(/\s+/g, " ");
+  if (n.length < 3) return [null, null];
+  const same = list.find((x) => fold(x.name).replace(/\s+/g, " ") === n);
+  const near = !same && list.find((x) => { const f = fold(x.name); return f.includes(n) || n.includes(f) || lev(f, n) <= 2; });
+  return [same || null, near || null];
+}
+function lev(a, b) {  // distância de edição (nomes curtos)
+  const d = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = d[0]; d[0] = i;
+    for (let j = 1; j <= b.length; j++) { const t = d[j]; d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = t; }
+  }
+  return d[b.length];
+}
+function similarHint(input, hint, list, pick) {
+  const [same, near] = similarTo(input.value, list), x = same || near;
+  hint.hidden = !x;
+  if (x) hint.replaceChildren(same ? `Já existe “${x.name}”.` : `Parecido com “${x.name}”.`, " ",
+    el("button", { class: "link-btn", type: "button", onclick: () => pick(x) }, `Usar “${x.name}”`));
+  return same;
+}
+$("#org-new-course").addEventListener("click", () => {
+  $("#org-course-form").hidden = false; $("#org-module-form").hidden = true;
+  $("#org-course-name").value = ""; $("#org-course-platform").value = ""; $("#org-course-similar").hidden = true;
+  $("#org-decorate").checked = false;
+  $("#org-course-name").focus();
+});
+$("#org-course-cancel").addEventListener("click", () => { $("#org-course-form").hidden = true; $("#org-new-course").focus(); });
+const pickCourse = (c) => { draft.course_id = c.id; draft.module_id = ""; $("#org-course-form").hidden = true; fillCourses(); previewDraft(); };
+$("#org-course-name").addEventListener("input", () => similarHint($("#org-course-name"), $("#org-course-similar"), catalogData.courses, pickCourse));
+async function createOrgCourse() {
+  const name = $("#org-course-name").value.trim();
+  if (!name) return $("#org-course-name").focus();
+  if (similarHint($("#org-course-name"), $("#org-course-similar"), catalogData.courses, pickCourse)) return;
+  const btn = $("#org-course-create");
+  btn.disabled = true; btn.textContent = $("#org-decorate").checked ? "Criando (com a capa)…" : "Criando…";
+  try {
+    const r = await api("/api/catalog/course", { name, platform: $("#org-course-platform").value.trim(), decorate: $("#org-decorate").checked });
+    await loadCatalog(false);
+    pickCourse(r.course);
+    toast(r.note || `Curso “${r.course.name}” criado.`, r.note ? "warning" : "success");
+    $("#org-module").focus();
+  } catch (e) { fail(e); } finally { btn.disabled = false; btn.textContent = "Criar curso"; }
+}
+$("#org-course-create").addEventListener("click", createOrgCourse);
+$("#org-new-module").addEventListener("click", () => {
+  $("#org-module-form").hidden = false; $("#org-course-form").hidden = true;
+  $("#org-module-name").value = ""; $("#org-module-order").value = "";
+  $("#org-module-name").focus();
+});
+$("#org-module-cancel").addEventListener("click", () => { $("#org-module-form").hidden = true; $("#org-new-module").focus(); });
+async function createOrgModule() {
+  const name = $("#org-module-name").value.trim(), c = courseOf(draft.course_id);
+  if (!name) return $("#org-module-name").focus();
+  const same = c.modules.find((m) => fold(m.name) === fold(name));
+  if (same) { draft.module_id = same.id; $("#org-module-form").hidden = true; fillModules(); return toast(`O módulo “${same.name}” já existe; ele foi escolhido.`); }
+  const btn = $("#org-module-create");
   btn.disabled = true;
-  if (deco) btn.textContent = !(preview && preview.name === name) && S?.covers?.ready ? "Criando capa (≈ 30 s)…" : "Criando…";
   try {
-    const usePreview = deco && preview && preview.name === name ? preview.id : null;
-    const c = await api("/api/courses", { title: name, parent_id: newParent.id, decorate: deco, parent_path: newParent.path,
-                                          preview_id: usePreview });
-    pages.push({ id: c.id, title: c.title, path: `${newParent.path} › ${c.title}`, top: false, parent: newParent.id,
-                 icon: c.decor?.emoji || null });
-    pages.sort((a, b) => a.path.localeCompare(b.path, "pt-BR", { numeric: true }));
-    remember(c.id);
-    renderCourses(c.id);
-    $("#new-course-name").value = ""; $("#course-filter").value = "";
-    closeNewPage(); courseChanged();
-    toast(c.note ? c.note : `${c.decor ? c.decor.emoji + " " : ""}Página “${c.title}” criada dentro de “${newParent.path}”`
-      + (c.decor ? " com ícone, capa e destaque." : ".") + " A aula será salva nela.", !!c.note);
-  } catch (e) { fail(e); } finally { btn.disabled = false; btn.textContent = "Criar"; }
+    const r = await api("/api/catalog/module", { course_id: c.id, name, order: $("#org-module-order").value || null });
+    await loadCatalog(false);
+    draft.module_id = r.module.id;
+    $("#org-module-form").hidden = true;
+    fillModules(); previewDraft();
+    if (r.note) toast(r.note, "warning");
+  } catch (e) { fail(e); } finally { btn.disabled = false; }
 }
-$("#new-sub").addEventListener("click", () => openNewPage());
-
-// ---------- prévia da capa (IA local + desenho no PC) ----------
-let preview = null, previewTimer = null, previewSeq = 0, variant = 0;
-function showCoverIdle() {  // nome mudou: a prévia antiga não vale mais; espera o clique em “Gerar capa”
-  const name = $("#new-course-name").value.trim();
-  const box = $("#cover-preview");
-  previewSeq++; preview = null;
-  if (!$("#decorate").checked || name.length < 2 || $("#new-course").hidden) { box.hidden = true; return; }
-  box.hidden = false;
-  $("#cover-img").style.backgroundImage = "";
-  $("#cover-wait").hidden = false;
-  $("#cover-wait").textContent = S?.covers?.ready
-    ? "Clique em “Gerar capa” para criar uma ilustração com IA (≈ 30 s). Ou só clique em Criar."
-    : "Clique em “Gerar capa” para ver a prévia.";
-  $("#cover-emoji").textContent = ""; $("#cover-sub").textContent = "";
-  setLabel($("#cover-again"), "Gerar capa", "sparkle"); $("#cover-again").disabled = false;
-}
-async function loadPreview(again = false) {
-  const name = $("#new-course-name").value.trim();
-  const box = $("#cover-preview");
-  if (!$("#decorate").checked || name.length < 2 || $("#new-course").hidden) { box.hidden = true; preview = null; return; }
-  variant = again ? variant + 1 : 0;
-  const seq = ++previewSeq;
-  box.hidden = false;
-  $("#cover-img").style.backgroundImage = "";
-  $("#cover-wait").hidden = false;
-  $("#cover-wait").textContent = S?.covers?.ready ? "Criando a ilustração com IA no seu PC (≈ 30 s)…" : "Criando a capa…";
-  $("#cover-emoji").textContent = ""; $("#cover-sub").textContent = "";
-  $("#cover-again").disabled = true;
+$("#org-module-create").addEventListener("click", createOrgModule);
+for (const [input, fn] of [["#org-course-name", createOrgCourse], ["#org-course-platform", createOrgCourse], ["#org-module-name", createOrgModule], ["#org-module-order", createOrgModule]])
+  $(input).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); fn(); } });
+let draftSeq = 0;
+async function previewDraft() {
+  const seq = ++draftSeq, box = $("#org-preview");
+  if (draft.type === "course" && !courseOf(draft.course_id)) {
+    return box.replaceChildren(el("dt", {}, "Destino"), el("dd", { class: "muted" }, "Escolha o curso (ou crie um) para ver onde a aula vai ficar."));
+  }
   try {
-    const r = await api("/api/decor/preview", { title: name, parent_path: newParent?.path || "", variant });
-    if (seq !== previewSeq) return;  // o usuário já digitou outra coisa
-    preview = { id: r.preview_id, name };
-    if (r.image) { $("#cover-img").style.backgroundImage = `url("${r.image}")`; $("#cover-wait").hidden = true; }
-    else $("#cover-wait").textContent = "Não foi possível desenhar a capa; será usada uma capa do Notion.";
-    $("#cover-emoji").textContent = r.decor.emoji;
-    $("#cover-sub").textContent = r.decor.subtitle;
-    setLabel($("#cover-again"), "Gerar outra", "refresh");
-  } catch (e) {
-    if (seq !== previewSeq) return;
-    preview = null;
-    $("#cover-wait").textContent = e.message + " A página será criada sem enfeites.";
-  } finally { if (seq === previewSeq) $("#cover-again").disabled = false; }
+    const r = await api("/api/organize/preview", { classification: orgClass(draft), title: orgItem?.title || found?.title || "",
+                                                     key: orgItem?.key || found?.duplicate?.key || "" });
+    if (seq !== draftSeq) return;
+    const rows = [];
+    if (usesNotion()) rows.push(el("dt", {}, icon("page", "sm"), "Notion"), el("dd", {}, r.notion_ready ? r.notion : "Escolha a página de conteúdo gratuito em Integrações → Notion."));
+    if (usesObsidian()) rows.push(el("dt", {}, icon("obsidian", "sm"), "Obsidian"), el("dd", { "data-tip": r.obsidian_path || "" }, r.obsidian));
+    if (orgItem && usesObsidian()) rows.push(el("dt", {}, ""), el("dd", { class: "muted" }, "A pasta da aula vai junto: nota, mapa, painel e imagens."));
+    box.replaceChildren(...rows);
+  } catch (e) { if (seq === draftSeq) box.replaceChildren(el("dt", {}, "Destino"), el("dd", {}, e.message)); }
 }
-$("#new-course-name").addEventListener("input", () => { clearTimeout(previewTimer); previewTimer = setTimeout(showCoverIdle, 300); });
-$("#cover-again").addEventListener("click", () => loadPreview(!!preview));
-try { $("#decorate").checked = localStorage.getItem("lumen.decorate") !== "0"; } catch { $("#decorate").checked = true; }
-$("#decorate").addEventListener("change", (e) => {
-  try { localStorage.setItem("lumen.decorate", e.target.checked ? "1" : "0"); } catch {}
-  showCoverIdle();
-});
-$("#new-course-btn").addEventListener("click", createCourse);
-$("#new-course-cancel").addEventListener("click", closeNewPage);
-$("#new-course-name").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") createCourse();
-  if (e.key === "Escape") closeNewPage();
-});
+async function saveOrg() {
+  const c = orgClass(draft);
+  if (c.type === "course" && !courseOf(c.course_id)) { $("#org-hint").textContent = "Escolha ou crie o curso."; return $("#org-course").focus(); }
+  if (!orgItem) { setOrg(c); orgDlg.close(); return toast(`A aula será organizada em ${crumbsOf(withNames(c)).join(" › ")}.`); }
+  const item = orgItem;
+  if (sameOrg(c, item.classification || { type: "inbox" })) return orgDlg.close();
+  $("#org-save").disabled = true;
+  try {
+    await api("/api/organize", { key: item.key, classification: c });
+    orgDlg.close();
+    toast(`Organizando “${item.title}”…`, "info");
+    poll();
+  } catch (e) { $("#org-hint").textContent = `${e.message} ${e.action || ""}`; } finally { $("#org-save").disabled = false; }
+}
+$("#org-save").addEventListener("click", saveOrg);
+$("#org-cancel").addEventListener("click", () => orgDlg.close());
+orgDlg.addEventListener("click", (e) => { if (e.target === orgDlg) orgDlg.close(); });  // clique fora da caixa
+function renderBackground(j) {  // organizar e migrar: rodam como tarefa, e a tela segue livre
+  if (j.status === "running") return;
+  if (j.status === "error") return fail(Object.assign(new Error(j.error.message), { action: j.error.action }));
+  if (j.status !== "done") return;
+  const r = j.result || {};
+  if (j.kind === "migrate") {
+    const m = r.migration || {};
+    toast(m.moved ? `${m.moved} ${m.moved === 1 ? "aula foi" : "aulas foram"} para a área de estudos (A organizar).` : "Nada para migrar.");
+    loadMigration();
+  } else {
+    const where = (r.classification ? crumbsOf(withNames(r.classification)) : []).join(" › ");
+    const bad = [r.notion, r.obsidian].find((d) => d && d.status !== "ok");
+    toast(bad ? `${bad.error} ${bad.action || ""}` : `Aula organizada${where ? " em " + where : ""}.` + (r.notion?.note ? " " + r.notion.note : r.note ? " " + r.note : ""),
+      bad ? "warning" : "success");
+  }
+  loadCatalog(false);
+  if (view === "library" || view === "home") loadLibrary();
+}
 
 // ---------- revisão ----------
 function updateGo() {
   renderWatch();
-  const sel = $("#course"), go = $("#go");
-  const course = sel.selectedOptions[0];
+  const go = $("#go");
   const rows = [];
   if (found) rows.push(["Fonte", `${found.label} — ${found.title}`]);
-  const solo = !usesNotion();
-  rows.push(["Curso", solo ? $("#course-text").value.trim() || "—" : course && course.value !== "__new__" ? course.textContent : "—"]);
+  rows.push(["Organização", crumbsOf(withNames(org)).join(" › ")]);
   const local = found?.has_captions || found?.resumable ? "Material escrito pela IA local (Ollama)."
     : "Transcrição (Whisper) e material (Ollama) feitos no seu PC.";
   const watching = S?.config.watch_screen && !$("#watch-row").hidden;
@@ -841,13 +771,15 @@ function updateGo() {
     + (watching ? ", com as imagens das telas que você mantiver." : ".")]);
   if (usesObsidian()) rows.push(["No Obsidian", ["Nota de estudo com perguntas", S.config.obsidian_canvas && "mapa conceitual (Canvas)",
     S.config.obsidian_board && S.config.obsidian_attachments && "painel visual com as telas da aula (Canvas)",
-    S.config.obsidian_review && "revisões", S.config.obsidian_connections && "conexões com o seu cofre"].filter(Boolean).join(", ") + ", na pasta do Lumen."]);
+    S.config.obsidian_review && "revisões", S.config.obsidian_connections && "conexões com o seu cofre"].filter(Boolean).join(", ") + `, numa pasta da aula em ${orgView?.obsidian || "Estudos"}.`]);
   $("#summary").replaceChildren(...rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
 
   let why = "";
   if (usesNotion() && !S?.has_token) why = "Conecte o Notion em Integrações.";
   else if (usesObsidian() && !vaultReady()) why = "Escolha o cofre do Obsidian em Integrações.";
-  else if (usesNotion() && course?.value === "__none__" && !rootReady()) why = "Escolha uma página do Notion (ou a página raiz em Integrações).";
+  else if (usesNotion() && org.type !== "free" && !rootReady()) why = "Escolha a página raiz dos cursos em Integrações → Notion.";
+  else if (usesNotion() && org.type === "free" && !S.config.notion_free_page_id) why = "Escolha a página de conteúdo gratuito em Integrações → Notion.";
+  else if (org.type === "course" && !courseOf(org.course_id)) why = "Escolha o curso da aula (Organização → Alterar).";
   else if (!S.ollama.running) why = "Abra o Ollama para gerar o material.";
   else if (!S.ollama.installed) why = "Baixe o modelo de IA em Ajustes → IA local.";
   else if (kind === "captures" && !S.vision.installed) why = "Baixe o modelo de visão em Ajustes → Captura para ler as capturas.";
@@ -855,21 +787,17 @@ function updateGo() {
   else if (!found) why = kind === "recording" ? "Grave a aula para continuar." : kind === "captures" ? "Adicione as capturas para continuar." : "Escolha o arquivo da aula.";
   else if (found.needs_transcript) why = "Forneça a transcrição do vídeo.";
   else if (found.needs_transcription && !found.whisper_ready) why = "Baixe o modelo de transcrição em Ajustes → Transcrição.";
-  else if (usesNotion() && (!course || course.value === "__new__")) why = "Escolha ou crie um curso.";
   go.disabled = !!why || polling;
   $("#go-hint").textContent = why;
 }
 
 $("#go").addEventListener("click", () => {
-  const sel = $("#course");
   if (found.duplicate) {
     const choice = document.querySelector("input[name=dup]:checked").value;
     if (choice === "open") return found.duplicate.url ? window.open(found.duplicate.url, "_blank") : openObsidian(found.duplicate.key, "note");
     lastSpec = { ...currentSpec(), mode: choice };
   } else lastSpec = { ...currentSpec(), mode: "new" };
-  Object.assign(lastSpec, chosenDest() || {});
-  Object.assign(lastSpec, {
-                            language: $("#lang").value, speed: $("#speed").value });
+  Object.assign(lastSpec, chosenDest(), { language: $("#lang").value, speed: $("#speed").value });
   start(lastSpec);
 });
 
@@ -879,13 +807,7 @@ function dockDest(slot) {  // move o cartão “Destinos do estudo” (com tudo 
   if (!slot) { if (destCard.parentElement !== destHome) destHome.insertBefore(destCard, destNext); return; }
   if (destCard.parentElement !== slot) slot.append(destCard);
 }
-function chosenDest() {
-  if (!usesNotion()) return { course_title: $("#course-text").value.trim().slice(0, 120) };
-  const sel = $("#course");
-  if (!sel.value || sel.value === "__new__") return null;
-  remember(sel.value);
-  return { course_id: sel.value, course_title: sel.value === "__none__" ? "" : sel.selectedOptions[0].dataset.title };
-}
+const chosenDest = () => ({ classification: orgClass() });  // a mesma organização para o Notion e o Obsidian
 
 // ---------- execução ----------
 let lastUrl = "/api/start";
@@ -905,6 +827,7 @@ function renderJob(j) {
   lastJob = j;
   if (j.kind === "download") return renderDownload(j);
   if (j.kind === "analyze") return renderAnalyzing(j);
+  if (j.kind === "organize" || j.kind === "migrate") return renderBackground(j);
   if (j.kind === "process" && lastUrl === "/api/start" && j.key && followPrep(j)) return;
   const cur = ORDER.indexOf(j.stage);
   for (const li of $$("#stages li")) {
@@ -999,11 +922,11 @@ function doneLines(r) {  // uma linha por destino: o que foi feito ou o que falh
 }
 let lastDeliver = null;
 function redeliver(key, only, force = false) {
-  lastDeliver = { key, only: [only], force, ...(only === "notion" && lastSpec ? { course_id: lastSpec.course_id, mode: lastSpec.mode } : {}) };
+  lastDeliver = { key, only: [only], force, ...(only === "notion" && lastSpec ? { mode: lastSpec.mode } : {}) };
   start(lastDeliver, "/api/deliver");
 }
-async function openObsidian(key, what) {
-  try { await api("/api/open", { key, what }); toast("Abrindo no Obsidian…"); } catch (e) { fail(e); }
+async function openObsidian(key, what, courseId) {
+  try { await api("/api/open", { key, what, course_id: courseId }); toast("Abrindo no Obsidian…"); } catch (e) { fail(e); }
 }
 
 function openRedo() {
@@ -1011,9 +934,7 @@ function openRedo() {
 }
 $("#redo-cancel").addEventListener("click", () => { $("#redo").hidden = true; poll(); });  // volta aos botões do resultado
 $("#redo-go").addEventListener("click", () => {
-  const dest = chosenDest();
-  if (!dest) return $("#redo-note").focus();
-  lastSpec = { ...lastSpec, ...dest, mode: "redo", redo_note: $("#redo-note").value.trim() };
+  lastSpec = { ...lastSpec, ...chosenDest(), mode: "redo", redo_note: $("#redo-note").value.trim() };
   start(lastSpec, "/api/finish");
 });
 
@@ -1434,9 +1355,8 @@ $("#review-go").addEventListener("click", () => {
     $("#review-hint").textContent = "Escreva e processe sua compreensão antes de salvar o material."; return;
   }
   const changed = Object.fromEntries(Object.entries(edits).filter(([i, t]) => t.trim() !== review.segments[i].text));
-  const dest = chosenDest();
-  if (!dest) { $("#review-hint").textContent = "Escolha onde salvar (ou termine de criar a página nova)."; return; }
-  lastSpec = { ...lastSpec, ...dest, retranscribe: false, edits: changed, include_transcript: $("#include-transcript").checked,
+  if (org.type === "course" && !courseOf(org.course_id)) { $("#review-hint").textContent = "Escolha o curso da aula em Organização."; return; }
+  lastSpec = { ...lastSpec, ...chosenDest(), retranscribe: false, edits: changed, include_transcript: $("#include-transcript").checked,
                screens_off: [...shotsOff] };
   if (lastSpec.kind !== "youtube") {
     lastSpec.link = $("#review-link").value.trim();
@@ -1460,7 +1380,8 @@ function backToCompose() {
   else if (kind === "recording" && recorder.dataset.state === "done") {  // a gravação já virou aula
     setRecState("idle", "Iniciar gravação"); $("#rec-time").textContent = "00:00"; $("#rec-hint").textContent = "";
   }
-  loadCourses();
+  if (lastJob?.status === "done" && lastJob.result?.dests) setOrg({ type: "inbox" }, false);  // aula salva: a próxima recomeça (com a sugestão de continuar)
+  loadCatalog();
 }
 
 async function poll() {
@@ -1493,7 +1414,7 @@ const goIntegrations = () => showView("integrations");
 function openSettings() { goSettings(); }  // a bandeja e a barra chamam “Ajustes”
 for (const b of $$("#settings-nav [data-cat]")) b.addEventListener("click", () => goSettings(b.dataset.cat));
 // Saindo dos Ajustes/Integrações: o que mudou vale para a aula (o que o fechamento do diálogo fazia)
-async function afterSettings() { await refresh().catch(fail); await loadCourses(); if (found) inspect(); }
+async function afterSettings() { await refresh().catch(fail); await loadCatalog(); if (found) inspect(); }
 
 function renderSettings() {
   if (!S) return;
@@ -1561,7 +1482,6 @@ function renderDestSettings() {  // Destinos do material: o cofre só é escolhi
   const sug = o.vaults.find((v) => v.path === c.obsidian_vault)?.folder || o.folder;
   if (document.activeElement !== $("#vault-folder")) $("#vault-folder").value = c.obsidian_folder;
   $("#vault-folder").placeholder = sug || "Escolha o cofre primeiro";
-  if (document.activeElement !== $("#canvas-folder")) $("#canvas-folder").value = c.obsidian_canvas_folder;
   if (document.activeElement !== $("#review-intervals")) $("#review-intervals").value = (c.review_intervals || []).join(", ");
   for (const i of $$("[data-cfg]")) i.checked = c[i.dataset.cfg];  // Integrações e a configuração rápida da Nova aula
   for (const r of $("#board-density").querySelectorAll("input")) {
@@ -1575,7 +1495,7 @@ function renderDestSettings() {  // Destinos do material: o cofre só é escolhi
   $("#review-intervals").disabled = !c.obsidian_review;
   $("#vault-status").textContent = o.error || (!c.obsidian_vault ? (o.vaults.length > 1
     ? "Há mais de um cofre neste PC: escolha qual o Lumen deve usar." : "Escolha o cofre para ligar o Obsidian.")
-    : `As notas ficam em “${o.folder}”, como material da IA para revisar (type: ai-study); nada fora dessa pasta é alterado.`);
+    : `Os estudos ficam em “${o.folder}”, uma pasta por aula, organizados por curso, tema ou “A organizar”; nada fora dessa área é alterado.`);
   $("#vault-dashboard").hidden = !c.obsidian_vault || !!o.error;
   renderDestRows();
 }
@@ -1594,7 +1514,6 @@ function obsidianState() {
   if (!S.config.obsidian_vault) return ["warn", "alert", "Escolha o cofre"];
   return ["ok", "check", "Conectado"];
 }
-const shortDir = (f) => { const x = f.split("/"); return x.length > 2 ? `${x[0]}/…/${x.at(-1)}` : f; };  // B03 Resources/…/Lumen
 const andList = (xs) => xs.length > 1 ? `${xs.slice(0, -1).join(", ")} e ${xs.at(-1)}` : xs[0];
 function renderDestRows() {
   if (!S) return;
@@ -1605,21 +1524,28 @@ function renderDestRows() {
   $("#dest-notion").dataset.off = String(!nOn);
   setBadge($("#dest-notion-badge"), nOk ? ["ok", "check", "Conectado"] : notionState());
   for (const x of $("#dest-notion").querySelectorAll(".notion-ok")) x.hidden = !nOk;
-  $("#dest-notion-msg").textContent = nOn && !nOk ? "Conecte para criar a página da aula." : "";
-  $("#dest-notion-fix").hidden = nOk;
-  $("#dest-notion-fix").textContent = nOn ? "Conectar" : "Ativar";
-  if (!nOk) setPicker(false);
+  const freeMissing = nOk && org.type === "free" && !c.notion_free_page_id;
+  $("#dest-notion-msg").textContent = nOn && !nOk ? "Conecte para criar a página da aula."
+    : freeMissing ? "Escolha a página de conteúdo gratuito em Integrações." : "";
+  if (nOk) {
+    const parts = (orgView?.notion || "").split(" › ").filter(Boolean);
+    $("#dest-path").replaceChildren(...(freeMissing ? [] : trailNodes(parts.length > 3 ? ["…", ...parts.slice(-2)] : parts)));
+    $("#dest-path").dataset.tip = orgView?.notion || "";
+  }
+  $("#dest-notion-fix").hidden = nOk && !freeMissing;
+  $("#dest-notion-fix").textContent = !nOn ? "Ativar" : freeMissing ? "Escolher" : "Conectar";
   // Obsidian: cofre em destaque, pasta cortada (o caminho inteiro na dica) e só os recursos ligados de verdade
   $("#dest-obsidian").dataset.off = String(!oOn);
   setBadge($("#dest-obs-badge"), st);
   const name = o.vaults.find((v) => v.path === c.obsidian_vault)?.name || c.obsidian_vault.split(/[\\/]/).filter(Boolean).pop();
   const vault = $("#dest-vault");
-  vault.dataset.tip = oOk ? `${c.obsidian_vault}${o.folder ? " › " + o.folder : ""}` : st[0] === "error" ? o.error : "";
-  vault.replaceChildren(...(!oOn ? [] : oOk ? [el("span", { class: "dest-vault-name" }, name), o.folder ? el("span", { class: "dest-vault-dir" }, "/ " + shortDir(o.folder)) : null].filter(Boolean)
+  vault.dataset.tip = oOk ? `${name} › ${orgView?.obsidian_path || o.folder}` : st[0] === "error" ? o.error : "";
+  vault.replaceChildren(...(!oOn ? [] : oOk ? [el("span", { class: "dest-path" }, ...trailNodes((orgView?.obsidian || "Estudos").split(" / ")))]
     : [el("span", { class: "dest-msg" }, st[0] === "error" ? "O cofre escolhido não foi encontrado." : "Notas, revisões e mapas mentais no seu cofre.")]));
   const visual = c.obsidian_board && c.obsidian_attachments;  // o painel só existe com as imagens no cofre
-  $("#dest-feats").textContent = oOk ? ["Nota de estudo", c.obsidian_canvas && "Mapa conceitual", visual && "Painel visual"]
-    .filter(Boolean).join(" · ") : "";
+  const maps = (c.obsidian_canvas ? 1 : 0) + (visual ? 1 : 0);
+  $("#dest-feats").textContent = oOk ? `Nota${maps ? ` + ${maps === 1 ? "" : "2 "}Canvas` : ""} · ${name}` : "";
+  $("#dest-feats").dataset.tip = oOk ? ["Nota de estudo", c.obsidian_canvas && "mapa conceitual", visual && "painel visual"].filter(Boolean).join(", ") : "";
   $("#dest-obs-help").hidden = !oOn;
   $("#dest-obs-help").dataset.tip = `No seu cofre, o Lumen cria ${andList(["uma nota de estudo com perguntas", c.obsidian_canvas && "um mapa conceitual (as ideias e as relações)",
     visual && "um painel visual (as telas e os gráficos da aula, para lembrar)",
@@ -1631,8 +1557,13 @@ function renderDestRows() {
 }
 const setDestinations = (v) => saveSettings({ destinations: v },
   { both: "O material vai para o Notion e o Obsidian.", notion: "O material vai só para o Notion.", obsidian: "O material vai só para o Obsidian." }[v])
-  .then(() => loadCourses());
+  .then(() => loadCatalog());
 $("#dest-notion-fix").addEventListener("click", () => usesNotion() ? goIntegrations() : setDestinations("both"));
+$("#free-root").addEventListener("change", (e) => {
+  const o = e.target.selectedOptions[0];
+  saveSettings({ notion_free_page: o.value, notion_free_page_title: o.value ? o.dataset.title || o.textContent : "" },
+    o.value ? `Conteúdo gratuito: uma página por material em “${o.dataset.title || o.textContent}”.` : "").then(renderOrg);
+});
 $("#dest-obs-change").addEventListener("click", () => usesObsidian() ? setObsQuick($("#obs-quick").hidden) : setDestinations("both"));
 for (const b of $$("[data-go-integ]")) b.addEventListener("click", () => goIntegrations());
 
@@ -1685,13 +1616,25 @@ async function loadRoots() {
     else opts.push(...pages.map(opt));
     sel.replaceChildren(...opts);
     sel.value = S.config.root_page_id && pages.some((p) => p.id === S.config.root_page_id) ? S.config.root_page_id : "";
+    const free = $("#free-root");
+    free.replaceChildren(...opts.map((x) => x.cloneNode(true)));
+    free.options[0].textContent = "Escolha a página…";
+    free.value = S.config.notion_free_page_id && pages.some((p) => p.id === S.config.notion_free_page_id) ? S.config.notion_free_page_id : "";
+    if (!S.config.notion_free_page_id && S.config.root_page_id) {  // a irmã “Conteúdo gratuito” da raiz, se houver uma só
+      const root = pages.find((p) => p.id === S.config.root_page_id);
+      const same = pages.filter((p) => fold(p.title) === "conteudo gratuito" && (!root?.parent || p.parent === root.parent));
+      if (same.length === 1) {
+        free.value = same[0].id;
+        saveSettings({ notion_free_page: same[0].id, notion_free_page_title: same[0].path }, `Conteúdo gratuito: usando “${same[0].path}”. Dá para trocar aqui.`);
+      }
+    }
   } catch (e) { fail(e); }
 }
 $("#root-load").addEventListener("click", loadRoots);
 $("#root").addEventListener("change", (e) => {
   const o = e.target.selectedOptions[0];
   if (o.value) saveSettings({ root_page: o.value, root_page_title: o.dataset.title || o.textContent },
-                           `Cursos serão criados dentro de “${o.dataset.title || o.textContent}”.`).then((ok) => ok && loadCourses());
+                           `Cursos serão criados dentro de “${o.dataset.title || o.textContent}”.`).then((ok) => ok && loadCatalog());
 });
 $("#quality").addEventListener("change", (e) => saveSettings({ quality: e.target.value }));
 $("#model-save").addEventListener("click", () => saveSettings({ ollama_model: $("#model").value }, "Modelo atualizado."));
@@ -1719,10 +1662,28 @@ for (const id of ["#vault-pick", "#q-vault-pick"]) $(id).addEventListener("click
     if (path) await saveSettings({ obsidian_vault: path }, "Cofre do Obsidian escolhido.");
   } catch (e) { fail(e); }
 });
-for (const [id, key] of [["#vault-folder", "obsidian_folder"], ["#canvas-folder", "obsidian_canvas_folder"], ["#review-intervals", "review_intervals"]])
+for (const [id, key] of [["#vault-folder", "obsidian_folder"], ["#review-intervals", "review_intervals"]])
   $(id).addEventListener("change", (e) => saveSettings({ [key]: e.target.value.trim() }, "Ajuste salvo."));
 for (const i of $$("[data-cfg]")) i.addEventListener("change", () => saveSettings({ [i.dataset.cfg]: i.checked }));
-$("#vault-dashboard").addEventListener("click", () => openObsidian("", "dashboard"));
+$("#vault-dashboard").addEventListener("click", () => openObsidian("", "home"));
+
+// Materiais da pasta antiga do Lumen (antes da área de estudos): a migração é pedida, nunca feita sozinha
+async function loadMigration() {
+  if (!usesObsidian() || !vaultReady()) { $("#migration").hidden = true; return; }
+  try {
+    const m = await api("/api/migration");
+    $("#migration").hidden = !m.lessons.length;
+    if (!m.lessons.length) return;
+    $("#migration-text").textContent = `${m.lessons.length} ${m.lessons.length === 1 ? "aula ainda está" : "aulas ainda estão"} em “${m.folders.join("”, “")}”, a pasta de antes. Elas vão para “A organizar”, na área de estudos:`;
+    $("#migration-list").replaceChildren(...m.lessons.map((l) => el("li", {}, el("strong", {}, l.title),
+      el("span", { class: "muted" }, ["nota", l.canvas && "mapa", l.board && "painel", l.attachments && `${l.attachments} ${l.attachments === 1 ? "imagem" : "imagens"}`].filter(Boolean).join(" · ")))));
+  } catch { $("#migration").hidden = true; }
+}
+$("#migration-go").addEventListener("click", async () => {
+  if (!await ui.confirm("As aulas da pasta antiga vão para “A organizar”, na área de estudos, cada uma na sua pasta (nota, mapa, painel e imagens). Os nomes dos arquivos ficam iguais e uma cópia da pasta antiga é guardada no PC antes.",
+    { title: "Migrar para a área de estudos?", ok: "Migrar" })) return;
+  try { await api("/api/migration", {}); toast("Migrando os materiais antigos…", "info"); poll(); } catch (e) { fail(e); }
+});
 async function download(body) {
   try { await api("/api/download", body); poll(); } catch (e) { fail(e); }
 }
@@ -1745,7 +1706,6 @@ $("#clear").addEventListener("click", async () => {
 $("#forget").addEventListener("click", async () => {
   if (!await ui.confirm("O token sai do cofre do Windows e o histórico local (com as notas de compreensão guardadas neste PC) é apagado. As páginas no Notion ficam.",
     { title: "Desconectar o Notion?", ok: "Desconectar", danger: true })) return;
-  try { localStorage.removeItem("lumen.pages"); } catch {}
   try { S = await api("/api/clear", { forget_token: true }); $("#root").replaceChildren(); renderSettings(); renderChecks(); renderPending(); await loadHistory().catch(() => {}); toast("Notion desconectado."); } catch (e) { fail(e); }
 });
 
@@ -1761,7 +1721,7 @@ if (host) host.addEventListener("message", async (e) => {
     if (root !== S?.config.root_page_id || connected !== S?.has_token) {
       $("#root").replaceChildren(); renderSettings();
       if (view === "integrations" && S.has_token) await loadRoots();
-      await loadCourses();
+      await loadCatalog();
     }
     if (view === "library") await loadLibrary();
   }
@@ -1801,73 +1761,197 @@ function showView(name) {
   if (name === "home") { renderHome(); loadHistory().then(renderHome).catch(() => {}); loadReviews(); }
   if (name === "library") loadLibrary();
   if (name === "integrations" && was !== name && S?.has_token) loadRoots();
+  if (name === "integrations" && was !== name) loadMigration();
   if (S && ["settings", "integrations"].includes(was) && !["settings", "integrations"].includes(name)) afterSettings();
 }
 for (const b of $$(".rail-item")) b.addEventListener("click", () => {
-  if (b.dataset.view === "library") libFilter = "all";
+  if (b.dataset.view === "library") { libFilter = "all"; libCourse = null; }
   if (b.dataset.view === "settings") goSettings(); else showView(b.dataset.view);
 });
-for (const b of $$("[data-go]")) b.addEventListener("click", () => { libFilter = b.dataset.filter || "all"; showView(b.dataset.go); });
+for (const b of $$("[data-go]")) b.addEventListener("click", () => { libFilter = b.dataset.filter === "pending" ? "pending" : "all"; libCourse = null; showView(b.dataset.go); });
 
 // Aulas salvas (Notion e/ou Obsidian): uma leitura só para o Início, a Biblioteca e a busca
 let historyItems = null;
 async function loadHistory() {
-  historyItems = (await api("/api/history")).items;
+  const r = await api("/api/history");
+  historyItems = r.items;
+  if (r.courses) catalogData.courses = r.courses;
+  if (r.categories) catalogData.categories = r.categories;
   $("#lib-n-saved").textContent = historyItems.length || "";
   return historyItems;
 }
 const shortDate = (iso) => iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "numeric", month: "short", year: "numeric" }) : "";
 const emptyState = (ic, title, text, action) =>
   el("div", { class: "empty" }, el("span", { class: "empty-icon", "aria-hidden": "true" }, icon(ic)), el("strong", {}, title), el("p", {}, text), action || null);
-function savedRow(it, compact = false) {
-  const ob = it.obsidian?.status === "ok", course = it.course || it.spec?.course_title;
+const today = () => new Date().toLocaleDateString("sv-SE");  // AAAA-MM-DD no fuso do PC
+const clsOf = (it) => it.classification || { type: "inbox" };
+const isDue = (it) => !!(it.review?.next && it.review.next <= today());
+function savedRow(it, compact = false, inCourse = false) {
+  const ob = it.obsidian?.status === "ok", c = clsOf(it);
   const act = (ic, label, tip, attrs) => compact
     ? el(attrs.href ? "a" : "button", { class: "icon-btn sm", "aria-label": `${tip}: ${it.title}`, "data-tip": tip, ...attrs }, icon(ic))
     : el(attrs.href ? "a" : "button", { class: "btn ghost sm", "data-tip": tip, ...attrs }, icon(ic), label);
+  const full = it.crumbs || crumbsOf(withNames(c));
+  const crumbs = inCourse ? (c.lesson ? [`Aula ${String(c.lesson).padStart(2, "0")}`] : []) : full;  // dentro do curso, a trilha já está no topo
   return el("div", { class: "lib-row", role: "listitem", "data-key": it.key },
-    el("span", { class: "lib-ico", "aria-hidden": "true" }, icon("page")),
+    el("span", { class: "lib-ico", "aria-hidden": "true", "data-tone": isDue(it) ? "warn" : "" }, icon((TYPE_LOOK[c.type] || TYPE_LOOK.inbox)[0])),
     el("span", { class: "lib-text" }, el("span", { class: "lib-title" }, it.title),
-      el("span", { class: "lib-meta" }, [course, shortDate(it.created || it.obsidian?.at)].filter(Boolean).join(" · "))),
+      el("span", { class: "lib-meta", "data-tip": full.join(" › ") }, [crumbs.join(" › "),
+        isDue(it) ? `revisão ${it.review.next < today() ? "atrasada" : "hoje"}` : "", shortDate(it.created || it.obsidian?.at)].filter(Boolean).join(" · "))),
     el("span", { class: "lib-actions" },
       it.url ? act("external", "Notion", "Abrir no Notion", { href: it.url, target: "_blank", rel: "noopener" }) : null,
       ob ? act("notebook", "Obsidian", "Abrir no Obsidian", { type: "button", onclick: () => openObsidian(it.key, "note") }) : null,
       ob && it.obsidian.canvas ? act("map", "Mapa", "Abrir o mapa conceitual", { type: "button", onclick: () => openObsidian(it.key, "canvas") }) : null,
       ob && it.obsidian.board ? act("image", "Painel", "Abrir o painel visual", { type: "button", onclick: () => openObsidian(it.key, "board") }) : null,
       !ob && it.lumen_id && usesObsidian() ? el("button", { class: "btn ghost sm", type: "button", "data-tip": "Cria a nota de estudo desta aula no cofre, sem chamar a IA de novo",
-        onclick: () => { showView("new"); redeliver(it.key, "obsidian"); } }, icon("plus"), compact ? "Obsidian" : "Salvar no Obsidian") : null));
+        onclick: () => { showView("new"); redeliver(it.key, "obsidian"); } }, icon("plus"), compact ? "Obsidian" : "Salvar no Obsidian") : null,
+      compact ? null : el("button", { class: "icon-btn sm", type: "button", "aria-label": `Organizar: ${it.title}`, "data-tip": "Organizar: curso, módulo ou tema",
+        onclick: () => openOrg(c, it) }, icon("move"))));
 }
 const skeletonRows = (n) => Array.from({ length: n }, () => el("div", { class: "skeleton-row", "aria-hidden": "true" },
   el("span", { class: "skeleton" }), el("span", { class: "lib-text" }, el("span", { class: "skeleton sk-title" }), el("span", { class: "skeleton sk-meta" }))));
 
-// ---------- Biblioteca: busca e filtro locais ----------
-let libFilter = "all";
+// ---------- Biblioteca: vistas da organização, busca e filtros locais ----------
+let libFilter = "all", libCourse = null;  // libCourse: o curso aberto (módulos e aulas)
 async function loadLibrary() {
   renderLibrary();
-  try { await loadHistory(); renderLibrary(); } catch (e) { if (!historyItems) swap($("#library-list"), []); fail(e); }
+  try { await loadHistory(); renderLibrary(); renderHome(); } catch (e) { if (!historyItems) swap($("#library-list"), []); fail(e); }
+}
+function openCourse(id) { libFilter = "course"; libCourse = id; $("#content").scrollTop = 0; if (view === "library") loadLibrary(); }
+const VIEW_TEST = { all: () => true, course: (it) => clsOf(it).type === "course", free: (it) => clsOf(it).type === "free",
+  single: (it) => clsOf(it).type === "single", inbox: (it) => clsOf(it).type === "inbox", review: isDue };
+function filtered(items) {  // os filtros de “Filtros”: curso, módulo, status, revisão e data
+  const fc = $("#lf-course").value, fm = $("#lf-module").value, fs = $("#lf-status").value, fr = $("#lf-review").value, fd = +$("#lf-date").value;
+  const since = fd ? new Date(Date.now() - fd * 864e5).toISOString() : "";
+  return items.filter((it) => {
+    const c = clsOf(it);
+    if (fc && c.course_id !== fc) return false;
+    if (fm && c.module_id !== fm) return false;
+    if (fs && (it.review?.status || "") !== fs) return false;
+    if (fr === "due" && !isDue(it)) return false;
+    if (fr === "started" && !(+it.review?.stage > 0)) return false;
+    if (fr === "none" && it.review?.next) return false;
+    if (since && (it.created || it.obsidian?.at || "") < since) return false;
+    return true;
+  });
+}
+function renderFilters() {
+  const fc = $("#lf-course"), fm = $("#lf-module"), keepC = fc.value, keepM = fm.value;
+  fc.replaceChildren(el("option", { value: "" }, "Todos"), ...catalogData.courses.slice().sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+    .map((c) => el("option", { value: c.id }, c.name)));
+  fc.value = catalogData.courses.some((c) => c.id === keepC) ? keepC : "";
+  const mods = (courseOf(fc.value)?.modules || []).slice().sort(byOrder);
+  fm.replaceChildren(el("option", { value: "" }, fc.value ? "Todos" : "Escolha o curso"), ...mods.map((m) => el("option", { value: m.id }, modName(m))));
+  fm.value = mods.some((m) => m.id === keepM) ? keepM : "";
+  fm.disabled = !fc.value;
+  const n = ["#lf-course", "#lf-module", "#lf-status", "#lf-review", "#lf-date"].filter((x) => $(x).value).length;
+  $("#lib-n-filters").textContent = n || "";
+}
+function courseCards(items) {
+  const cards = catalogData.courses.slice().sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).map((c) => {
+    const mine = items.filter((it) => clsOf(it).course_id === c.id), due = mine.filter(isDue).length;
+    return el("button", { class: "course-card", type: "button", onclick: () => openCourse(c.id) },
+      el("span", { class: "course-ico", "aria-hidden": "true" }, icon("library")),
+      el("span", { class: "course-name" }, c.name),
+      el("span", { class: "course-meta" }, [c.platform, `${mine.length} ${mine.length === 1 ? "aula" : "aulas"}`, c.modules.length ? `${c.modules.length} ${c.modules.length === 1 ? "módulo" : "módulos"}` : ""].filter(Boolean).join(" · ")),
+      due ? el("span", { class: "badge", "data-tone": "warn" }, icon("clock"), `${due} para revisar`) : null);
+  });
+  return cards;
+}
+function courseView(c, items) {  // a visão do curso: módulos em ordem, aulas em ordem, progresso só com dados reais
+  const mine = items.filter((it) => clsOf(it).course_id === c.id);
+  const done = mine.filter((it) => it.review?.status === "completed").length, due = mine.filter(isDue).length;
+  const head = el("div", { class: "course-head" },
+    el("div", { class: "course-title" }, el("h2", { class: "t-h2" }, c.name),
+      el("p", { class: "muted t-sm" }, [c.platform, `${mine.length} ${mine.length === 1 ? "aula" : "aulas"}`,
+        mine.length && usesObsidian() ? `${done} revisada${done === 1 ? "" : "s"} por você` : "", due ? `${due} para revisar hoje` : ""].filter(Boolean).join(" · "))),
+    el("span", { class: "course-actions" },
+      usesObsidian() && vaultReady() ? el("button", { class: "btn ghost sm", type: "button", onclick: () => openObsidian("", "course", c.id) }, icon("notebook"), "Abrir no Obsidian") : null,
+      el("button", { class: "btn ghost sm", type: "button", onclick: () => editCourse(c) }, icon("pen"), "Renomear")));
+  const out = [head];
+  const by = new Map();
+  for (const it of mine) { const k = clsOf(it).module_id || ""; if (!by.has(k)) by.set(k, []); by.get(k).push(it); }
+  const order = (a, b) => (clsOf(a).lesson || 999) - (clsOf(b).lesson || 999) || a.title.localeCompare(b.title, "pt-BR", { numeric: true });
+  for (const m of c.modules.slice().sort(byOrder)) {
+    const xs = (by.get(m.id) || []).sort(order);
+    out.push(el("p", { class: "group-h" }, `${modName(m)} · ${xs.length}`), ...(xs.length ? xs.map((it) => savedRow(it, false, true)) : [el("p", { class: "muted t-sm mod-empty" }, "Nenhuma aula neste módulo ainda.")]));
+    by.delete(m.id);
+  }
+  const rest = [...by.values()].flat().sort(order);
+  if (rest.length) out.push(el("p", { class: "group-h" }, c.modules.length ? `Sem módulo · ${rest.length}` : `Aulas · ${rest.length}`), ...rest.map((it) => savedRow(it, false, true)));
+  if (!mine.length) out.push(emptyState("library", "Nenhuma aula neste curso ainda", "Na Nova aula, escolha este curso em Organização. As aulas antigas vão para cá pelo “Organizar” de cada uma."));
+  return out;
+}
+async function editCourse(c) {  // renomear não cria outro curso: o id fica, e a pasta, a nota e a página do Notion acompanham
+  const box = $("#library-list").querySelector(".course-head");
+  if (!box || box.querySelector(".course-edit")) return;
+  const name = el("input", { maxlength: "80", "aria-label": "Nome do curso" }), plat = el("input", { maxlength: "60", "aria-label": "Plataforma", placeholder: "Plataforma (opcional)" });
+  name.value = c.name; plat.value = c.platform || "";
+  const save = el("button", { class: "btn primary sm", type: "button" }, "Salvar"), cancel = el("button", { class: "btn ghost sm", type: "button", onclick: () => form.remove() }, "Cancelar");
+  const form = el("div", { class: "course-edit input-row" }, name, plat, cancel, save);
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    try {
+      const r = await api("/api/catalog/course", { id: c.id, name: name.value.trim(), platform: plat.value.trim() });
+      toast(r.note || `Curso renomeado para “${r.course.name}”.`, r.note ? "warning" : "success");
+      await loadCatalog(false); await loadLibrary();
+    } catch (e) { fail(e); save.disabled = false; }
+  });
+  box.append(form); name.focus(); name.select();
 }
 function renderLibrary() {
   const box = $("#library-list");
   for (const b of $$("#lib-filter button")) b.setAttribute("aria-pressed", String(b.dataset.f === libFilter));
-  const typed = $("#lib-search").value.trim(), q = fold(typed), match = (...t) => !q || t.some((x) => fold(x || "").includes(q));
+  renderFilters();
+  const typed = $("#lib-search").value.trim(), q = fold(typed);
+  const match = (...t) => !q || t.some((x) => fold(String(x || "")).includes(q));
   const pend = (S?.pending || []).filter((p) => match(p.title, p.label));
-  const course = (it) => it.course || it.spec?.course_title || "", by = $("#lib-sort").value;
-  const saved = (historyItems || []).filter((it) => match(it.title, course(it)));
-  if (by !== "recent") saved.sort((a, b) => (by === "course" ? course(a).localeCompare(course(b), "pt-BR") : 0)
+  const all = historyItems || [], by = $("#lib-sort").value;
+  for (const [f, test] of Object.entries(VIEW_TEST)) if (f !== "all") $("#lib-n-" + f).textContent = all.filter(test).length || "";
+  $("#lib-n-pending").textContent = S?.pending?.length || "";
+  const course = libFilter === "course" && libCourse ? courseOf(libCourse) : null;
+  if (libFilter === "course" && libCourse && !course) libCourse = null;
+  // trilha: Biblioteca / Cursos / <curso>
+  $("#lib-crumbs").hidden = !course;
+  if (course) $("#lib-crumbs").replaceChildren(
+    el("button", { class: "crumb", type: "button", onclick: () => { libCourse = null; renderLibrary(); } }, "Cursos"),
+    el("span", { class: "sep", "aria-hidden": "true" }, "/"), el("span", { class: "crumb cur", "aria-current": "page" }, course.name));
+  const saved = filtered(all.filter(VIEW_TEST[libFilter] || (() => false))).filter((it) =>
+    match(it.title, ...(it.crumbs || []), ...(it.concepts || []), clsOf(it).course, clsOf(it).module, clsOf(it).category));
+  if (by !== "recent") saved.sort((a, b) => (by === "course" ? (a.crumbs || []).join("/").localeCompare((b.crumbs || []).join("/"), "pt-BR", { numeric: true }) : 0)
     || a.title.localeCompare(b.title, "pt-BR", { numeric: true }));  // a lista vem do servidor da mais nova para a mais velha
+  // Cursos: os cards; com um curso aberto, os módulos e as aulas dele
+  const grid = $("#course-grid"), cardsOn = libFilter === "course" && !course && !typed;
+  grid.hidden = !cardsOn;
+  if (cardsOn) swap(grid, catalogData.courses.length ? courseCards(all)
+    : [emptyState("library", "Nenhum curso ainda", "Crie o primeiro na Nova aula, em Organização → Alterar → Novo curso. As páginas de curso do seu Notion também podem ser adotadas lá.")]);
+  if (course && historyItems) return swap(box, courseView(course, filtered(saved)));
   const out = [];
-  if (libFilter !== "saved" && pend.length) out.push(el("p", { class: "group-h" }, "Em andamento"), ...pend.map(pendingRow));
+  if ((libFilter === "all" || libFilter === "pending") && pend.length) out.push(el("p", { class: "group-h" }, "Em andamento"), ...pend.map(pendingRow));
   // as salvas ainda chegando: as em andamento já aparecem, e só o grupo das salvas fica em carregamento
-  if (libFilter !== "pending" && !historyItems) out.push(el("p", { class: "group-h" }, "Salvas"), ...skeletonRows(3));
-  else if (libFilter !== "pending" && saved.length) out.push(el("p", { class: "group-h" }, "Salvas"), ...saved.map((it) => savedRow(it)));
-  if (out.length || !historyItems) return swap(box, out.length ? out : skeletonRows(4));
+  const title = { all: "Salvas", course: "Aulas de cursos", free: "Conteúdo gratuito", single: "Aulas avulsas", review: "Para revisar hoje", inbox: "Para organizar" }[libFilter];
+  if (libFilter !== "pending" && !historyItems) out.push(el("p", { class: "group-h" }, title), ...skeletonRows(3));
+  else if (libFilter !== "pending" && saved.length && !cardsOn) out.push(el("p", { class: "group-h" }, title), ...saved.map((it) => savedRow(it)));
+  if (libFilter === "inbox" && saved.length) out.splice(1, 0, el("p", { class: "muted t-sm lib-tip" }, "Use “Organizar” (", icon("move", "sm"), ") em cada aula: ela vai inteira para o curso, módulo ou tema."));
+  if (out.length || !historyItems || cardsOn) return swap(box, out.length ? out : cardsOn ? [] : skeletonRows(4));
   const start = el("button", { class: "btn primary", type: "button", onclick: () => showView("new") }, icon("new"), "Nova aula");
-  swap(box, [typed ? emptyState("search", `Nada com “${typed}”`, "Tente outra palavra do título ou do curso.")
+  swap(box, [typed ? emptyState("search", `Nada com “${typed}”`, "Tente outra palavra do título, do curso, do tema ou de um conceito da aula.")
     : libFilter === "pending" ? emptyState("pen", "Nenhuma aula em andamento", "As aulas que você começar e ainda não salvou ficam aqui, para continuar de onde parou.", start)
+    : libFilter === "review" ? emptyState("check-circle", "Nada para revisar hoje", "As revisões vêm das datas marcadas nas notas do Obsidian.")
+    : libFilter === "inbox" ? emptyState("check-circle", "Nada para organizar", "Todas as aulas já têm curso, tema ou tipo.")
+    : libFilter !== "all" ? emptyState("library", "Nenhuma aula aqui ainda", "Escolha a organização na Nova aula, ou use “Organizar” numa aula salva.")
     : emptyState("library", "Nenhuma aula ainda", "Quando você salvar a primeira aula no Notion ou no Obsidian, ela aparece aqui.", start)]);
 }
 $("#lib-search").addEventListener("input", renderLibrary);
 $("#lib-sort").addEventListener("change", renderLibrary);
-for (const b of $$("#lib-filter button")) b.addEventListener("click", () => { libFilter = b.dataset.f; renderLibrary(); });
+for (const id of ["#lf-course", "#lf-module", "#lf-status", "#lf-review", "#lf-date"]) $(id).addEventListener("change", renderLibrary);
+$("#lib-more").addEventListener("click", (e) => {  // os filtros ficam recolhidos; o número diz quantos estão valendo
+  const open = $("#lib-filters").hidden;
+  $("#lib-filters").hidden = !open;
+  e.currentTarget.setAttribute("aria-expanded", String(open));
+});
+$("#lf-clear").addEventListener("click", () => { for (const id of ["#lf-course", "#lf-module", "#lf-status", "#lf-review", "#lf-date"]) $(id).value = ""; renderLibrary(); });
+for (const b of $$("#lib-filter button")) b.addEventListener("click", () => { libFilter = b.dataset.f; libCourse = null; renderLibrary(); });
 
 // ---------- Início: o que está acontecendo, o que continuar, o que precisa de atenção ----------
 const STAGE_NAMES = { prepare: "Preparando a fonte", transcribe: "Transcrevendo", screen: "Lendo as telas", analyze: "Analisando",
@@ -2017,7 +2101,8 @@ function palCommands() {
   add("Ações", "Escolher arquivo de aula", "file", () => { toCompose(); $("#tab-file").click(); $("[data-pick=media]").click(); });
   add("Ações", "Adicionar capturas de tela", "image", () => { toCompose(); $("#tab-captures").click(); });
   if (step === "understand" && U) add("Ações", Notes.floating(U.key) ? "Trazer a nota de volta" : "Destacar a nota numa janela flutuante", "detach", () => { showView("new"); $("#u-detach").click(); }, Notes.shortcutLabel);
-  if (usesObsidian() && vaultReady()) add("Ações", "Abrir o painel de estudos no Obsidian", "external", () => openObsidian("", "dashboard"));
+  if (usesObsidian() && vaultReady()) add("Ações", "Abrir Estudos no Obsidian", "external", () => openObsidian("", "home"));
+  add("Ações", "Organizar a próxima aula", "folder", () => { showView("new"); openOrg(org); });
   const pomo = Pomodoro.state();
   if (pomo) add("Pomodoro", pomo.running ? "Pausar o Pomodoro" : Pomodoro.status() === "paused" ? "Continuar o Pomodoro" : "Iniciar o Pomodoro",
     pomo.running ? "pause" : "play", Pomodoro.toggle, "não afeta a gravação");
@@ -2026,7 +2111,8 @@ function palCommands() {
   for (const b of $$("#settings-nav [data-cat]")) add("Ajustes", b.textContent.trim(), b.querySelector("use").getAttribute("href").split("#")[1], () => goSettings(b.dataset.cat));
   for (const p of S?.pending || []) add("Em andamento", p.title || "Aula", (PEND_LOOK[p.state] || ["pen"])[0], () => resume(p.key), PENDING[p.state]);
   for (const it of historyItems || []) add("Biblioteca", it.title, "page", () => (it.url ? window.open(it.url, "_blank") : openObsidian(it.key, "note")),
-    it.course || it.spec?.course_title || "");
+    (it.crumbs || []).join(" › "));
+  for (const c of catalogData.courses) add("Cursos", c.name, "library", () => { showView("library"); openCourse(c.id); }, c.platform || "");
   return out;
 }
 function renderPalette() {
@@ -2081,19 +2167,19 @@ if (!host) window.addEventListener("pagehide", () => navigator.sendBeacon("/api/
     if (S.recording.active) watchRec();
     showView("home");
     showStep("compose");
-    await loadCourses();
+    await loadCatalog();
     const key = S.job.result?.key || S.job.spec?.key;
     if (S.job.status === "done" && (S.job.result?.review || S.job.result?.analysis)) {  // janela reaberta no meio
       lastSpec = S.job.kind === "process" ? S.job.spec : null;
       showView("new");
       await openUnderstanding(key, { resume: !lastSpec }).catch(fail);
-      if (lastSpec?.course_id) renderCourses(lastSpec.course_id);
+      if (lastSpec?.classification) setOrg(lastSpec.classification);
     }
     if (S.job.status === "running") {
       if (S.job.kind === "analyze") { showView("new"); await openUnderstanding(key, { resume: true }).catch(fail); }
-      else {
+      else if (S.job.kind === "process") {
         if (S.job.spec) lastSpec = S.job.spec;
-        if (lastSpec?.course_id) renderCourses(lastSpec.course_id);
+        if (lastSpec?.classification) setOrg(lastSpec.classification);
         if (S.job.kind === "process") {  // a preparação já tem a chave da aula; a publicação não
           lastUrl = S.job.key ? "/api/start" : "/api/finish";
           $("#run-h").textContent = S.job.key ? "Preparando a aula" : `Salvando o material ${destName()}`;

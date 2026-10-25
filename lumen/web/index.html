@@ -192,55 +192,32 @@
           <p class="field-hint" id="lesson-link-hint">Com um link do YouTube, a página ganha o player antes do resumo. Outros links ficam como referência.</p>
         </section>
 
-        <section class="card dest-card" id="dest-card" aria-labelledby="course-h">
-          <div class="dest-head"><h2 class="side-h" id="course-h">Destinos do estudo</h2>
+        <section class="card dest-card" id="dest-card" aria-labelledby="org-h">
+          <!-- Organização: decidida uma vez, vale para o Notion e para o Obsidian (lumen/catalog.py) -->
+          <div class="dest-head"><h2 class="side-h" id="org-h">Organização</h2></div>
+          <div class="org-row" id="org-row">
+            <span class="dest-logo org-logo" id="org-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#folder"/></svg></span>
+            <div class="dest-main">
+              <div class="dest-top"><strong id="org-type">A organizar</strong></div>
+              <div class="dest-line2">
+                <span class="dest-meta"><span class="dest-path" id="org-path">Organizar depois</span></span>
+                <button class="btn sm" type="button" id="org-change" aria-haspopup="dialog">Alterar</button>
+              </div>
+            </div>
+          </div>
+          <div class="org-suggest" id="org-suggest" aria-live="polite" hidden></div>
+
+          <div class="dest-head dest-head2"><h2 class="side-h" id="course-h">Destinos do estudo</h2>
             <p class="dest-both" id="dest-both" hidden><svg class="i"><use href="/icons.svg#sync"/></svg>Um processamento, dois destinos</p></div>
           <div class="dest-row dest" id="dest-notion" data-dest="notion">
             <span class="dest-logo" aria-hidden="true"><svg class="i"><use href="/icons.svg#page"/></svg></span>
             <div class="dest-main">
               <div class="dest-top"><strong>Notion</strong><span class="badge" id="dest-notion-badge"></span></div>
               <div class="dest-line2">
-                <span class="dest-meta notion-ok"><span class="dest-icon" id="dest-icon" aria-hidden="true"></span><span class="dest-path" id="dest-path"></span></span>
+                <span class="dest-meta notion-ok"><span class="dest-path" id="dest-path"></span></span>
                 <span class="dest-meta dest-msg" id="dest-notion-msg"></span>
-                <button class="icon-btn sm notion-ok" type="button" id="new-sub" aria-label="Criar subpágina dentro da página escolhida" data-tip="Nova subpágina aqui"><svg class="i"><use href="/icons.svg#plus"/></svg></button>
-                <button class="btn sm notion-ok" type="button" id="dest-change" aria-expanded="false" aria-controls="picker">Alterar</button>
                 <button class="btn sm" type="button" id="dest-notion-fix" hidden></button>
               </div>
-            </div>
-          </div>
-          <div class="combo notion-dest">
-            <span class="search-field"><svg class="i"><use href="/icons.svg#search"/></svg>
-            <input id="course-filter" type="search" placeholder="Buscar página do Notion" aria-label="Buscar página do Notion"
-                   autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="course-results"></span>
-            <ul class="results" id="course-results" role="listbox" aria-label="Páginas encontradas" hidden></ul>
-          </div>
-          <div class="picker notion-dest" id="picker" hidden>
-            <div class="chips" id="recents" aria-label="Usadas recentemente"></div>
-            <nav class="crumbs" id="crumbs" aria-label="Caminho"></nav>
-            <ul class="browse" id="browse" aria-label="Páginas"></ul>
-          </div>
-          <select id="course" hidden aria-label="Página do Notion onde a aula será salva"></select>
-          <p class="field-hint notion-dest" id="course-note">O material entra na página escolhida, sem apagar o que já está nela.
-            <button class="link-btn" type="button" data-grant>Faltou alguma página?</button></p>
-          <div class="callout roots-hint notion-dest" id="roots-hint" role="note" hidden>
-            <p><strong>Suas páginas principais ainda não aparecem.</strong> O Notion só mostra ao Lumen o que foi liberado
-              para ele, e hoje ele vê só <span id="roots-seen"></span> e o que está dentro.</p>
-            <p class="muted t-sm">Em cada página principal: <b>•••</b> → <b>Conexões</b> → <b>Lumen</b> → Confirmar. Ou libere várias de uma vez:</p>
-            <button class="btn sm" type="button" data-grant><svg class="i"><use href="/icons.svg#external"/></svg>Liberar páginas no Notion</button>
-          </div>
-          <div class="new-page" id="new-course" hidden>
-            <p class="t-sm" id="new-course-where"></p>
-            <label class="set-row compact"><span class="set-text"><strong>Enfeitar com IA</strong><small>Ícone, capa e destaque criados a partir do título, no seu PC.</small></span><input type="checkbox" class="switch" role="switch" id="decorate"></label>
-            <figure class="cover-preview" id="cover-preview" hidden aria-live="polite">
-              <div class="cover-img" id="cover-img"><span class="cover-wait" id="cover-wait">Criando a capa…</span></div>
-              <span class="cover-emoji" id="cover-emoji" aria-hidden="true"></span>
-              <figcaption><span id="cover-sub"></span>
-                <button class="btn ghost sm" type="button" id="cover-again"><svg class="i"><use href="/icons.svg#sparkle"/></svg><span>Gerar capa</span></button></figcaption>
-            </figure>
-            <div class="input-row">
-              <input id="new-course-name" placeholder="Nome da nova página (ex.: Módulo 3)" aria-label="Nome da nova página" maxlength="200">
-              <button class="btn ghost sm" type="button" id="new-course-cancel">Cancelar</button>
-              <button class="btn primary sm" type="button" id="new-course-btn">Criar</button>
             </div>
           </div>
           <div class="dest-row" id="dest-obsidian" data-dest="obsidian">
@@ -264,10 +241,8 @@
             <label class="set-row compact"><span class="set-text"><strong>Painel visual</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_board"></label>
             <label class="set-row compact"><span class="set-text"><strong>Conexões com o cofre</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_connections"></label>
             <label class="set-row compact"><span class="set-text"><strong>Revisões espaçadas</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_review"></label>
-            <button class="link-btn" type="button" data-go-integ>Pastas, anexos e intervalos em Integrações</button>
+            <button class="link-btn" type="button" data-go-integ>Área de estudos, anexos e intervalos em Integrações</button>
           </div>
-          <label class="field obs-course" id="obs-course-row">Curso <span class="opt">opcional</span>
-            <input id="course-text" maxlength="120" autocomplete="off" placeholder="Ex.: Inteligência Artificial"></label>
         </section>
 
         <section class="card" aria-labelledby="opts-h">
@@ -441,23 +416,41 @@
 <!-- ================= Biblioteca ================= -->
 <div class="view" id="view-library" hidden aria-labelledby="lib-h">
   <header class="page-head">
-    <div><h1 class="t-h1" id="lib-h">Biblioteca</h1><p class="lead">As aulas em andamento e as que já foram salvas no Notion ou no Obsidian.</p></div>
+    <div><h1 class="t-h1" id="lib-h">Biblioteca</h1><p class="lead">Seus estudos organizados por curso, tema e revisão, e as aulas em andamento.</p></div>
     <button class="btn primary" type="button" data-go="new"><svg class="i"><use href="/icons.svg#new"/></svg>Nova aula</button>
   </header>
+  <div class="lib-views" id="lib-filter" role="toolbar" aria-label="Vistas da biblioteca">
+    <button type="button" class="lib-view" data-f="all" aria-pressed="true">Todos <span class="count" id="lib-n-saved"></span></button>
+    <button type="button" class="lib-view" data-f="course" aria-pressed="false">Cursos <span class="count" id="lib-n-course"></span></button>
+    <button type="button" class="lib-view" data-f="free" aria-pressed="false">Conteúdo gratuito <span class="count" id="lib-n-free"></span></button>
+    <button type="button" class="lib-view" data-f="single" aria-pressed="false">Aulas avulsas <span class="count" id="lib-n-single"></span></button>
+    <button type="button" class="lib-view" data-f="review" aria-pressed="false">Para revisar <span class="count" id="lib-n-review"></span></button>
+    <button type="button" class="lib-view" data-f="inbox" aria-pressed="false">A organizar <span class="count" id="lib-n-inbox"></span></button>
+    <button type="button" class="lib-view" data-f="pending" aria-pressed="false">Em andamento <span class="count" id="lib-n-pending"></span></button>
+  </div>
   <div class="toolbar">
     <label class="search-field lib-search"><svg class="i"><use href="/icons.svg#search"/></svg>
-      <input id="lib-search" type="search" placeholder="Buscar por título ou curso" aria-label="Buscar na biblioteca" autocomplete="off" spellcheck="false"></label>
-    <div class="segmented" id="lib-filter" aria-label="Filtrar">
-      <button type="button" data-f="all" aria-pressed="true">Todas</button>
-      <button type="button" data-f="pending" aria-pressed="false">Em andamento <span class="count" id="lib-n-pending"></span></button>
-      <button type="button" data-f="saved" aria-pressed="false">Salvas <span class="count" id="lib-n-saved"></span></button>
-    </div>
+      <input id="lib-search" type="search" placeholder="Buscar por aula, curso, módulo, tema ou conceito" aria-label="Buscar na biblioteca" autocomplete="off" spellcheck="false"></label>
     <select class="lib-sort" id="lib-sort" aria-label="Ordenar as aulas salvas">
       <option value="recent">Mais recentes</option>
       <option value="title">Título (A–Z)</option>
-      <option value="course">Por curso</option>
+      <option value="course">Por organização</option>
     </select>
+    <button class="btn ghost sm lib-more" type="button" id="lib-more" aria-expanded="false" aria-controls="lib-filters"><svg class="i"><use href="/icons.svg#more"/></svg>Filtros<span class="count" id="lib-n-filters"></span></button>
   </div>
+  <div class="lib-filters" id="lib-filters" role="group" aria-label="Filtros" hidden>
+    <label class="field">Curso<select id="lf-course"></select></label>
+    <label class="field">Módulo<select id="lf-module"></select></label>
+    <label class="field">Status<select id="lf-status">
+      <option value="">Qualquer</option><option value="review-required">Para revisar o material</option><option value="completed">Revisado por mim</option></select></label>
+    <label class="field">Revisão<select id="lf-review">
+      <option value="">Qualquer</option><option value="due">Para hoje ou atrasada</option><option value="started">Em andamento</option><option value="none">Sem revisões</option></select></label>
+    <label class="field">Data<select id="lf-date">
+      <option value="">Qualquer</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option><option value="365">Último ano</option></select></label>
+    <button class="link-btn" type="button" id="lf-clear">Limpar filtros</button>
+  </div>
+  <nav class="lib-crumbs" id="lib-crumbs" aria-label="Caminho na biblioteca" hidden></nav>
+  <div class="course-grid" id="course-grid" hidden></div>
   <div class="card list-card" id="library-list" aria-live="polite"></div>
 </div>
 
@@ -500,8 +493,10 @@
         <label class="field">Página raiz dos cursos
           <span class="input-row"><select id="root"></select>
           <button class="icon-btn" type="button" id="root-load" aria-label="Recarregar páginas" data-tip=""><svg class="i"><use href="/icons.svg#refresh"/></svg></button></span></label>
-        <p class="field-hint">O Lumen só vê as páginas liberadas para a integração; liberar uma página raiz libera tudo dentro dela.
-          <button class="link-btn" type="button" data-grant>Dar acesso no Notion</button></p>
+        <label class="field">Página de conteúdo gratuito <span class="opt">um material por página</span>
+          <select id="free-root"></select></label>
+        <p class="field-hint">Cursos ficam dentro da página raiz (um curso, e dentro dele os módulos); conteúdo gratuito ganha uma página por material.
+          O Lumen só vê as páginas liberadas para a integração. <button class="link-btn" type="button" data-grant>Dar acesso no Notion</button></p>
       </div>
       <div class="integ-foot">
         <button class="btn danger sm" type="button" id="forget"><svg class="i"><use href="/icons.svg#power"/></svg>Desconectar Notion</button>
@@ -535,15 +530,21 @@
         <label class="set-row"><span class="set-text"><strong>Telas e gráficos no cofre</strong><small>Só as imagens escolhidas; o vídeo nunca é copiado.</small></span><input type="checkbox" class="switch" role="switch" id="obs-attachments" data-cfg="obsidian_attachments"></label>
         <label class="set-row"><span class="set-text"><strong>Abrir no Obsidian ao terminar</strong></span><input type="checkbox" class="switch" role="switch" id="obs-open" data-cfg="obsidian_open"></label>
       </div>
+      <div class="integ-sec migration" id="migration" hidden>
+        <h3 class="eyebrow">Materiais antigos</h3>
+        <p class="t-sm" id="migration-text"></p>
+        <ul class="migration-list" id="migration-list"></ul>
+        <p class="field-hint">Cada aula vai inteira (nota, mapa, painel e imagens) para “A organizar”, sem renomear nada. Antes, uma cópia da pasta antiga fica guardada no PC.</p>
+        <button class="btn sm" type="button" id="migration-go"><svg class="i"><use href="/icons.svg#move"/></svg>Migrar para a área de estudos</button>
+      </div>
       <details class="disclosure integ-sec">
         <summary>Avançado</summary>
-        <label class="field">Pasta das notas de estudo
+        <label class="field">Área de estudos (pasta no cofre)
           <input id="vault-folder" spellcheck="false" autocomplete="off" maxlength="200"></label>
-        <label class="field">Pasta dos mapas mentais (Canvas)
-          <input id="canvas-folder" spellcheck="false" autocomplete="off" maxlength="200" placeholder="A mesma das notas"></label>
+        <p class="field-hint">Cursos, conteúdo gratuito, aulas avulsas e “A organizar” ficam dentro dela, uma pasta por aula.</p>
       </details>
       <div class="integ-foot">
-        <button class="btn sm" type="button" id="vault-dashboard"><svg class="i"><use href="/icons.svg#external"/></svg>Abrir painel de estudos</button>
+        <button class="btn sm" type="button" id="vault-dashboard"><svg class="i"><use href="/icons.svg#external"/></svg>Abrir Estudos no Obsidian</button>
       </div>
     </section>
   </div>
@@ -649,6 +650,54 @@
 </div>
 </main>
 </div>
+
+<!-- Organizar estudo: tipo → curso → módulo → aula (ou tema). Na Nova aula e no “Organizar” da Biblioteca -->
+<dialog class="dlg org-dlg" id="org-dlg" aria-labelledby="org-dlg-h">
+  <div class="dlg-head"><span class="dlg-icon"><svg class="i"><use href="/icons.svg#folder"/></svg></span>
+    <div class="org-dlg-title"><h2 id="org-dlg-h">Organizar estudo</h2><p class="muted t-sm" id="org-dlg-sub"></p></div></div>
+  <div class="dlg-body">
+    <div class="segmented wide org-types" role="radiogroup" aria-label="Tipo de estudo" id="org-types">
+      <label><input type="radio" name="org_type" value="course"> Curso<small>Curso, módulo e aula</small></label>
+      <label><input type="radio" name="org_type" value="free"> Conteúdo gratuito<small>Vídeos e materiais por tema</small></label>
+      <label><input type="radio" name="org_type" value="single"> Aula avulsa<small>Sem curso</small></label>
+      <label><input type="radio" name="org_type" value="inbox"> Organizar depois<small>Vai para “A organizar”</small></label>
+    </div>
+    <div class="org-fields" id="org-course-fields" hidden>
+      <label class="field">Curso
+        <span class="input-row"><select id="org-course" aria-describedby="org-course-hint"></select>
+        <button class="btn sm" type="button" id="org-new-course"><svg class="i"><use href="/icons.svg#plus"/></svg>Novo curso</button></span></label>
+      <p class="field-hint" id="org-course-hint" hidden></p>
+      <div class="new-page" id="org-course-form" hidden>
+        <label class="field">Nome do curso<input id="org-course-name" maxlength="80" autocomplete="off" placeholder="Ex.: Edição de Vídeos"></label>
+        <p class="field-hint org-similar" id="org-course-similar" aria-live="polite" hidden></p>
+        <label class="field">Plataforma <span class="opt">opcional</span><input id="org-course-platform" maxlength="60" autocomplete="off" placeholder="Ex.: Hotmart, Udemy, YouTube"></label>
+        <label class="set-row compact" id="org-decorate-row"><span class="set-text"><strong>Enfeitar a página no Notion</strong><small>Ícone, capa e destaque criados pela IA no seu PC.</small></span><input type="checkbox" class="switch" role="switch" id="org-decorate"></label>
+        <div class="org-form-actions"><button class="btn ghost sm" type="button" id="org-course-cancel">Cancelar</button>
+          <button class="btn primary sm" type="button" id="org-course-create">Criar curso</button></div>
+      </div>
+      <label class="field">Módulo <span class="opt">opcional</span>
+        <span class="input-row"><select id="org-module"></select>
+        <button class="btn sm" type="button" id="org-new-module"><svg class="i"><use href="/icons.svg#plus"/></svg>Novo módulo</button></span></label>
+      <div class="new-page" id="org-module-form" hidden>
+        <div class="org-two"><label class="field">Nome do módulo<input id="org-module-name" maxlength="80" autocomplete="off" placeholder="Ex.: Motion Graphics"></label>
+          <label class="field org-order">Ordem <span class="opt">opcional</span><input id="org-module-order" type="number" min="1" max="99" inputmode="numeric" placeholder="3"></label></div>
+        <div class="org-form-actions"><button class="btn ghost sm" type="button" id="org-module-cancel">Cancelar</button>
+          <button class="btn primary sm" type="button" id="org-module-create">Criar módulo</button></div>
+      </div>
+      <label class="field org-lesson">Número da aula <span class="opt">opcional</span>
+        <input id="org-lesson" type="number" min="1" max="999" inputmode="numeric" placeholder="Ex.: 7"></label>
+    </div>
+    <div class="org-fields" id="org-cat-fields" hidden>
+      <label class="field">Tema <span class="opt">opcional</span>
+        <input id="org-category" list="org-cats" maxlength="40" autocomplete="off" placeholder="Ex.: Inteligência Artificial"></label>
+      <datalist id="org-cats"></datalist>
+    </div>
+    <dl class="org-preview" id="org-preview" aria-live="polite"></dl>
+  </div>
+  <div class="dlg-foot"><p class="org-hint" id="org-hint" aria-live="polite"></p>
+    <button class="btn" type="button" id="org-cancel">Cancelar</button>
+    <button class="btn primary" type="button" id="org-save">Salvar</button></div>
+</dialog>
 
 <!-- Busca global (Ctrl+K): telas, ajustes, ações e aulas -->
 <dialog class="dlg palette" id="palette" aria-label="Buscar ou ir para">

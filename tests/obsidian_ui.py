@@ -92,7 +92,7 @@ try:
     time.sleep(0.8)
     check(store.load_config()["obsidian_vault"] == str(VAULT.resolve()), "cofre salvo ao escolher")
     status = ev("document.querySelector('#vault-status').textContent")
-    check("C04 Claude Obsidian/16 Lumen" in status, f"mostra onde as notas ficam: {status!r}")
+    check("“Estudos”" in status and "uma pasta por aula" in status, f"mostra onde os estudos ficam: {status!r}")
     ev("(() => { const r = document.querySelector('#dest-mode input[value=both]'); r.checked = true;"
        " r.dispatchEvent(new Event('change', {bubbles: true})); })()")
     time.sleep(0.8)
@@ -114,18 +114,16 @@ try:
     ev("document.querySelector('#nav-new').click()")  # sair das Integrações aplica o que mudou (como fechar os Ajustes)
     time.sleep(0.8)
 
-    # Nova aula só no Obsidian: o cartão do Notion vira o campo de curso
+    # Nova aula só no Obsidian: a organização continua sendo a mesma (um seletor só), e o Notion fica desativado
     ev("(() => { document.querySelector('#nav-integrations').click(); const m = document.querySelector('#dest-mode input[value=obsidian]');"
        " m.checked = true; m.dispatchEvent(new Event('change', {bubbles: true})); })()")
     time.sleep(0.8)
     ev("document.querySelector('#nav-new').click()")
     time.sleep(0.8)
-    check(ev("document.querySelector('#dest-card').classList.contains('solo-obsidian')"), "só Obsidian: cartão do curso em texto")
-    check(ev("getComputedStyle(document.querySelector('#course-text')).display") != "none", "campo Curso visível")
-    check(ev("getComputedStyle(document.querySelector('.combo')).display") == "none", "busca do Notion escondida")
+    check(ev("document.querySelector('#org-type').textContent") == "A organizar", "organização: “organizar depois” por padrão")
     dest = ev("[document.querySelector('#dest-obs-badge').textContent, document.querySelector('#dest-vault').textContent,"
               " document.querySelector('#dest-notion-badge').textContent, document.querySelector('#dest-notion-fix').textContent]")
-    check(dest[0] == "Conectado" and "16 Lumen" in dest[1] and dest[2] == "Desativado" and dest[3] == "Ativar",
+    check(dest[0] == "Conectado" and "A organizar" in dest[1] and dest[2] == "Desativado" and dest[3] == "Ativar",
           f"Destinos do estudo com o cofre real: {dest}")
     shot("3-nova-aula-so-obsidian")
 
@@ -134,7 +132,7 @@ try:
          "notion": {"status": "error", "error": "O Notion limitou o número de pedidos.", "action": "Aguarde um minuto."},
          "obsidian": {"status": "ok", "state": "created", "canvas": "C04/Mapa - RAG.canvas", "connections": 3, "questions": 9,
                       "note": "C04/2026 - RAG.md"}}
-    ev("showView('new'); showStep('run'); lastSpec = {course_id: 'x', mode: 'new'}; renderJob(" + json.dumps(
+    ev("showView('new'); showStep('run'); lastSpec = {classification: {type: 'inbox'}, mode: 'new'}; renderJob(" + json.dumps(
         {"status": "done", "kind": "process", "stage": "obsidian", "dests": ["obsidian", "notion"], "result": r}) + ")")
     text = ev("document.querySelector('#result').innerText")
     buttons = ev("[...document.querySelectorAll('#run-actions .btn')].map(b => b.textContent)")

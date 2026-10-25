@@ -57,8 +57,8 @@ def world():
     cfg = dict(root_page_id="root-1", root_page_title="Estudos", quality="equilibrado", ollama_model="qwen3:8b",
                page_language="pt", keep_temp=False, watch_screen=True, music_filter=False, music_mode="balanceado",
                widget="left", autostart=True, destinations="both", study_level="balanceado",
-               obsidian_vault=r"C:\Users\Estudante\Cérebro", obsidian_folder="C04 Claude Obsidian/16 Lumen",
-               obsidian_canvas_folder="", obsidian_canvas=True, obsidian_board=True, obsidian_board_density="equilibrado", obsidian_connections=True, obsidian_review=True,
+               obsidian_vault=r"C:\Users\Estudante\Cérebro", obsidian_folder="B02 Estudos",
+               notion_free_page_id="p-free", notion_free_page_title="Estudos › Conteúdo gratuito", obsidian_canvas=True, obsidian_board=True, obsidian_board_density="equilibrado", obsidian_connections=True, obsidian_review=True,
                obsidian_attachments=True, obsidian_open=False, review_intervals=[1, 3, 7, 14, 30, 60])
     ready = lambda phase, label, tone="wait", detail="": {"phase": phase, "label": label, "detail": detail, "tone": tone, "blocked": tone != "ok"}
     pending = [
@@ -85,6 +85,13 @@ def world():
         "conexoes": ["Filtros de borda (Sobel) da visão computacional clássica."],
         "perguntas": ["Como o tamanho do filtro muda o número de parâmetros?", "O que acontece com a saída se o stride dobrar?"],
     }
+    courses = [
+        {"id": "c-ia", "name": "Inteligência Artificial", "platform": "Hotmart", "url": "", "created": "2026-10-01", "notion_page_id": "p-ia",
+         "modules": [{"id": "m-fund", "name": "Fundamentos", "order": 1, "notion_page_id": None},
+                     {"id": "m-dl", "name": "Deep Learning", "order": 2, "notion_page_id": "p-dl"}]},
+        {"id": "c-mat", "name": "Matemática", "platform": "", "url": "", "created": "2026-10-02", "notion_page_id": "p-mat", "modules": []},
+    ]
+    C = lambda t, **kv: {"type": t, **kv}  # noqa: E731  (a classificação, como o servidor devolve)
     history = [
         {"key": "h1", "lumen_id": "L1", "title": "Transformers e atenção", "course": "Estudos › Inteligência Artificial",
          "created": iso(days=2), "url": "https://www.notion.so/h1",
@@ -101,11 +108,23 @@ def world():
         {"key": "h6", "lumen_id": "L6", "title": "Introdução à economia comportamental", "course": "Estudos › Economia",
          "created": iso(days=31), "url": "https://www.notion.so/h6"},
     ]
+    org = {"h1": (C("course", course_id="c-ia", course="Inteligência Artificial", module_id="m-dl", module="Deep Learning", lesson=3),
+                  ["Cursos", "Inteligência Artificial", "Deep Learning · Aula 03"], {"next": iso(days=0)[:10], "stage": "2", "status": "review-required"}),
+           "h2": (C("course", course_id="c-ia", course="Inteligência Artificial", module_id="m-fund", module="Fundamentos", lesson=1),
+                  ["Cursos", "Inteligência Artificial", "Fundamentos · Aula 01"], {"next": iso(days=-5)[:10], "stage": "1", "status": "completed"}),
+           "h3": (C("free", category="História"), ["Conteúdo gratuito", "História"], None),
+           "h4": (C("inbox"), ["A organizar"], {"next": iso(days=2)[:10], "stage": "1", "status": "review-required"}),
+           "h5": (C("course", course_id="c-mat", course="Matemática"), ["Cursos", "Matemática"], None),
+           "h6": (C("single", category="Economia"), ["Aulas avulsas", "Economia"], None)}
+    for it in history:
+        cls, crumbs, review = org[it["key"]]
+        it.update(classification=cls, crumbs=crumbs, review=review, concepts=["atenção", "derivada", "árvore B"])
     pages = [
         {"id": "root-1", "title": "Estudos", "path": "Estudos", "top": True, "parent": None, "icon": "📚"},
         {"id": "p-ia", "title": "Inteligência Artificial", "path": "Estudos › Inteligência Artificial", "top": False, "parent": "root-1", "icon": "🤖"},
         {"id": "p-hist", "title": "História", "path": "Estudos › História", "top": False, "parent": "root-1", "icon": "🏛️"},
         {"id": "p-mat", "title": "Matemática", "path": "Estudos › Matemática", "top": False, "parent": "root-1", "icon": None},
+        {"id": "p-free", "title": "Conteúdo gratuito", "path": "Estudos › Conteúdo gratuito", "top": False, "parent": "root-1", "icon": "🌍"},
         {"id": "p-dl", "title": "Deep Learning", "path": "Estudos › Inteligência Artificial › Deep Learning", "top": False, "parent": "p-ia", "icon": None},
     ]
     review = {"review": True, "key": "k2", "title": "Complexidade de algoritmos e notação O", "engine": "large-v3-turbo na GPU (CUDA, float16)",
@@ -135,7 +154,8 @@ def world():
                      "folder": cfg["obsidian_folder"], "error": None},
         "recording": {"active": False, "seconds": 0, "level": 0, "heard": False, "paused": False},
         "job": {"status": "idle"},
-        "pending": pending, "history": history, "pages": pages, "review": review,
+        "pending": pending, "history": history, "pages": pages, "review": review, "courses": courses,
+        "migration": {"lessons": [], "folders": []},
         "reviews": [{"key": "h1", "title": "Transformers e atenção", "next_review": iso(days=0)[:10], "stage": 2, "overdue": False},
                     {"key": "h4", "title": "Estruturas de dados: árvores B", "next_review": iso(days=2)[:10], "stage": 1, "overdue": True}],
         "docs": {"k1": doc("k1", "Redes neurais convolucionais", "understanding_written", NOTE),
@@ -152,6 +172,22 @@ def state_of(w):
     keys = ("config", "has_token", "gpu", "whisper", "ollama", "sources", "formats", "images", "covers", "vision", "music",
             "obsidian", "recording", "job", "pending")
     return {k: w[k] for k in keys}
+
+
+def preview(W, cls, title):
+    """Os destinos em palavras (o mesmo formato de server._organize_preview)."""
+    c = next((x for x in W["courses"] if x["id"] == cls.get("course_id")), None)
+    m = next((x for x in (c or {}).get("modules", []) if x["id"] == cls.get("module_id")), None)
+    t = cls.get("type") or "inbox"
+    label = {"course": "Cursos", "free": "Conteúdo gratuito", "single": "Aulas avulsas", "inbox": "A organizar"}[t]
+    crumbs = [label] + ([c["name"]] + ([m["name"]] if m else []) if t == "course" and c else [cls["category"]] if cls.get("category") else [])
+    if cls.get("lesson"): crumbs[-1] += f" · Aula {int(cls['lesson']):02d}"
+    notion = (" › ".join(["Estudos", c["name"]] + ([m["name"]] if m else [])) if t == "course" and c
+              else f"Estudos › Conteúdo gratuito › {title or 'página do material'}" if t == "free" else "Estudos › Sem curso")
+    folder = {"course": "01 - Cursos", "free": "02 - Conteúdo gratuito", "single": "03 - Aulas avulsas", "inbox": "90 - A organizar"}[t]
+    return {"classification": cls, "crumbs": crumbs, "notion": notion, "notion_ready": True,
+            "obsidian": " / ".join(["Estudos", crumbs[0]] + [x.split(" · Aula")[0] for x in crumbs[1:]]),
+            "obsidian_path": f"B02 Estudos/{folder}"}
 
 
 def router(W, log):
@@ -178,7 +214,32 @@ def router(W, log):
             if body.get("action") in ("play", "pause"):
                 W["pomodoro"]["running"] = body["action"] == "play"
             data = {**W["pomodoro"], "now": time.time(), "ends_at": time.time() + W["pomodoro"]["left"]}
-        elif path == "/api/history": data = {"items": W["history"]}
+        elif path == "/api/history": data = {"items": W["history"], "courses": W["courses"], "categories": ["História", "Economia"]}
+        elif path == "/api/catalog":
+            data = {"courses": W["courses"], "categories": ["História", "Economia"], "last": W.get("last")}
+            if q.get("notion"): data.update(notion=[] if q.get("course_id") else [{"id": "p-hist", "title": "História"}], root_ok=True)
+        elif path == "/api/organize/preview": data = preview(W, body.get("classification") or {}, body.get("title") or "")
+        elif path == "/api/organize":
+            it = next(x for x in W["history"] if x["key"] == body["key"])
+            it.update(classification=body["classification"], crumbs=preview(W, body["classification"], "")["crumbs"])
+            W["job"] = {"status": "done", "kind": "organize", "result": {"key": it["key"], "classification": body["classification"],
+                                                                          "notion": {"status": "ok", "note": None}, "obsidian": {"status": "ok"}}}
+            data = W["job"]
+        elif path == "/api/catalog/course":
+            c = {"id": "c-new", "name": body["name"], "platform": body.get("platform") or "", "url": "", "notion_page_id": None, "modules": []}
+            W["courses"].append(c)
+            data = {"course": c, "note": None}
+        elif path == "/api/catalog/module":
+            c = next(x for x in W["courses"] if x["id"] == body["course_id"])
+            m = {"id": "m-new", "name": body["name"], "order": int(body["order"]) if body.get("order") else None, "notion_page_id": None}
+            c["modules"].append(m)
+            data = {"module": m, "note": None}
+        elif path == "/api/migration":
+            if r.request.method == "POST":
+                W["job"] = {"status": "done", "kind": "migrate", "result": {"migration": {"moved": len(W["migration"]["lessons"])}}}
+                W["migration"] = {"lessons": [], "folders": []}
+                data = W["job"]
+            else: data = W["migration"]
         elif path == "/api/reviews": data = {"items": W["reviews"]}
         elif path == "/api/courses": data = {"courses": W["pages"], "root_ok": True, "root": W["config"]["root_page_id"]}
         elif path == "/api/notion/pages": data = {"pages": W["pages"]}
@@ -407,8 +468,11 @@ SCENARIOS = [
     ("new-recover", "main", 'showView("new");', patch(recording={"active": False, "seconds": 0, "recovered": {"seconds": 1234}}), None),
     ("new-file", "main", 'showView("new"); $("#tab-file").click();', None, None),
     ("new-captures", "main", 'showView("new"); $("#tab-captures").click(); await addCaps([{path:"C:/a.png",name:"slide 1.png"},{path:"C:/b.png",name:"código.png"},{path:"C:/c.png",name:"tabela.png"}]);', None, None),
-    ("new-picker", "main", 'showView("new"); setPicker(true);', None, None),
-    ("new-search", "main", 'showView("new"); $("#dest-change").click(); const s=$("#course-filter"); s.value="ia"; s.dispatchEvent(new Event("input"));', None, None),
+    ("new-org-course", "main", 'showView("new"); await loadCatalog(); setOrg({type:"course",course_id:"c-ia",module_id:"m-dl",lesson:7}); await new Promise(r=>setTimeout(r,300));', None, None),
+    ("new-org-suggest", "main", 'showView("new"); await loadCatalog(); await new Promise(r=>setTimeout(r,300));', patch(last={"type": "course", "course_id": "c-ia", "module_id": "m-dl", "lesson": 7, "at": "2099-01-01T00:00:00"}), None),
+    ("new-org-dialog", "main", 'showView("new"); await loadCatalog(); openOrg({type:"course",course_id:"c-ia",module_id:"m-dl",lesson:7}); await new Promise(r=>setTimeout(r,400));', None, None),
+    ("new-org-newcourse", "main", 'showView("new"); await loadCatalog(); openOrg({type:"course"}); $("#org-new-course").click(); const n=$("#org-course-name"); n.value="inteligencia artificial"; n.dispatchEvent(new Event("input")); await new Promise(r=>setTimeout(r,300));', None, None),
+    ("new-org-free", "main", 'showView("new"); await loadCatalog(); openOrg({type:"free",category:"História"}); await new Promise(r=>setTimeout(r,400));', None, None),
     ("new-dest-quick", "main", 'showView("new"); $("#dest-obs-change").click();', None, None),
     ("new-dest-novault", "main", 'showView("new");', dest({"obsidian_vault": ""}, {"folder": ""}), None),
     ("new-dest-vaulterr", "main", 'showView("new");', dest(obsidian={"error": "A pasta do cofre não foi encontrada: C:\\Users\\Estudante\\Cérebro. Escolha o cofre de novo em Integrações."}), None),
@@ -435,8 +499,18 @@ SCENARIOS = [
     ("library-empty", "main", 'showView("library");', no_data, None),
     ("library-loading", "main", 'loadHistory = () => new Promise(() => {}); historyItems = null; showView("library");', None, None),  # lista ainda chegando
     ("library-none", "main", 'showView("library"); const s=$("#lib-search"); s.value="quântica"; s.dispatchEvent(new Event("input"));', None, None),
+    ("library-courses", "main", 'showView("library"); await new Promise(r=>setTimeout(r,200)); $("#lib-filter [data-f=course]").click();', None, None),
+    ("library-course", "main", 'showView("library"); await new Promise(r=>setTimeout(r,200)); openCourse("c-ia");', None, None),
+    ("library-inbox", "main", 'showView("library"); await new Promise(r=>setTimeout(r,200)); $("#lib-filter [data-f=inbox]").click();', None, None),
+    ("library-review", "main", 'showView("library"); await new Promise(r=>setTimeout(r,200)); $("#lib-filter [data-f=review]").click();', None, None),
+    ("library-filters", "main", 'showView("library"); await new Promise(r=>setTimeout(r,200)); $("#lib-more").click();', None, None),
+    ("library-organize", "main", 'showView("library"); await new Promise(r=>setTimeout(r,200)); const it=historyItems.find(x=>x.key==="h4"); openOrg(it.classification, it); await new Promise(r=>setTimeout(r,400));', None, None),
     ("integrations", "main", 'showView("integrations");', None, None),
     ("integrations-off", "main", 'showView("integrations");', first_use, None),
+    ("integrations-migration", "main", 'showView("integrations"); await new Promise(r=>setTimeout(r,400));',
+     patch(migration={"area": "B02 Estudos", "folders": ["C04 Claude Obsidian/16 Lumen"], "dashboards": [], "lessons": [
+         {"title": "Criando Vídeos 3D Automatizados com Cloud e IA", "target": "B02 Estudos/90 - A organizar/Criando Vídeos 3D", "canvas": True, "board": False, "attachments": 3, "shared": 0},
+         {"title": "Edição de Vídeos com IA Guia Prático e Personalizado", "target": "B02 Estudos/90 - A organizar/Edição de Vídeos", "canvas": True, "board": True, "attachments": 6, "shared": 0}]}), None),
     *[(f"settings-{c}", "main", f'goSettings("{c}");', None, None) for c in ("general", "capture", "pomodoro", "transcription", "ai", "covers", "privacy")],
     # Pomodoro: cada estado no chip da barra e no painel aberto (o mesmo timer em todas as telas)
     *[(f"pomo-{n}", "main", 'await new Promise(r => setTimeout(r, 300)); Pomodoro.open();', patch(pomodoro={**POMO, **kv}), None) for n, kv in (
@@ -514,23 +588,32 @@ def walk(out=OUT / "percurso"):
             step("inicio", until("() => typeof S !== 'undefined' && S && !document.querySelector('#view-home').hidden"))
             m.click("#nav-new")
             step("nova-aula", until("() => !document.querySelector('#view-new').hidden && step === 'compose'"
-                                    " && $('#dest-obsidian').textContent.includes('Cérebro') && !$('#dest-both').hidden"
-                                    " && getComputedStyle($('#course-filter').closest('.combo')).display === 'none'"))
-            m.click("#dest-change")  # Destinos do estudo: escolher a página do Notion pelo navegador
-            step("destino-notion", until("() => !$('#picker').hidden && getComputedStyle($('#course-filter').closest('.combo')).display !== 'none'"))
-            m.click("#browse .brow:has-text('Estudos')")
-            m.click("#browse .brow:has-text('Inteligência Artificial')")
-            m.click("#dest-change")
-            step("destino-notion-escolhido", until("() => $('#picker').hidden && $('#course').value === 'p-ia'"
-                                                   " && $('#dest-path').textContent.includes('Inteligência Artificial') && $('#dest-change').textContent === 'Alterar'"))
+                                    " && $('#dest-feats').textContent.includes('Cérebro') && !$('#dest-both').hidden"
+                                    " && $('#org-type').textContent === 'A organizar' && $('#dest-path').textContent.includes('Sem curso')"))
+            m.click("#org-change")  # Organização: um seletor só para o Notion e o Obsidian
+            step("organizar-aberto", until("() => $('#org-dlg').open && $('#org-course-fields').hidden"))
+            m.click("#org-types label:has-text('Curso')")
+            m.select_option("#org-course", "c-ia")
+            step("curso-escolhido", until("() => !$('#org-course-fields').hidden && [...$('#org-module').options].some(o => o.textContent === '02 - Deep Learning')"))
+            m.click("#org-new-module")
+            m.fill("#org-module-name", "Visão computacional")
+            m.fill("#org-module-order", "3")
+            m.click("#org-module-create")
+            step("modulo-criado", until("() => $('#org-module').value === 'm-new' && $('#org-preview').textContent.includes('Estudos › Inteligência Artificial › Visão computacional')"
+                                        " && $('#org-preview').textContent.includes('Estudos / Cursos / Inteligência Artificial / Visão computacional')"))
+            m.fill("#org-lesson", "4")
+            m.click("#org-save")
+            step("organizacao-escolhida", until("() => !$('#org-dlg').open && $('#org-type').textContent === 'Curso'"
+                                                " && $('#org-path').textContent.includes('Visão computacional · Aula 04')"
+                                                " && $('#dest-path').textContent.includes('Visão computacional')"
+                                                " && $('#dest-vault').textContent.includes('Visão computacional')"))
             m.click("#dest-obs-change")  # configuração rápida do cofre: a mesma chave de Integrações
             step("destino-obsidian", until("() => !$('#obs-quick').hidden && $('#dest-obs-change').textContent === 'Pronto'"))
             m.click("#obs-quick .set-row:has-text('Painel visual')")  # a mesma chave de Integrações
-            step("sem-painel", until("() => !$('#dest-feats').textContent.includes('Painel visual') && !$('#obs-board').checked"
-                                     " && $('#dest-feats').textContent.includes('Mapa conceitual')"))
+            step("sem-painel", until("() => $('#dest-feats').textContent.startsWith('Nota + Canvas') && !$('#obs-board').checked"))
             m.click("#obs-quick .set-row:has-text('Painel visual')")
             m.keyboard.press("Escape")
-            step("com-painel", until("() => $('#obs-quick').hidden && $('#dest-feats').textContent.includes('Painel visual') && $('#obs-board').checked"))
+            step("com-painel", until("() => $('#obs-quick').hidden && $('#dest-feats').textContent.startsWith('Nota + 2 Canvas') && $('#obs-board').checked"))
             m.click("#rec-start")
             step("gravando", until("() => recorder.dataset.state === 'live' && document.querySelector('#global-status').dataset.tone === 'rec'"))
             w = ctx.new_page()
@@ -577,8 +660,23 @@ def walk(out=OUT / "percurso"):
             step("resultado", until("() => document.querySelector('#result').classList.contains('ok')"
                                     " && [...document.querySelectorAll('#run-actions .btn')].some(b => b.textContent.includes('Abrir no Notion'))"
                                     " && [...document.querySelectorAll('#run-actions .btn')].some(b => b.textContent.includes('Abrir no Obsidian'))"))
+            sent = [b for meth, pth, b in log if pth in ("/api/start", "/api/finish")]
+            step("organizacao-enviada", all(b.get("classification") == {"type": "course", "course_id": "c-ia", "module_id": "m-new", "lesson": 4}
+                                             for b in sent) and len(sent) == 2 and not any("course_id" in b for b in sent))
             m.click("#nav-library")
             step("biblioteca", until("() => !document.querySelector('#view-library').hidden && document.querySelectorAll('#library-list .lib-title').length > 3"))
+            m.click("#lib-filter [data-f=course]")
+            step("biblioteca-cursos", until("() => !$('#course-grid').hidden && $$('#course-grid .course-card').length === 2"))
+            m.click("#course-grid .course-card:has-text('Inteligência Artificial')")
+            step("biblioteca-curso", until("() => !$('#lib-crumbs').hidden && $('#library-list').textContent.includes('02 - Deep Learning')"
+                                             " && $('#library-list').textContent.includes('Transformers e atenção')"))
+            m.click("#lib-filter [data-f=inbox]")
+            m.click("#library-list [aria-label^='Organizar: Estruturas']")
+            step("organizar-aula", until("() => $('#org-dlg').open && $('#org-save').textContent === 'Mover para cá'"))
+            m.click("#org-types label:has-text('Conteúdo gratuito')")
+            m.fill("#org-category", "Computação")
+            m.click("#org-save")
+            step("aula-organizada", until("() => !$('#org-dlg').open && $('#library-list').textContent.includes('Nada para organizar')"))
             m.click("#nav-integrations")
             step("integracoes", until("() => document.querySelector('#notion-badge').dataset.tone === 'ok' && document.querySelector('#obsidian-badge').dataset.tone === 'ok'"))
             m.click("#open-settings")

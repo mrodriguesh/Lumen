@@ -736,6 +736,9 @@ def _organize_preview(h):
         nt = (cfg.get("notion_free_page_title") or "Conteúdo gratuito") + (f" › {title}" if title else " › página do material")
     else:
         nt = f"{root} › {notion.NO_COURSE}"
+    entry = store.history().get(str(body.get("key") or "")) or {}
+    if cls["type"] == "inbox" and entry.get("page_id"):  # não há “a organizar” no Notion: a aula não sai de onde está
+        nt = f"{entry.get('course') or 'a página atual'} (continua onde está)"
     ob = " / ".join(["Estudos"] + crumbs[:1] + [x.split(" · Aula")[0] for x in crumbs[1:]])
     path = None
     if cfg["obsidian_vault"]:
