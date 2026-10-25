@@ -12,6 +12,15 @@
     s.append(u);
     return s;
   }
+  // Troca o ícone de um botão (pausar ↔ retomar). Nunca mude o href de um <use> já desenhado: com o sprite externo o
+  // Chromium não redesenha, e o ícone some ou fica o antigo. Um <svg> novo, só quando o ícone muda.
+  function setIcon(el, name) {
+    const old = el.querySelector("svg.i");
+    if (old?.dataset.icon === name) return;
+    const n = icon(name);
+    n.dataset.icon = name;
+    if (old) old.replaceWith(n); else el.prepend(n);
+  }
 
   // Dica: [data-tip] (vazio = usa o aria-label) e, opcional, [data-kbd] com o atalho. Aparece no hover e no foco pelo
   // teclado, sempre dentro da janela. Substitui o title nativo, que some atrás das janelas "sempre por cima".
@@ -109,5 +118,5 @@
     toastTimer = setTimeout(() => { t.hidden = true; }, ms || { error: 9000, warning: 6000 }[tone] || 4000);
   }
 
-  window.ui = { icon, confirm, toast, hideTip: hide };
+  window.ui = { icon, setIcon, confirm, toast, hideTip: hide };
 })();

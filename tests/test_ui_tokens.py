@@ -55,6 +55,12 @@ class Tokens(unittest.TestCase):
             css = re.sub(r"url\([^)]*\)", "", (WEB / name).read_text("utf-8"))
             self.assertEqual(re.findall(r"#[0-9a-fA-F]{3,8}\b", css), [], name)
 
+    def test_type_sizes_come_from_the_scale(self):
+        # tamanho de fonte só pela escala de ui.css (--fs-*): nada de 13px, 17px ou 22px espalhados
+        for name in ("app.css", "widget.css"):
+            css = (WEB / name).read_text("utf-8")
+            self.assertEqual(re.findall(r"font(?:-size)?:\s*[0-9.]+px", css), [], name)
+
 
 if __name__ == "__main__":
     unittest.main()

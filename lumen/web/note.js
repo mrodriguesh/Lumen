@@ -18,7 +18,7 @@ const editor = new UnderstandingEditor({ text: $("#nw-text"), save: $("#nw-save"
 let unbindStatus = null;
 function bindStatus() {
   unbindStatus?.();
-  unbindStatus = Notes.bindStatus(key, { box: $("#nw-status"), text: $("#nw-ready"), detail: $("#nw-hint"), go: $("#nw-go"), compact: false });
+  unbindStatus = Notes.bindStatus(key, { box: $("#nw-status"), text: $("#nw-ready"), detail: $("#nw-hint"), go: $("#nw-go"), compact: false, short: true });
 }
 $("#nw-go").addEventListener("click", async () => {
   try { await Notes.process(key); } catch (e) { $("#nw-hint").textContent = [e.message, e.action].filter(Boolean).join(" "); }
@@ -83,7 +83,7 @@ function renderRec(r) {
   if (!r.active) return;
   b.dataset.paused = String(paused);
   $("#nw-rec-text").textContent = paused ? "Pausada" : mmss(r.seconds);
-  $("#nw-rec-ico").setAttribute("href", "/icons.svg#" + (paused ? "play" : "pause"));
+  ui.setIcon($("#nw-rec"), paused ? "play" : "pause");
   b.setAttribute("aria-label", paused ? `Captura pausada há ${mmss(r.paused_for)}. Retomar captura` : `Gravando, ${mmss(r.seconds)}. Pausar captura`);
   b.dataset.tip = paused ? "Captura pausada: nada é gravado. Clique para retomar" : "Gravando. Clique para pausar a captura (o vídeo continua)";
   b.dataset.kbd = Shortcuts.capture.label;

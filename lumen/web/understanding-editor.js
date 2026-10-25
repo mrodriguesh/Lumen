@@ -183,6 +183,7 @@
   }
 
   // Liga um bloco de status (ponto, texto, detalhe e botão) a uma nota: o mesmo em todas as janelas, só muda o tamanho.
+  // compact: texto e botão curtos (barra lateral); short: só o botão curto (janela flutuante, que já mostra o “Salvo”).
   function bindStatus(key, ui) {
     const d = doc(key);
     const paint = () => {
@@ -191,7 +192,7 @@
       ui.text.textContent = ui.compact && r.save[0] && r.phase !== "processing" ? `${r.save[0]} · ${r.label}` : r.label;
       if (ui.detail) ui.detail.textContent = r.detail;
       ui.box.dataset.tip = [r.label, r.detail, r.save[2]].filter(Boolean).join(" · ");
-      if (ui.go) { ui.go.hidden = busy || ["preparing", "prep_failed", "recording", "busy"].includes(r.phase); ui.go.disabled = !r.can; ui.go.textContent = ui.compact ? (r.action === "Processar minha compreensão" ? "Processar" : r.action) : r.action; }
+      if (ui.go) { ui.go.hidden = busy || ["preparing", "prep_failed", "recording", "busy"].includes(r.phase); ui.go.disabled = !r.can; ui.go.textContent = ui.compact || ui.short ? (r.action === "Processar minha compreensão" ? "Processar" : r.action) : r.action; }
     };
     d.listeners.add(paint);
     paint();

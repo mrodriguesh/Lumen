@@ -174,7 +174,10 @@ def router(W, log):
                                 "title": j.get("title", ""), "url": "", "review": False},
                         "recording": W["recording"], "watch": W["config"]["watch_screen"], "music": W["config"]["music_filter"],
                         "notes": W["pending"], "pomodoro": {**W["pomodoro"], "now": time.time(), "ends_at": time.time() + W["pomodoro"]["left"]}}
-        elif path == "/api/pomodoro": data = {**W["pomodoro"], "now": time.time(), "ends_at": time.time() + W["pomodoro"]["left"]}
+        elif path == "/api/pomodoro":
+            if body.get("action") in ("play", "pause"):
+                W["pomodoro"]["running"] = body["action"] == "play"
+            data = {**W["pomodoro"], "now": time.time(), "ends_at": time.time() + W["pomodoro"]["left"]}
         elif path == "/api/history": data = {"items": W["history"]}
         elif path == "/api/reviews": data = {"items": W["reviews"]}
         elif path == "/api/courses": data = {"courses": W["pages"], "root_ok": True, "root": W["config"]["root_page_id"]}
@@ -185,7 +188,29 @@ def router(W, log):
             d = W["docs"].get(body.get("key"))
             if d: d.update(text=body.get("text", ""), at=body.get("at", 0))
             data = d or {}
-        elif path == "/api/review": data = W["review"]
+        elif path == "/api/review": data = {**W["review"], "key": q.get("key", W["review"]["key"])}
+        # o fluxo de uma aula, com estado (para o percurso de ponta a ponta)
+        elif path == "/api/record/start":
+            W["recording"] = {"active": True, "seconds": 0, "level": .3, "heard": True, "paused": False, "screens": {"seen": 0}}
+            data = W["recording"]
+        elif path in ("/api/record/pause", "/api/record/resume"):
+            W["recording"].update(paused=path.endswith("pause"), paused_for=0)
+            data = W["recording"]
+        elif path == "/api/record/stop":
+            W["recording"] = {"active": False, "seconds": 0, "level": 0, "heard": False, "paused": False}
+            data = {"path": "C:/Lumen/aula.wav", "name": "Aula de 24-10.wav", "warning": None}
+        elif path == "/api/start":  # a preparação termina na hora: a aula k1 espera a compreensão
+            W["job"] = {"status": "done", "kind": "process", "key": "k1", "result": {"review": True, "key": "k1", "title": W["docs"]["k1"]["title"]}}
+            data = W["job"]
+        elif path == "/api/understanding/submit":  # a IA analisa na hora
+            k = body["key"]
+            W["docs"][k].update(state="completed", analysis=W["docs"]["k2"]["analysis"], analyzed_text=body["text"], original=body["text"],
+                                submitted=iso(), model="qwen3:8b", ready={"phase": "completed", "label": "Análise concluída", "tone": "ok", "detail": ""})
+            W["job"] = {"status": "done", "kind": "analyze", "spec": {"key": k}, "result": {"analysis": True, "key": k}}
+            data = {}
+        elif path == "/api/finish":
+            W["job"] = {**copy.deepcopy(globals()["DONE"]), "result": {**DONE["result"], "key": body.get("key") or "k1"}}
+            data = W["job"]
         elif path == "/api/settings":
             W["config"].update({k: v for k, v in body.items() if k in W["config"]})
             data = {"config": W["config"], "has_token": W["has_token"]} if q.get("view") == "settings" else state_of(W)
@@ -381,6 +406,7 @@ SCENARIOS = [
     ("run-cancel", "main", run_js({"status": "cancelled", "kind": "process", "stage": "generate"}), None, None),
     ("library", "main", 'showView("library");', None, None),
     ("library-empty", "main", 'showView("library");', no_data, None),
+    ("library-loading", "main", 'loadHistory = () => new Promise(() => {}); historyItems = null; showView("library");', None, None),  # lista ainda chegando
     ("library-none", "main", 'showView("library"); const s=$("#lib-search"); s.value="quântica"; s.dispatchEvent(new Event("input"));', None, None),
     ("integrations", "main", 'showView("integrations");', None, None),
     ("integrations-off", "main", 'showView("integrations");', first_use, None),
@@ -410,8 +436,110 @@ SCENARIOS = [
 ]
 
 
+def walk(out=OUT / "percurso"):
+    """O uso de ponta a ponta, clicando nos botões de verdade: Início → Nova aula → gravar → pausar → retomar → Pomodoro
+    → parar → Minha compreensão (com a barra e a janela da nota juntas) → processar → análise → salvar → resultado →
+    Biblioteca → Integrações → Ajustes (um ajuste seguro) → Início. Uma imagem por etapa; falha no primeiro passo errado."""
+    from playwright.sync_api import sync_playwright
+    out.mkdir(parents=True, exist_ok=True)
+    proc, url = serve()
+    W, log, fails = world(), [], []
+    try:
+        with sync_playwright() as p:
+            b = p.chromium.launch(channel="chrome", headless=True, args=["--disable-gpu"])
+            ctx = b.new_context(viewport={"width": 1120, "height": 860})
+            ctx.add_init_script(HOST)
+            ctx.route("**/api/**", router(W, log))
+            m = ctx.new_page()
+            errs = []
+            m.on("pageerror", lambda e: errs.append(str(e)))
+            n = [0]
+
+            def shot(page, name):
+                n[0] += 1
+                page.wait_for_timeout(350)
+                page.screenshot(path=str(out / f"{n[0]:02d}-{name}.png"), animations="disabled")
+
+            def step(name, ok, page=m):
+                print(("ok   " if ok else "FALHA ") + name)
+                if not ok:
+                    fails.append(name)
+                shot(page, name)
+
+            def until(js, page=m, ms=6000):
+                try:
+                    page.wait_for_function(js, timeout=ms)
+                    return True
+                except Exception:  # noqa: BLE001
+                    return False
+
+            m.goto(url + "/?frame=1")
+            step("inicio", until("() => typeof S !== 'undefined' && S && !document.querySelector('#view-home').hidden"))
+            m.click("#nav-new")
+            step("nova-aula", until("() => !document.querySelector('#view-new').hidden && step === 'compose'"))
+            m.click("#rec-start")
+            step("gravando", until("() => recorder.dataset.state === 'live' && document.querySelector('#global-status').dataset.tone === 'rec'"))
+            w = ctx.new_page()
+            w.set_viewport_size({"width": 304, "height": 252})
+            w.goto(url + "/widget")
+            until("() => typeof state !== 'undefined' && state && state.recording.active", w)
+            w.evaluate('document.body.dataset.expanded = "true"')
+            step("barra-gravando", until("() => document.body.dataset.state === 'live' && !document.querySelector('#pause').hidden", w), w)
+            m.click("#rec-pause")
+            step("pausado", until("() => recorder.dataset.paused === 'true' && document.querySelector('#global-status').dataset.tone === 'paused'"
+                                  " && document.querySelector('#rec-pause-label').textContent === 'Retomar'"))
+            step("barra-pausada", until("() => document.body.dataset.paused === 'true' && document.querySelector('#pause-label').textContent.startsWith('Retomar')", w), w)
+            m.click("#rec-pause")
+            step("retomado", until("() => recorder.dataset.paused === 'false' && document.querySelector('#rec-pause-label').textContent === 'Pausar'"))
+            m.click("#u-pomo .pomo-time")
+            m.wait_for_timeout(200)
+            m.click("#u-pomo [data-act=toggle]")
+            step("pomodoro", until("() => !document.querySelector('#u-pomo .pomo-sheet').hidden && document.querySelector('#u-pomo .pomo').dataset.running === 'false'"))
+            m.keyboard.press("Escape")
+            m.click("#rec-start")
+            step("gravacao-pronta", until("() => recorder.dataset.state === 'done' && found && !document.querySelector('#go').disabled"
+                                          " && document.querySelector('#global-status').dataset.tone !== 'rec'"))
+            m.click("#go")
+            step("minha-compreensao", until("() => step === 'understand' && U && U.key === 'k1' && document.querySelector('#u-text').value.length > 50"))
+            nw = ctx.new_page()
+            nw.set_viewport_size({"width": 420, "height": 520})
+            nw.goto(url + "/note?key=k1")
+            m.click("#u-text")
+            m.keyboard.press("End")
+            m.keyboard.type(" O padding mantém o tamanho da saída.")
+            step("nota-flutuante-sincronizada", until("() => document.querySelector('#nw-text').value.endsWith('tamanho da saída.')", nw), nw)
+            step("compreensao-salva", until("() => document.querySelector('#u-save').textContent === 'Salvo' && !document.querySelector('#u-go').disabled"))
+            m.click("#u-go")
+            step("analise", until("() => step === 'analysis' && !document.querySelector('#review').hidden && document.querySelectorAll('#ai .ai-sec').length > 3"))
+            m.click("#review-go")
+            step("resultado", until("() => document.querySelector('#result').classList.contains('ok')"
+                                    " && [...document.querySelectorAll('#run-actions .btn')].some(b => b.textContent.includes('Abrir no Notion'))"
+                                    " && [...document.querySelectorAll('#run-actions .btn')].some(b => b.textContent.includes('Abrir no Obsidian'))"))
+            m.click("#nav-library")
+            step("biblioteca", until("() => !document.querySelector('#view-library').hidden && document.querySelectorAll('#library-list .lib-title').length > 3"))
+            m.click("#nav-integrations")
+            step("integracoes", until("() => document.querySelector('#notion-badge').dataset.tone === 'ok' && document.querySelector('#obsidian-badge').dataset.tone === 'ok'"))
+            m.click("#open-settings")
+            m.click("#settings-nav [data-cat=privacy]")
+            m.click("label:has(#keep)")
+            step("ajuste-salvo", until("() => S.config.keep_temp === true") and W["config"]["keep_temp"] is True)
+            m.click("#nav-home")
+            step("inicio-de-novo", until("() => !document.querySelector('#view-home').hidden && document.querySelector('#nav-home').getAttribute('aria-current') === 'page'"))
+            if errs:
+                fails.append(f"erros de página: {errs}")
+            b.close()
+    finally:
+        proc.kill()
+        proc.wait(timeout=10)
+        shutil.rmtree(proc.data, ignore_errors=True)
+    print(f"\n{n[0]} etapas em {out}" + (f"\nFALHAS: {fails}" if fails else "\npercurso completo sem falhas"))
+    return 1 if fails else 0
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
+    if "--walk" in args:
+        sys.exit(walk())
     sizes = ((1120, 860),) + (((520, 560), (900, 700), (1600, 1000), (1920, 1040)) if "--sizes" in args else ())
     zooms = (1.0,) + ((.8, .9, 1.1, 1.2) if "--zoom" in args else ())
     sys.exit(run(SCENARIOS, [a for a in args if not a.startswith("--")], sizes, zooms))

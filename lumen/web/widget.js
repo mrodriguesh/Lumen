@@ -48,7 +48,7 @@ function render(d) {
   document.body.dataset.paused = String(paused);
   $("#pause").hidden = !r.active || !!r.error;
   $("#pause-label").textContent = paused ? "Retomar captura" : "Pausar captura";
-  $("#pause-icon").setAttribute("href", "/icons.svg#" + (paused ? "play" : "pause"));
+  ui.setIcon($("#pause"), paused ? "play" : "pause");
   $("#pause").dataset.tip = `${paused ? "Retomar" : "Pausar"} a captura do som e da tela. O vídeo não é pausado.`;
   $("#pause").dataset.kbd = Shortcuts.capture.label;
   Pomodoro.feed(d.pomodoro);
@@ -57,11 +57,13 @@ function render(d) {
   $("#action-label").textContent = r.active ? "Parar" : "Gravar";
   $("#time").textContent = clock(r.active ? r.seconds : 0);
   document.body.dataset.job = j.status === "running" ? "running" : "";
-  $("#status").textContent = r.error ? "Gravação interrompida" : paused ? "Captura pausada" : r.active ? "Gravando" : j.status === "running" ? (j.kind === "analyze" ? "Analisando sua nota" : j.kind === "download" ? "Baixando" : "Preparando a aula") : j.review ? "Escreva sua compreensão" : "Pronto para gravar";
+  $("#status").textContent = r.error ? "Gravação interrompida" : paused ? "Captura pausada" : r.active ? "Gravando" : j.status === "running" ? (j.kind === "analyze" ? "Analisando sua nota" : j.kind === "download" ? "Baixando"
+    : ["prepare", "transcribe", "screen"].includes(j.stage) ? "Preparando a aula" : "Salvando o material") : j.review ? "Escreva sua compreensão" : "Pronto para gravar";
   $("#detail").textContent = r.error || (paused ? `Pausada há ${clock(r.paused_for)} · nada é gravado` : r.active && !r.heard ? "Dê play com o volume ligado." : "");
   const left = Number.isFinite(j.eta_total) ? ` · faltam ~${j.eta_total < 90 ? `${Math.max(5, Math.round(j.eta_total / 5) * 5)} s` : `${Math.round(j.eta_total / 60)} min`}` : "";
   $("#job").textContent = j.status === "running" ? `${j.detail || j.stage || "Processando"}${Number.isFinite(j.progress) ? ` · ${Math.round(j.progress * 100)}%` : ""}${left}` : j.review ? "Abra o Lumen e escreva sua compreensão" : "";
   $("#job").hidden = !$("#job").textContent;
+  $("#job").dataset.tip = $("#job").textContent;  // o rodapé é estreito: a linha completa vai na dica
   const level = r.active && !r.error ? Math.min(1, Math.sqrt(Math.max(0, Number(r.level) || 0)) * 2) : 0;
   $("#action").style.setProperty("--lvl", level);
   const bars = document.querySelectorAll(".wave i");
@@ -149,7 +151,7 @@ function renderPreferences() {
   $("#prefs-keep").setAttribute("aria-checked", String(!!preferences?.keep_temp));
   $("#prefs-watch").setAttribute("aria-checked", String(!!preferences?.watch_screen));
   document.querySelector(".prefs-watch").dataset.on = String(!!preferences?.watch_screen);
-  $("#watch-sub").textContent = preferences?.watch_screen ? (state?.recording.active ? "Vale na próxima gravação" : "Ativado · lido no seu PC") : "Lê slides e código e põe na página";
+  $("#watch-sub").textContent = preferences?.watch_screen ? (state?.recording.active ? "Vale na próxima gravação" : "Ativado · lido no seu PC") : "Slides e código na página";
   $("#prefs-token-status").textContent = hasToken ? "Conectado · token no cofre do Windows" : "Conecte sua integração do Notion";
   $("#prefs-model").value = preferences?.ollama_model || "";
   $("#prefs-language").value = preferences?.page_language || "pt";

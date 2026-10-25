@@ -344,7 +344,7 @@ function renderRec(r) {
       : r.heard ? "Silêncio no momento." : "Nenhum som ainda: dê play na aula (volume ligado).") + eye + mus;
     const paused = !!r.paused, label = paused ? "Retomar captura" : "Pausar captura";
     recorder.dataset.paused = String(paused);
-    $("#rec-pause use").setAttribute("href", "/icons.svg#" + (paused ? "play" : "pause"));
+    ui.setIcon($("#rec-pause"), paused ? "play" : "pause");
     $("#rec-pause-label").textContent = paused ? "Retomar" : "Pausar";
     $("#rec-pause").setAttribute("aria-label", label);
     $("#rec-pause").dataset.tip = label;
@@ -395,6 +395,7 @@ async function useRecording(r, secs) {
   $("#tab-recording").click();
   picked.recording = r;
   S.recording = { active: false };
+  renderStatus(); renderUCap(); renderHero();  // a pílula da barra superior deixa de dizer “Gravando”
   setRecState("done", "Gravar de novo");
   drawWave();
   $("#rec-time").textContent = mmss(secs);
@@ -832,11 +833,11 @@ function updateGo() {
   else if (!S.ollama.running) why = "Abra o Ollama para gerar o material.";
   else if (!S.ollama.installed) why = "Baixe o modelo de IA em Ajustes → IA local.";
   else if (kind === "captures" && !S.vision.installed) why = "Baixe o modelo de visão em Ajustes → Captura para ler as capturas.";
+  else if (S.recording?.active) why = "Pare a gravação (Parar e usar) para continuar.";
   else if (!found) why = kind === "recording" ? "Grave a aula para continuar." : kind === "captures" ? "Adicione as capturas para continuar." : "Escolha o arquivo da aula.";
   else if (found.needs_transcript) why = "Forneça a transcrição do vídeo.";
   else if (found.needs_transcription && !found.whisper_ready) why = "Baixe o modelo de transcrição em Ajustes → Transcrição.";
   else if (usesNotion() && (!course || course.value === "__new__")) why = "Escolha ou crie um curso.";
-  else if (S.recording?.active) why = "Pare a gravação antes de gerar.";
   go.disabled = !!why || polling;
   $("#go-hint").textContent = why;
 }
@@ -1770,20 +1771,25 @@ async function loadLibrary() {
 function renderLibrary() {
   const box = $("#library-list");
   for (const b of $$("#lib-filter button")) b.setAttribute("aria-pressed", String(b.dataset.f === libFilter));
-  if (!historyItems) return swap(box, skeletonRows(4));
   const typed = $("#lib-search").value.trim(), q = fold(typed), match = (...t) => !q || t.some((x) => fold(x || "").includes(q));
   const pend = (S?.pending || []).filter((p) => match(p.title, p.label));
-  const saved = historyItems.filter((it) => match(it.title, it.course, it.spec?.course_title));
+  const course = (it) => it.course || it.spec?.course_title || "", by = $("#lib-sort").value;
+  const saved = (historyItems || []).filter((it) => match(it.title, course(it)));
+  if (by !== "recent") saved.sort((a, b) => (by === "course" ? course(a).localeCompare(course(b), "pt-BR") : 0)
+    || a.title.localeCompare(b.title, "pt-BR", { numeric: true }));  // a lista vem do servidor da mais nova para a mais velha
   const out = [];
   if (libFilter !== "saved" && pend.length) out.push(el("p", { class: "group-h" }, "Em andamento"), ...pend.map(pendingRow));
-  if (libFilter !== "pending" && saved.length) out.push(el("p", { class: "group-h" }, "Salvas"), ...saved.map((it) => savedRow(it)));
-  if (out.length) return swap(box, out);
+  // as salvas ainda chegando: as em andamento já aparecem, e só o grupo das salvas fica em carregamento
+  if (libFilter !== "pending" && !historyItems) out.push(el("p", { class: "group-h" }, "Salvas"), ...skeletonRows(3));
+  else if (libFilter !== "pending" && saved.length) out.push(el("p", { class: "group-h" }, "Salvas"), ...saved.map((it) => savedRow(it)));
+  if (out.length || !historyItems) return swap(box, out.length ? out : skeletonRows(4));
   const start = el("button", { class: "btn primary", type: "button", onclick: () => showView("new") }, icon("new"), "Nova aula");
   swap(box, [typed ? emptyState("search", `Nada com “${typed}”`, "Tente outra palavra do título ou do curso.")
     : libFilter === "pending" ? emptyState("pen", "Nenhuma aula em andamento", "As aulas que você começar e ainda não salvou ficam aqui, para continuar de onde parou.", start)
     : emptyState("library", "Nenhuma aula ainda", "Quando você salvar a primeira aula no Notion ou no Obsidian, ela aparece aqui.", start)]);
 }
 $("#lib-search").addEventListener("input", renderLibrary);
+$("#lib-sort").addEventListener("change", renderLibrary);
 for (const b of $$("#lib-filter button")) b.addEventListener("click", () => { libFilter = b.dataset.f; renderLibrary(); });
 
 // ---------- Início: o que está acontecendo, o que continuar, o que precisa de atenção ----------
