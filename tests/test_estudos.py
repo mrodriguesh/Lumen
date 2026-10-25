@@ -194,7 +194,7 @@ class Move(Area):
         d = "Estudos/01 - Cursos/Edição de Vídeos/01 - Fundamentos/RAG busca + geração"
         self.assertEqual(out["note"], f"{d}/RAG busca + geração.md")
         self.assertEqual(out["state"], "updated")  # a trilha e as propriedades mudaram
-        self.assertFalse((self.root / "Estudos/90 - A organizar/RAG busca + geração").exists())
+        self.assertFalse((self.root / "Estudos/90 - A organizar").exists())  # ficou vazia: sai (é criada quando precisa)
         self.files_ok(out)
         self.assertTrue(all(r.startswith(d) for r in [*out["files"], *out["images"].values()]))
         fm = vault.fields(vault.split(self.read(out["note"]))[0])
@@ -246,6 +246,25 @@ class Move(Area):
         old2, new2 = catalog.update_course(c["id"], name="edição profissional de vídeos")
         area.rename_course(self.cfg, old2, new2)
         self.assertIn("edição profissional de vídeos", [p.name for p in (self.home / "01 - Cursos").iterdir()])
+
+
+    def test_long_old_names_and_long_course_names_stay_openable_on_windows(self):
+        """Imagens antigas têm nomes de ~100 caracteres; o Obsidian não abre caminhos acima de 260. A pasta da aula
+        encurta pelo que vai morar nela, e renomear o curso não empurra nada além do limite."""
+        out = self.put()
+        anexo = self.root / next(iter(out["files"]))
+        anexo.rename(anexo.with_name("01m48 passo 14 14 - seleção de vídeos para · edição de vídeos com ia guia prático e p 2026-10-25 x.jpg"))
+        c = self.course("Um curso com um nome realmente comprido demais")
+        m = catalog.create_module(c["id"], "Um módulo também com nome comprido", 12)
+        self.put({"type": "course", "course_id": c["id"], "module_id": m["id"], "lesson": 7}, prev=json.loads(json.dumps(out)), move=True)
+        longest = max(len(str(f)) for f in self.root.rglob("*") if f.is_file())
+        self.assertLessEqual(longest, area.MAX)
+        old, new = catalog.update_course(c["id"], name="Outro nome de curso ainda mais comprido que o anterior")
+        try:
+            area.rename_course(self.cfg, old, new)
+        except AppError as e:
+            self.assertIn("longo demais", str(e))
+        self.assertLessEqual(max(len(str(f)) for f in self.root.rglob("*") if f.is_file()), area.MAX)
 
 
 class Home(Area):

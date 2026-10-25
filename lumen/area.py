@@ -32,7 +32,8 @@ log = logging.getLogger("lumen")
 SECTIONS = {"course": "01 - Cursos", "free": "02 - Conteúdo gratuito", "single": "03 - Aulas avulsas",
             "inbox": "90 - A organizar"}
 HOME, BASE = "00 - Estudos.md", "Estudos.base"
-LIMIT = 180  # pasta da aula: abaixo dela cabem “Anexos/” e o nome de uma imagem sem passar de 260 no Windows
+MAX = 250       # caminho inteiro de qualquer arquivo: acima de 260 o Obsidian (Chromium) não abre no Windows
+NEW_LONGEST = 86  # o que uma aula nova põe na pasta dela: “Anexos/” + o nome de uma imagem (área.lesson_dir)
 JOURNAL = "migration.json"
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2} - ")
 USER_COURSE = ("\n\n## Sobre\n%% Área sua: o Lumen nunca altera nada daqui para baixo. %%\n\n"
@@ -43,15 +44,17 @@ USER = "\n\n## Minhas anotações\n%% Área sua: o Lumen nunca altera nada daqui
 # --- Caminhos -------------------------------------------------------------------------------------------------
 
 def course_dir(home, name):
-    return home / SECTIONS["course"] / clean(name, 40)
+    return home / SECTIONS["course"] / clean(name, 32)  # 32: curso + módulo + aula + imagem cabem em MAX
 
 
 def module_name(name, order=None):
-    return (f"{int(order):02d} - " if order else "") + clean(name, 40)
+    return (f"{int(order):02d} - " if order else "") + clean(name, 32)
 
 
-def lesson_dir(home, cls, title, lid=None):
-    """A pasta de uma aula pela classificação. Uma pasta com outra aula dentro nunca é reaproveitada."""
+def lesson_dir(home, cls, title, lid=None, longest=NEW_LONGEST):
+    """A pasta de uma aula pela classificação. Uma pasta com outra aula dentro nunca é reaproveitada. longest: o maior
+    caminho que vai morar dentro dela (ex.: “Anexos/” + o nome de uma imagem antiga): o nome da pasta encurta para tudo
+    caber em MAX."""
     cls = cls or catalog.INBOX
     t = cls.get("type") if cls.get("type") in SECTIONS else "inbox"
     base = home / SECTIONS[t]
@@ -60,10 +63,11 @@ def lesson_dir(home, cls, title, lid=None):
         if cls.get("module"):
             base = base / module_name(cls["module"], cls.get("module_order"))
     elif t in ("free", "single") and cls.get("category"):
-        base = base / clean(cls["category"], 40)
+        base = base / clean(cls["category"], 32)
     name = (f"{int(cls['lesson']):02d} - " if cls.get("lesson") else "") + clean(title, 60)
-    while len(str(base / name)) > LIMIT and len(name) > 24:
-        name = name[:-8].rstrip(" .")
+    room = MAX - len(str(base)) - 2 - longest
+    if len(name) > room:
+        name = name[:max(room, 20)].rstrip(" .")
     d = base / name
     if lid and d.exists() and _owners(d) - {lid}:
         d = base / f"{name} · {lid[3:9]}"
@@ -212,17 +216,60 @@ def recover(cfg):
 
 
 def _remapper(pairs):
-    """Função caminho antigo → novo (relativos ao cofre): arquivos movidos e pastas movidas (com tudo dentro)."""
+    """Função caminho antigo → novo (relativos ao cofre): arquivos movidos e pastas movidas (com tudo dentro), em
+    cadeia (a pasta da aula vai e, depois, uma imagem dentro dela ganha um nome mais curto)."""
     exact = {a: b for a, b in pairs}
 
-    def f(rel):
+    def one(rel):
         if rel in exact:
             return exact[rel]
         for a, b in pairs:
             if rel.startswith(a + "/"):
                 return b + rel[len(a):]
         return rel
+
+    def f(rel):
+        for _ in range(4):
+            new = one(rel)
+            if new == rel:
+                break
+            rel = new
+        return rel
     return f
+
+
+def _short(dst, lid):
+    """Imagem antiga cujo nome não cabe no lugar novo (o Obsidian não abre acima de 260 caracteres): o começo do nome
+    e um código curto da aula. As referências do Lumen (Canvas, nota, manifesto) acompanham."""
+    if len(str(dst)) <= MAX:
+        return dst
+    keep = max(8, MAX - len(str(dst.parent)) - 1 - len(dst.suffix) - 7)
+    return dst.with_name(dst.stem[:keep].rstrip(" .·-") + f" {lid[3:9]}{dst.suffix}")
+
+
+def _rename_refs(note, renamed):
+    """Embeds e links da nota para imagens que ganharam nome curto. Se o bloco do Lumen não tinha sido editado, a marca
+    dele é refeita (trocar um nome não é edição do usuário)."""
+    if not renamed or not note.is_file():
+        return
+    text = note.read_text("utf-8").replace("\r\n", "\n")
+    p = parts(text)
+    intact = p and p[3] == block_hash(p[2])
+    new = text
+    for a, b in renamed.items():
+        new = new.replace("[[" + a, "[[" + b)
+    if new == text:
+        return
+    q = parts(new)
+    if intact and q:
+        new = compose(q[0], q[1], q[2], q[4])
+    obsidian._write(note, new)
+
+
+def _merge_renamed(old, new):
+    out = {a: new.get(b, b) for a, b in (old or {}).items()}
+    out.update({a: b for a, b in new.items() if a not in out.values()})
+    return out
 
 
 def _rewrite_canvases(root, home, remap, lid):
@@ -277,11 +324,35 @@ def _hash(text):
     return hashlib.sha256(text.encode()).hexdigest()[:12]
 
 
-def relocate(root, home, note, target, lid, ob):
-    """Move a aula para `target` (a pasta dela inteira, ou só os arquivos dela se a nota divide a pasta com outras).
-    Reescreve os Canvas e devolve o caminho novo da nota. `ob` (o manifesto da aula) é atualizado no lugar."""
+def _longest(files, src=None):
+    """O maior caminho relativo que vai para a pasta da aula (a pasta inteira, ou os arquivos dela)."""
+    if src is not None:
+        return max((len(f.relative_to(src).as_posix()) for f in src.rglob("*") if f.is_file()), default=NEW_LONGEST)
+    names = [len(f.name) for f in (files["note"], files["canvas"], files["board"]) if f]
+    return max(names + [len("Anexos/" + f.name) for f in files["attachments"]] + [NEW_LONGEST])
+
+
+def _prune(home, d):
+    """Pastas que o Lumen criou sob demanda e ficaram vazias depois de mover (tema, “A organizar”) saem. Curso e
+    módulo ficam: são do catálogo, e um curso vazio só é apagado se o usuário pedir."""
+    while d != home and home in d.parents and SECTIONS["course"] not in d.relative_to(home).parts:
+        try:
+            if any(d.iterdir()):
+                return
+            d.rmdir()
+        except OSError:
+            return
+        d = d.parent
+
+
+def relocate(root, home, note, cls, title, lid, ob):
+    """Move a aula para a pasta da classificação `cls` (a pasta dela inteira, ou só os arquivos dela se a nota divide
+    a pasta com outras). Reescreve os Canvas e devolve o caminho novo da nota. `ob` (o manifesto) muda no lugar."""
     src = note.parent
-    if src == target:
+    files = lesson_files(root, note, lid, ob)
+    own = own_dir(home, src, lid)
+    target = lesson_dir(home, cls, title, lid, _longest(files, src if own else None))
+    if str(src) == str(target):
         return note
     if target.exists() and any(target.iterdir()):
         target = target.with_name(f"{target.name} · {lid[3:9]}")
@@ -290,21 +361,33 @@ def relocate(root, home, note, target, lid, ob):
     _inside(target, home)
     if target.is_dir():
         target.rmdir()  # vazia (sobrou de outra vez): o Windows não renomeia por cima de uma pasta
-    files = lesson_files(root, note, lid, ob)
-    if own_dir(home, src, lid):
+    renamed = {}
+    if own:
         moves = [(src, target)]
+        for f in sorted(src.rglob("*")):
+            dst = target / f.relative_to(src)
+            if f.is_file() and str(_short(dst, lid)) != str(dst):  # depois da pasta, o nome curto
+                moves.append((dst, _short(dst, lid)))
+                renamed[f.name] = _short(dst, lid).name
     else:
         moves = [(f, target / f.name) for f in (note, files["canvas"], files["board"]) if f]
-        moves += [(f, target / "Anexos" / f.name) for f in files["attachments"]]
+        for f in files["attachments"]:
+            dst = _short(target / "Anexos" / f.name, lid)
+            moves.append((f, dst))
+            if dst.name != f.name:
+                renamed[f.name] = dst.name
     pairs = [(_rel(root, a), _rel(root, b)) for a, b in moves]
     remap = _remapper(pairs)
     before = {k: _hash(_read(root / ob[k])) for k in ("canvas", "board") if ob.get(k)}
     done = _apply(root, moves)
     try:
         _rewrite_canvases(root, home, remap, lid)
+        _rename_refs(root / remap(_rel(root, note)), renamed)
     except BaseException:
         _undo(done)
         raise
+    if renamed:
+        ob["renamed"] = _merge_renamed(ob.get("renamed"), renamed)
     for k, h in (("canvas", "canvas_hash"), ("board", "board_hash")):  # Canvas puro continua puro (sem “edição”)
         if ob.get(k):
             new = remap(ob[k])
@@ -315,6 +398,7 @@ def relocate(root, home, note, target, lid, ob):
         ob["files"] = {remap(r): s for r, s in ob["files"].items()}
     if isinstance(ob.get("images"), dict):
         ob["images"] = {i: remap(r) for i, r in ob["images"].items()}
+    _prune(home, src if src.exists() else src.parent)
     log.info("área: aula movida (%d itens)", len(moves))
     return root / remap(_rel(root, note))
 
@@ -328,6 +412,9 @@ def rename_dir(cfg, old, new, lid="area"):
     obsidian._within(old, home)
     if new.exists() and os.path.normcase(str(new)) != os.path.normcase(str(old)):
         raise AppError(f"Já existe a pasta “{new.name}” na área de estudos.", "Escolha outro nome.")
+    deepest = max((len(f.relative_to(old).as_posix()) for f in old.rglob("*") if f.is_file()), default=0)
+    if len(str(new)) + 1 + deepest > MAX:
+        raise AppError("Esse nome deixaria o caminho de algumas aulas longo demais para o Windows.", "Use um nome mais curto.")
     pairs = [(_rel(root, old), _rel(root, new))]
     remap = _remapper(pairs)
     done = _apply(root, [(old, new)]) if os.path.normcase(str(new)) != os.path.normcase(str(old)) else None
@@ -438,6 +525,15 @@ filters:
     - 'type == "ai-study"'
     - 'note["course-id"] == "{c['id']}"'
     - 'note["next-review"] <= today()'
+properties:
+  file.name:
+    displayName: Aula
+  note.module:
+    displayName: Módulo
+  note.review-stage:
+    displayName: Revisões feitas
+  note.next-review:
+    displayName: Próxima revisão
 views:
   - type: table
     name: Para revisar
@@ -502,7 +598,14 @@ def base_text(home_rel):
     - 'file.ext == "md"'
     - not:
         - 'file.name.startsWith("00 - ")'
+formulas:
+  onde: 'if(note.module, note.course + " › " + note.module, if(note.course, note.course, if(note.category, note.category, if(note["study-type"] == "inbox", "A organizar", ""))))'
+  tipo: 'if(note["study-type"] == "course", "Curso", if(note["study-type"] == "free", "Conteúdo gratuito", if(note["study-type"] == "single", "Aula avulsa", if(note["study-type"] == "inbox", "A organizar", ""))))'
 properties:
+  formula.onde:
+    displayName: Onde
+  formula.tipo:
+    displayName: Tipo
   file.name:
     displayName: Aula
   note.course:
@@ -529,8 +632,7 @@ views:
         - 'type == "ai-study"'
     order:
       - file.name
-      - course
-      - module
+      - formula.onde
       - next-review
     sort:
       - property: created
@@ -543,8 +645,7 @@ views:
         - 'note["next-review"] <= today()'
     order:
       - file.name
-      - course
-      - module
+      - formula.onde
       - review-stage
       - next-review
     sort:
@@ -558,8 +659,7 @@ views:
         - 'note["next-review"] > today()'
     order:
       - file.name
-      - course
-      - module
+      - formula.onde
       - next-review
     sort:
       - property: next-review
@@ -569,8 +669,7 @@ views:
     limit: 12
     order:
       - file.name
-      - course
-      - category
+      - formula.onde
     sort:
       - property: created
         direction: DESC
@@ -635,8 +734,8 @@ views:
         - 'author == "lumen-ai"'
     order:
       - file.name
-      - study-type
-      - course
+      - formula.tipo
+      - formula.onde
       - created
     sort:
       - property: created
@@ -645,10 +744,10 @@ views:
     name: Todos
     order:
       - file.name
-      - study-type
-      - course
-      - module
-      - category
+      - formula.tipo
+      - formula.onde
+      - status
+      - next-review
       - created
     sort:
       - property: created
@@ -754,7 +853,7 @@ def plan(cfg):
         files = lesson_files(root, note, n["lumen_id"], entry.get("obsidian") or {})
         title = clean(_title(note, n), 80)
         lessons.append({"lid": n["lumen_id"], "key": key, "title": title, "files": files,
-                        "target": lesson_dir(home, catalog.INBOX, title, n["lumen_id"])})
+                        "target": lesson_dir(home, catalog.INBOX, title, n["lumen_id"], _longest(files))})
         for f in files["attachments"]:
             refs.setdefault(str(f).casefold(), set()).add(n["lumen_id"])
     targets = {}
@@ -803,8 +902,14 @@ def migrate(cfg):
     moves = []
     for l in p["lessons"]:
         f, t = l["files"], l["target"]
+        l["renamed"] = {}
         moves += [(x, t / x.name) for x in (f["note"], f["canvas"], f["board"]) if x]
-        moves += [(x, t / "Anexos" / x.name) for x in f["attachments"] if x not in l["shared"]]
+        for x in f["attachments"]:
+            if x not in l["shared"]:
+                dst = _short(t / "Anexos" / x.name, l["lid"])
+                moves.append((x, dst))
+                if dst.name != x.name:
+                    l["renamed"][x.name] = dst.name
     pairs = [(_rel(root, a), _rel(root, b)) for a, b in moves]
     remap = _remapper(pairs)
     done = _apply(root, moves, JOURNAL)
@@ -815,10 +920,14 @@ def migrate(cfg):
         _remap_history(remap, only=set(extra), extra=extra)
         with store.LOCK:
             h = store.history()
-            for k in extra:
-                if isinstance(h[k].get("obsidian"), dict):
-                    h[k]["obsidian"]["placed"] = sig
+            for l in p["lessons"]:
+                if l["key"] and isinstance(h[l["key"]].get("obsidian"), dict):
+                    h[l["key"]]["obsidian"]["placed"] = sig
+                    if l["renamed"]:
+                        h[l["key"]]["obsidian"]["renamed"] = _merge_renamed(h[l["key"]]["obsidian"].get("renamed"), l["renamed"])
             store._write("history.json", h)
+        for l in p["lessons"]:
+            _rename_refs(root / remap(_rel(root, l["files"]["note"])), l["renamed"])
         for l in p["lessons"]:
             obsidian.set_fields(root / remap(_rel(root, l["files"]["note"])), obsidian.class_fields(catalog.INBOX))
     except BaseException:

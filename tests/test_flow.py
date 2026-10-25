@@ -552,6 +552,16 @@ class Destinations(unittest.TestCase):
         it = next(x for x in lib["items"] if x["key"] == "yt:dQw4w9WgXcQ")
         self.assertEqual(it["crumbs"], ["Cursos", "Biologia Vegetal"])
 
+    def test_organize_a_lesson_whose_local_note_record_is_gone(self):
+        """Aula de antes ou “Limpar dados”: o registro de “Minha compreensão” não existe mais; organizar funciona igual."""
+        self.assertEqual(full(dict(SPEC))["status"], "done")
+        import shutil
+        shutil.rmtree(store.DATA / "understanding", ignore_errors=True)
+        jobs.start("organize", jobs.organize, {"key": "yt:dQw4w9WgXcQ", "classification": {"type": "single", "category": "Biologia"}})
+        j = wait()
+        self.assertEqual(j["status"], "done", j.get("error"))
+        self.assertIn("/03 - Aulas avulsas/Biologia/", store.history()["yt:dQw4w9WgXcQ"]["obsidian"]["note"])
+
     def test_reprocessing_without_touching_the_organization_keeps_it(self):
         bio = catalog.create_course("Biologia")
         cls = {"type": "course", "course_id": bio["id"]}

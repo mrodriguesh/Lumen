@@ -642,7 +642,7 @@ def organize(spec):
             note = (root / ob["note"]).resolve()
             if note.is_file() and home in note.parents:
                 lid = entry.get("lumen_id") or ""
-                note = area.relocate(root, home, note, area.lesson_dir(home, cls, area._DATE.sub("", note.stem), lid), lid, ob)
+                note = area.relocate(root, home, note, cls, area._DATE.sub("", note.stem), lid, ob)
                 obsidian.set_fields(note, obsidian.class_fields(cls))
                 ob.update(note=note.relative_to(root).as_posix(), placed=catalog.signature(cls))
                 area.refresh(cfg)

@@ -402,16 +402,16 @@ def new_file(fm, block):
     return compose(fm, "\n" + INFO + "\n\n" + BEGIN, block, "\n\n" + USER)
 
 
-def update(text, fm_new, block, force=False):
+def update(text, fm_new, block, force=False, owned=OWNED):
     """Nota existente + material novo → texto novo (ou AppError de conflito). Fora do bloco, nada muda."""
     p = parts(text)
-    gone = [k for k in CLASS if k in fm_new and fm_new[k] in (None, "")]  # ex.: saiu do curso: course-id não fica
+    gone = [k for k in (*CLASS, *(owned - OWNED)) if k in fm_new and fm_new[k] in (None, "")]  # ex.: saiu do curso
     if not p:
         if not force:
             raise AppError("A nota do Obsidian foi editada e perdeu as marcas do bloco do Lumen.",
                            "Use “Substituir mesmo assim” (uma cópia da nota atual é guardada) ou restaure as marcas.")
         fm, body = vault.split(text.replace("\r\n", "\n"))
-        return new_file(merge_fields(fm, fm_new, remove=gone), block) + "\n" + _callout(
+        return new_file(merge_fields(fm, fm_new, owned=owned, remove=gone), block) + "\n" + _callout(
             "note", "Texto anterior da nota (guardado pelo Lumen ao substituir)", md(body))
     fm, before, old, saved, after = p
     if saved != block_hash(old) and not force:
@@ -420,7 +420,7 @@ def update(text, fm_new, block, force=False):
                        "para “Minhas anotações”.")
     done = {norm(x) for x in re.findall(r"(?m)^\s*[-*] \[[xX]\] (.+)$", old)}
     block = re.sub(r"(?m)^(\s*[-*] )\[ \] (.+)$", lambda m: m[1] + ("[x] " if norm(m[2]) in done else "[ ] ") + m[2], block)
-    return compose(merge_fields(fm, fm_new, remove=gone), before, block, after)
+    return compose(merge_fields(fm, fm_new, owned=owned, remove=gone), before, block, after)
 
 
 def check(text, known):
@@ -528,7 +528,7 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
                        "Para o Lumen atualizá-la, mova a pasta da aula de volta para a área de estudos.")
     title = clean(lesson["title"])
     if path and (move or (prev.get("placed") and prev["placed"] != catalog.signature(cls))):
-        path = area.relocate(root, home, path, area.lesson_dir(home, cls, title, lid), lid, prev)
+        path = area.relocate(root, home, path, cls, title, lid, prev)
         notes = vault.index(root)
     created = pkg["date"]
     text = None
@@ -559,6 +559,7 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
     if cfg["obsidian_attachments"]:
         attach, slug, short = folder / "Anexos", clean(lesson["title"], 40).casefold(), clean(title, 28).casefold()
         shots, gifs, named = assets.get("screens") or {}, assets.get("charts") or [], []
+        ren = prev.get("renamed") or {}  # imagens antigas que ganharam nome curto ao mudar de pasta (area._short)
         for sc in pkg["screens"]:
             k = sc["id"]
             what = (f"{int(sc['t']) // 60:02d}m{int(sc['t']) % 60:02d}" if sc.get("t") is not None and not sc["manual"]
@@ -575,7 +576,8 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
                      f"grafico {i + 1} {clean(c.get('titulo') or 'grafico', 30).casefold()} · {short}.gif"]
             named.append((names, i, gifs[i] if i < len(gifs) else None, charts, "grafico"))
         for names, k, data, into, source in named:
-            f = _within(_attachment(attach, names, taken, lid), home)
+            f = _attachment(attach, [ren.get(n, n) for n in names], taken, lid)
+            f = _within(f if f.exists() else area._short(f, lid), home)  # pasta funda: o nome encurta para caber
             if data:
                 if not (f.exists() and f.stat().st_size == len(data)):
                     writes.append((f, data))
@@ -677,8 +679,11 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
         # as chaves de revisão já são da nota (sync_reviews): reprocessar não volta o estudo ao início
         p = parts(text)
         same = p and p[3] == block_hash(block)  # mesmo material: nem a data de atualização muda (idempotente)
+        # a capa é do usuário, a não ser que aponte para uma imagem que não existe mais (aí o Lumen põe a dele)
+        old_cover = str(vault.fields(vault.split(text)[0]).get("cover") or "")
+        lost = old_cover and _LINK.sub(lambda m: m[1], old_cover).split("|")[0].strip().casefold() not in known
         r = update(text, {k: v for k, v in fm.items() if k not in ("review-stage", "next-review")
-                          and not (same and k == "updated")}, block, force)
+                          and not (same and k == "updated")}, block, force, OWNED | ({"cover"} if lost else set()))
         return r, "unchanged" if r == text.replace("\r\n", "\n") else "updated"
 
     cname, bname = (plan[0].name if plan else None), (bplan[0].name if bplan else None)

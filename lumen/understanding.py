@@ -222,6 +222,8 @@ def save_analysis(key, analysis, text, model):
 def synced(key, info):
     with _lock:
         rec = load(key)
+        if not rec:  # aula antiga ou dados locais apagados (Organizar, Tentar de novo): não há nota a marcar
+            return
         rec["final_knowledge"] = {**info, "at": _now()}
         _write(rec)
 
