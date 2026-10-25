@@ -638,6 +638,7 @@ views:
       - property: created
         direction: DESC
     image: note.cover
+    imageAspectRatio: 0.56
   - type: table
     name: Para revisar
     filters:
@@ -674,6 +675,7 @@ views:
       - property: created
         direction: DESC
     image: note.cover
+    imageAspectRatio: 0.56
   - type: table
     name: Cursos
     filters:
@@ -863,7 +865,8 @@ def plan(cfg):
             l["target"] = l["target"].with_name(f"{l['target'].name} · {l['lid'][3:9]}")
         targets[str(l["target"]).casefold()] = l
         l["shared"] = [f for f in l["files"]["attachments"] if len(refs.get(str(f).casefold(), ())) > 1]
-    dash = [d / "Lumen Dashboard.md" for d in olds if (d / "Lumen Dashboard.md").is_file()]
+    dash = [d / "Lumen Dashboard.md" for d in olds if (d / "Lumen Dashboard.md").is_file()
+            and "[[00 - Estudos]]" not in _read(d / "Lumen Dashboard.md")]  # já virou aviso: nada a fazer
     return {"root": root, "home": home, "folders": sorted(olds), "lessons": lessons, "dashboards": dash}
 
 
@@ -880,8 +883,21 @@ def plan_view(cfg):
                          "shared": len(l["shared"])} for l in p["lessons"]]}
 
 
+def _linked(root, note):
+    """Alguma outra nota do cofre aponta para esta (por nome)?"""
+    target = "[[" + note.stem
+    for f in root.rglob("*.md"):
+        if f != note and not any(x.startswith(".") for x in f.relative_to(root).parts) and target in _read(f):
+            return True
+    return False
+
+
 def _zip(root, folders, out):
     out.parent.mkdir(parents=True, exist_ok=True)
+    n = 1
+    while out.exists():  # nunca por cima de um backup anterior
+        n += 1
+        out = out.with_name(f"{out.stem.split(' (')[0]} ({n}){out.suffix}")
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for d in folders:
             for f in sorted(d.rglob("*")):
@@ -935,11 +951,19 @@ def migrate(cfg):
         (store.DATA / JOURNAL).unlink(missing_ok=True)
         raise
     (store.DATA / JOURNAL).unlink(missing_ok=True)
-    for d in p["dashboards"]:  # o painel antigo virou a Home: sai se ninguém escreveu nele (o zip guarda)
+    redirects = set()
+    for d in p["dashboards"]:  # o painel antigo virou a Home (00 - Estudos)
         q = parts(_read(d).replace("\r\n", "\n"))
-        mine = q and q[3] == block_hash(q[2]) and not re.sub(r"%%.*?%%|## Minhas anotações", "", q[4], flags=re.S).strip()
-        if mine:
-            d.unlink()
+        intact = q and q[3] == block_hash(q[2])
+        empty = intact and not re.sub(r"%%.*?%%|## Minhas anotações", "", q[4], flags=re.S).strip()
+        if empty and not _linked(root, d):
+            d.unlink()  # ninguém escreveu nele nem aponta para ele (o zip guarda)
+            continue
+        redirects.add(d)  # outras notas apontam para ele: vira um aviso, e nenhum link quebra
+        pointer = ("# Lumen Dashboard\n\n> [!note] Substituído pela área de estudos\n> O painel de estudos agora é "
+                   f"[[00 - Estudos]], em {md(_rel(root, home))}: revisões, cursos, conteúdo gratuito e o que falta organizar.")
+        if intact:
+            obsidian._write(d, compose(q[0], q[1], pointer, q[4]))
         elif "00 - Estudos" not in _read(d):
             obsidian._write(d, _read(d).rstrip("\n") + "\n\n> [!note] Substituído\n> O painel de estudos agora é "
                             "[[00 - Estudos]], na área de estudos.\n")
@@ -948,9 +972,10 @@ def migrate(cfg):
         for sub in sorted((x for x in d.rglob("*") if x.is_dir()), key=lambda x: -len(x.parts)):
             if not any(sub.iterdir()):
                 sub.rmdir()
+        rest = [x for x in d.iterdir() if x not in redirects] if d.is_dir() else []
         if d.is_dir() and not any(d.iterdir()):
             d.rmdir()
-        elif d.is_dir():
+        elif rest:
             left.append(d)
             readme = d / "README - Migrado para Estudos.md"
             if not readme.exists():

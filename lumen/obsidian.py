@@ -364,8 +364,6 @@ def render(pkg, ctx):
             f"IA: {md(src.get('model') or '')}" + (f" · visão: {md(src['vision_model'])}" if src.get("vision_model") else "")]
     if src.get("uncertain"):
         meta.append(f"{src['uncertain']} trecho(s) da transcrição com baixa confiança")
-    if ctx.get("notion"):
-        meta.append(f"Notion: [abrir a página]({_url(ctx['notion'])})")
     s.append(_callout("note", "Metadados Lumen", "\n".join("- " + x for x in meta)))
     return "\n\n".join(s)
 

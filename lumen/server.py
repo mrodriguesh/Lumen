@@ -484,7 +484,7 @@ def _clear(h):
         store.delete_token()
         with store.LOCK:
             cfg = store.load_config()
-            cfg["root_page_id"] = cfg["root_page_title"] = ""
+            cfg["root_page_id"] = cfg["root_page_title"] = cfg["notion_free_page_id"] = cfg["notion_free_page_title"] = ""
             store.save_config(cfg)
     return state()
 

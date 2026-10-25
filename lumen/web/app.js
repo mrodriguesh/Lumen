@@ -1428,6 +1428,10 @@ function renderSettings() {
   if (!$("#root").options.length) {
     $("#root").replaceChildren(el("option", { value: S.config.root_page_id }, S.config.root_page_title || (S.has_token ? "Carregando…" : "Conecte o Notion primeiro")));
   }
+  if (!$("#free-root").options.length) {  // o nome salvo enquanto a lista do Notion carrega
+    $("#free-root").replaceChildren(el("option", { value: S.config.notion_free_page_id },
+      S.config.notion_free_page_title || (S.has_token ? "Escolha a página…" : "Conecte o Notion primeiro")));
+  }
   $("#hw").textContent = S.gpu ? "GPU NVIDIA com CUDA detectada: transcrição acelerada." : "Sem GPU compatível: a transcrição usa o processador (mais lenta).";
   const q = S.whisper.active;  // já normalizado pelo servidor (valores antigos viram "equilibrado")
   const opts = Object.entries(S.whisper.models).map(([k, m]) => [k, m.label, `${m.name} · ${m.size}`]);
@@ -1706,7 +1710,7 @@ $("#clear").addEventListener("click", async () => {
 $("#forget").addEventListener("click", async () => {
   if (!await ui.confirm("O token sai do cofre do Windows e o histórico local (com as notas de compreensão guardadas neste PC) é apagado. As páginas no Notion ficam.",
     { title: "Desconectar o Notion?", ok: "Desconectar", danger: true })) return;
-  try { S = await api("/api/clear", { forget_token: true }); $("#root").replaceChildren(); renderSettings(); renderChecks(); renderPending(); await loadHistory().catch(() => {}); toast("Notion desconectado."); } catch (e) { fail(e); }
+  try { S = await api("/api/clear", { forget_token: true }); $("#root").replaceChildren(); $("#free-root").replaceChildren(); renderSettings(); renderChecks(); renderPending(); await loadHistory().catch(() => {}); toast("Notion desconectado."); } catch (e) { fail(e); }
 });
 
 // ---------- janela (botões estilo Mac quando aberto pelo Lumen.exe) ----------
@@ -1719,7 +1723,7 @@ if (host) host.addEventListener("message", async (e) => {
     const root = S?.config.root_page_id, connected = S?.has_token;
     await refresh().catch(fail);
     if (root !== S?.config.root_page_id || connected !== S?.has_token) {
-      $("#root").replaceChildren(); renderSettings();
+      $("#root").replaceChildren(); $("#free-root").replaceChildren(); renderSettings();
       if (view === "integrations" && S.has_token) await loadRoots();
       await loadCatalog();
     }
@@ -1797,6 +1801,7 @@ function savedRow(it, compact = false, inCourse = false) {
     el("span", { class: "lib-ico", "aria-hidden": "true", "data-tone": isDue(it) ? "warn" : "" }, icon((TYPE_LOOK[c.type] || TYPE_LOOK.inbox)[0])),
     el("span", { class: "lib-text" }, el("span", { class: "lib-title" }, it.title),
       el("span", { class: "lib-meta", "data-tip": full.join(" › ") }, [crumbs.join(" › "),
+        c.type === "inbox" && it.url && it.course ? `no Notion: ${it.course.split(" › ").pop()}` : "",  // pista para organizar as antigas
         isDue(it) ? `revisão ${it.review.next < today() ? "atrasada" : "hoje"}` : "", shortDate(it.created || it.obsidian?.at)].filter(Boolean).join(" · "))),
     el("span", { class: "lib-actions" },
       it.url ? act("external", "Notion", "Abrir no Notion", { href: it.url, target: "_blank", rel: "noopener" }) : null,

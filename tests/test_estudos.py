@@ -412,8 +412,27 @@ class Migration(Area):
         out = area.migrate(self.cfg)
         self.assertIn("Minhas anotações importantes.", dash.read_text("utf-8"))
         self.assertIn("[[00 - Estudos]]", dash.read_text("utf-8"))
+        self.assertNotIn("```base", dash.read_text("utf-8"))  # nada de dois painéis: o antigo vira um aviso
+        self.assertEqual(out["left"], [])  # só o aviso ficou: ele mesmo aponta para a área nova
+        self.assertFalse((self.root / self.OLD / "README - Migrado para Estudos.md").exists())
+
+    def test_old_dashboard_linked_from_other_notes_becomes_a_pointer(self):
+        """O cofre real: a decisão D010 e uma sugestão linkam [[Lumen Dashboard]]. Apagar quebraria esses links."""
+        self.legacy()
+        (self.root / "C04 Claude Obsidian/11 Decisões.md").write_text("Ver [[Lumen Dashboard]].", "utf-8")
+        (self.root / self.OLD / "Minha nota solta.md").write_text("---\ntype: capture\n---\nAlgo meu.", "utf-8")
+        out = area.migrate(self.cfg)
+        dash = self.root / self.OLD / "Lumen Dashboard.md"
+        self.assertTrue(dash.exists())
+        self.assertIn("[[00 - Estudos]]", dash.read_text("utf-8"))
+        self.assertNotIn("```base", dash.read_text("utf-8"))
+        self.assertTrue((self.root / self.OLD / "Minha nota solta.md").exists())  # o que não é do Lumen fica
         self.assertEqual(out["left"], [self.OLD])
         self.assertTrue((self.root / self.OLD / "README - Migrado para Estudos.md").exists())
+        zips = sorted((store.DATA / "obsidian-backups").glob("migracao-*.zip"))
+        snap = self.snapshot()
+        self.assertEqual(area.migrate(self.cfg)["moved"], 0)  # o aviso não é “algo a migrar”
+        self.assertEqual((self.snapshot(), sorted((store.DATA / "obsidian-backups").glob("migracao-*.zip"))), (snap, zips))
 
 
 if __name__ == "__main__":

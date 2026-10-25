@@ -974,3 +974,111 @@ Incremental sobre a v1: mesmos detector, separador, emenda, cache, recuo e integ
   painel dentro do Lumen (o destino é o Obsidian), mapas temáticos por pessoa ou por local (não há esse dado),
   imagens externas.
 
+## Estudos: organização por curso, módulo e tema (25/10/2026; `lumen/catalog.py`, `lumen/area.py`)
+- **Pedido do usuário:** a pasta `16 Lumen` misturava notas, mapas, painéis e imagens de todas as aulas. O usuário queria
+  uma biblioteca de estudos com a lógica da área Estudos do Notion: Cursos e Conteúdo gratuito, e o Lumen como
+  ferramenta, não como categoria.
+- **StudyClassification no StudyPackage.** `pkg["classification"]` tem `type` (`course`, `free`, `single`, `inbox`),
+  `course_id`/`course`, `module_id`/`module`, `lesson`, `category` e `platform`. É do estudo, não de um destino: o
+  Notion e o Obsidian a traduzem cada um à sua maneira (paridade de sentido, não de caminho). `course` saiu do hash de
+  conteúdo, porque organizar não é conteúdo.
+- **Catálogo** (`DATA/catalog.json`, fora de “Limpar dados”): cursos e módulos com id estável (`c-`/`m-` + 8 hex).
+  Renomear muda nome, pasta, propriedades e título no Notion, e o id fica. Nome igual (sem acento e caixa) é recusado,
+  porque no Windows seria a mesma pasta. Nome parecido é só avisado. Plataforma e link aceitam só http(s), sem
+  `usuário:senha@`, e texto com cara de segredo é recusado: o Lumen não guarda credenciais. Por isso não há “04 -
+  Acessos”: a página do curso tem só plataforma e endereço.
+- **Sugestões, nunca aplicadas sozinhas:** continuar no curso e módulo das últimas 12 h (com a aula seguinte), um curso
+  cujo nome aparece no título, no link ou no caminho, e Conteúdo gratuito para um link do YouTube. Cada uma aparece
+  com um botão “Usar”. Uma aula que já existe traz a organização que tem: reprocessar não a manda para “A organizar”.
+- **Obsidian:** a área é `obsidian_folder`. O padrão é a pasta de topo “Estudos”, com ou sem número (no cofre do
+  usuário, `B02 Estudos`, decisão D011 do cofre), e `obsidian_canvas_folder` saiu.
+  - **Estrutura:** `01 - Cursos/<Curso>/[NN - Módulo]/[NN - Aula]/`, `02 - Conteúdo gratuito/[Tema]/`,
+    `03 - Aulas avulsas/[Tema]/` e `90 - A organizar/`. Uma pasta por aula, com `Título.md`, `Mapa - Título.canvas`,
+    `Painel - Título.canvas` e `Anexos/` (só se houver imagem).
+  - **Nomes únicos**, como manda o cofre (`[[Nome]]` sem caminho). `Mapa Conceitual.canvas` genérico foi descartado:
+    deixaria links ambíguos e obrigaria links com caminho, que quebram ao mover.
+  - **Pastas criadas sob demanda.** Tema e “A organizar” vazios saem depois de mover. Curso e módulo vazios ficam.
+- **Mover sem quebrar** (`area.relocate`). A pasta da aula é renomeada (`os.rename`, atômico no mesmo disco), ou só os
+  arquivos dela, quando a pasta é dividida com outras aulas. Depois o Lumen reescreve os `file` dos Canvas da área, o
+  manifesto (nota, canvas, painel, `files`, `images`) e os embeds da nota renomeada. Uma falha desfaz tudo.
+  - **Quando move:** só quando a organização mudou no Lumen (Organizar, ou classificação diferente da `placed` do
+    manifesto). Mover a pasta no Obsidian não briga com o Lumen.
+  - **Mover no próprio Obsidian:** os nomes únicos fazem os embeds continuarem valendo. O Obsidian (`alwaysUpdateLinks`)
+    cuida dos Canvas.
+- **Limite do Windows** (achado no teste visual). A imagem migrada de nome antigo (~100 caracteres) passou de 260 dentro
+  de `curso/módulo/aula`. O Python gravou o arquivo, mas o Obsidian (Chromium) não o abre, e o card da Base ficou sem
+  capa. Agora:
+  - `area.MAX = 250`;
+  - curso, módulo e tema com até 32 caracteres;
+  - a pasta da aula encurta pelo maior arquivo que vai morar nela;
+  - imagem que mesmo assim não cabe ganha um nome curto (`começo do nome + código da aula`), registrado em
+    `obsidian.renamed`, que o reprocessamento respeita;
+  - imagem nova numa pasta funda também encurta;
+  - renomear um curso que empurraria algum arquivo além do limite é recusado.
+- **Base e Home.**
+  - **`Estudos.base`**, 10 visões: Biblioteca (cards), Para revisar, Continuar estudando, Recentes (cards), Cursos
+    (agrupado por curso), Conteúdo gratuito e Aulas avulsas (agrupados por tema), A organizar, Gerados pelo Lumen e
+    Todos.
+  - **Fórmulas** `onde` (curso › módulo, tema ou A organizar) e `tipo` (em português), conferidas no Obsidian 1.14.5:
+    os cards mostram título, onde e próxima revisão, sem campos vazios.
+  - **Capa** em 16:9: a imagem principal do painel ou a primeira tela. Sem imagem, o card fica só com o texto. Uma
+    capa que aponta para arquivo inexistente é trocada (ou sai), e a escolhida pelo usuário fica.
+  - **O `.base` só é regravado se ainda for o que o Lumen gravou** (hash no catálogo): o Obsidian regrava o arquivo
+    quando o usuário ajusta uma visão.
+  - **`00 - Estudos.md`** embute as visões (`![[Estudos.base#Para revisar]]`) e lista cursos e temas com links. Sem
+    Bases, os links e as pastas continuam servindo.
+  - **A página de cada curso** (`00 - <Curso>.md`, `type: course`) tem bloco do Lumen (acesso, progresso real, módulos
+    com as aulas em ordem, Para revisar filtrado por `course-id`) e as seções Sobre, Materiais relacionados e Notas
+    permanentes geradas, que são do usuário.
+- **Notion pela mesma classificação** (`jobs._notion_parent`):
+  - curso → página do curso dentro da raiz (adota uma filha de mesmo nome só se houver exatamente uma) e módulo dentro
+    dela;
+  - conteúdo gratuito → uma página por material em `notion_free_page_id`, como o usuário já fazia (o tema não vira
+    nível no Notion);
+  - aula avulsa → “Sem curso”;
+  - A organizar → onde a aula já está.
+
+  **Mover usa o mecanismo de “refazer em outra página”:** republica o pacote na página nova e só depois apaga os
+  `block_ids` antigos. A página criada só para o material vai para a lixeira se ficar vazia. As telas que já saíram
+  do PC são lidas dos anexos do cofre (`obsidian.images`). Um `course_id` sem classificação (Tentar de novo de aula
+  antiga) ainda vale.
+- **Migração** (`area.plan`, `area.migrate`):
+  - acha as notas `ai-study` com `lumen-id` na pasta antiga e os arquivos de cada aula (manifesto, ids estáveis dos
+    Canvas, embeds);
+  - zip da pasta antiga, diário em `DATA/migration.json` (desfeito na próxima vez se o Lumen fechar no meio) e moves para
+    `90 - A organizar` sem renomear;
+  - Canvas reescritos, depois reprocessamento sem IA das aulas com pacote;
+  - o `Lumen Dashboard` sai se ninguém escreveu nele nem o linka. Senão vira um aviso para `[[00 - Estudos]]`. No cofre
+    real, a D010 e uma sugestão o linkavam: apagá-lo quebraria esses links;
+  - rodar de novo não faz nada, nem novo zip. Um zip nunca sobrescreve outro (achado ao repetir a migração real no
+    mesmo segundo).
+- **Interface.**
+  - **Nova aula:** card Organização (tipo, trilha, Alterar, sugestão com “Usar”) acima de Destinos do estudo, que agora
+    mostra o caminho em cada destino e “Nota + 2 Canvas”.
+  - **Diálogo “Organizar estudo”:** tipo, curso (com os do Notion para adotar), módulo, número da aula e tema. Criar
+    curso pede nome e plataforma; criar módulo, nome e ordem.
+  - **Removido:** o seletor livre de páginas do Notion (busca, navegação, nova subpágina com prévia de capa). “Enfeitar
+    no Notion” virou opção do novo curso.
+  - **Biblioteca:** vistas, Filtros recolhidos, cards de curso e a visão do curso com módulos e progresso real, trilha e
+    Organizar em cada aula. Aulas antigas mostram em que página do Notion estão.
+- **Testes reais:**
+  - migração no cofre do usuário: nenhum arquivo perdido (hash a hash), Canvas válidos e `vault-check` OK;
+  - Obsidian 1.14.5 isolado numa cópia: Home, as 10 visões, página do curso, aula, Mapa e Painel depois de migrar e
+    mover;
+  - auditoria pela API do Lumen aberto, com o Notion e o Ollama reais: curso, módulo, aula, compreensão, material,
+    Notion e Obsidian no lugar certo, organizar para conteúdo gratuito (nos dois destinos) e tentar de novo depois de
+    mover (sem duplicar). Depois apagada (Notion na lixeira).
+- **Bugs que os testes reais acharam e foram corrigidos:**
+  - reorganizar uma aula sem o registro de “Minha compreensão” no PC derrubava a tarefa (`understanding.synced`);
+  - caminhos acima de 260;
+  - zip de migração sobrescrito na repetição;
+  - painel antigo apagado com links para ele;
+  - link do Notion desatualizado dentro do bloco da nota depois de mover (saiu do bloco; fica na propriedade
+    `notion`);
+  - página de conteúdo gratuito em branco em Integrações enquanto a lista do Notion carrega;
+  - Path do Windows comparando sem maiúsculas: renomear só a caixa de um curso era ignorado.
+- **Não feito:**
+  - “99 - Arquivados”: o cofre já tem convenção de arquivo;
+  - renomear as notas antigas para tirar a data: o nome antigo continua valendo e os links não quebram;
+  - módulos e temas no Notion de conteúdo gratuito;
+  - tela de detalhe da aula: a trilha fica na linha da Biblioteca e na visão do curso.

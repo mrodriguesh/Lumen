@@ -45,8 +45,11 @@ está fazendo (detalhes e regras do visual em [docs/DESIGN.md](docs/DESIGN.md)):
   em andamento, as salvas recentemente, as revisões do Obsidian para hoje e o estado do sistema (Notion, Obsidian, IA
   local, transcrição). Na primeira vez, “Antes de começar” lista o que falta configurar.
 - **Nova aula:** Fonte → Compreensão → Análise → Salvar. À esquerda a fonte (gravar, arquivo ou capturas); à direita o
-  link, onde salvar e as opções.
-- **Biblioteca:** as aulas em andamento e as salvas, com busca e filtro.
+  link, a **Organização** (curso e módulo, conteúdo gratuito, aula avulsa ou "organizar depois"), os destinos que saem
+  dela e as opções.
+- **Biblioteca:** Todos, Cursos (cards; cada curso abre com os módulos e as aulas em ordem), Conteúdo gratuito, Aulas
+  avulsas, Para revisar, A organizar e Em andamento. A busca acha aula, curso, módulo, tema e conceito; **Filtros**
+  (recolhidos) têm curso, módulo, status, revisão e data. Cada aula tem **Organizar**.
 - **Integrações:** os destinos (Notion + Obsidian, só Notion ou só Obsidian) e um cartão para cada um, com o estado da
   conexão.
 - **Ajustes:** Geral, Captura, Transcrição, IA local, Capas com IA e Privacidade e dados.
@@ -179,9 +182,17 @@ cliente, que um app local e gratuito não pode guardar com segurança.
 4. No Notion, crie uma página (ex.: “Estudos”), abra **••• → Conexões** e adicione a integração.
 5. Em Integrações, escolha essa página como **página raiz dos cursos**.
 
-Você pode escolher uma página existente ou criar uma página dentro da raiz. A aula é acrescentada diretamente
-à página escolhida, com um título para o material, preservando o nome, a capa, o ícone e o conteúdo anterior.
-“Sem curso” é criada sob demanda quando nenhum destino específico é escolhido; as aulas ficam no corpo dela.
+A página no Notion sai da **Organização** da aula, sem escolher página à parte:
+
+- **Curso:** `Cursos › <curso> › <módulo>`. As páginas do curso e do módulo são criadas quando precisa, ou adotadas se já
+  existe uma com o mesmo nome. Os cursos que já estão no seu Notion aparecem para adotar em "Novo curso".
+- **Conteúdo gratuito:** uma página por material dentro da página escolhida em **Página de conteúdo gratuito**.
+- **Aula avulsa:** a página "Sem curso", criada sob demanda.
+- **A organizar:** a aula fica onde já está, ou vai para "Sem curso" se ainda não tem página.
+
+A aula entra no corpo da página, com um título para o material, preservando o nome, a capa, o ícone e o conteúdo
+anterior. **Organizar** uma aula salva republica o material na página nova e só então remove a versão anterior. Uma
+página que o Lumen criou só para aquele material vai para a lixeira se ficar vazia.
 
 O Notion só mostra à integração as páginas liberadas para ela. Para escolher as **páginas raiz** do seu workspace
 (as do topo da barra lateral), libere-as em <https://www.notion.so/profile/integrations> → sua integração →
@@ -197,13 +208,37 @@ acompanhar, o Obsidian para estudar a fundo e ligar ao seu segundo cérebro. Em 
 1. Escolha **Notion + Obsidian**, **Só Notion** (padrão, como antes) ou **Só Obsidian** (não precisa do Notion).
 2. Escolha o **cofre do Obsidian**. O Lumen lista os cofres registrados neste PC, mas nunca escolhe sozinho;
    **Escolher pasta…** aceita qualquer pasta com `.obsidian`.
-3. **Pasta das notas de estudo**: por padrão, a área da IA do cofre (ex.: `C04 Claude Obsidian/16 Lumen`). O Lumen não
+3. **Área de estudos** (Avançado): por padrão, uma pasta de topo chamada Estudos (ex.: `B02 Estudos`). O Lumen não
    escreve fora dela.
 
-Para cada aula, no Obsidian:
+A área se organiza como a sua área de estudos do Notion. As pastas só são criadas quando usadas:
 
-- **Nota de estudo** `AAAA-MM-DD - Título da aula.md` (`type: ai-study`, `author: lumen-ai`,
-  `status: review-required`), com:
+```
+B02 Estudos/
+├── 00 - Estudos.md            a central: revisar hoje, continuar, cursos, temas, a organizar, recentes
+├── Estudos.base               a base (Bases, nativo): Biblioteca em cards, Para revisar, Recentes, Cursos…
+├── 01 - Cursos/<Curso>/
+│   ├── 00 - <Curso>.md        a página do curso (MOC): acesso, progresso, módulos e aulas em ordem
+│   └── 03 - <Módulo>/07 - <Aula>/
+├── 02 - Conteúdo gratuito/<Tema>/<Material>/
+├── 03 - Aulas avulsas/<Tema>/<Aula>/
+└── 90 - A organizar/<Aula>/
+```
+
+**Organizar** (na Nova aula ou depois, na Biblioteca) leva a pasta inteira da aula: nota, mapa, painel e anexos. Os
+Canvas e o manifesto acompanham. Curso e módulo têm id estável, então renomear um curso no Lumen renomeia a pasta, a
+página do curso, as propriedades das aulas e o título no Notion, sem criar outro curso. Um curso vazio nunca é
+apagado sozinho. A página do curso tem só a plataforma e o endereço: login e senha ficam no seu gerenciador de senhas.
+
+Aulas da pasta antiga (`16 Lumen`, de antes da área de estudos) aparecem em Integrações → Obsidian → **Materiais
+antigos**. **Migrar** leva cada aula inteira para "A organizar", sem renomear nada. Antes, guarda um zip da pasta antiga
+em `%LOCALAPPDATA%\Lumen\obsidian-backups`. Rodar de novo não faz nada.
+
+Cada aula tem a sua pasta, com:
+
+- **Nota de estudo** `Título da aula.md` (`type: ai-study`, `author: lumen-ai`, `status: review-required`, mais a
+  organização: `study-type`, `course`, `course-id`, `module`, `module-id`, `lesson`, `category`, `platform` e `cover`,
+  a imagem dos cards), com:
   - a sua compreensão, intacta, e a análise da IA à parte;
   - visão geral, conceitos com o tempo da aula (no YouTube, o tempo é um link);
   - explicação, glossário, exemplos, passo a passo e telas;
@@ -230,11 +265,12 @@ Para cada aula, no Obsidian:
 
   Nos dois Canvas você pode mover e redimensionar os cards e criar os seus: ao reprocessar, o que você moveu ou criou
   fica, inclusive uma imagem que saiu da escolha do Lumen mas que você tinha posicionado.
-- **Anexos** em `Anexos`, com o nome do que mostram (`03m09 design dramatico · aula 2026-10-25.jpg`), que é o rótulo do
+- **Anexos** em `Anexos`, na pasta da aula, com o nome do que mostram (`03m09 design dramatico · aula.jpg`), que é o rótulo do
   Obsidian em cima de cada imagem no painel. Ao reprocessar, só sai o anexo que o próprio Lumen gravou e nada mais usa;
   uma imagem sua nunca é tocada.
-- **Lumen Dashboard**: para revisar hoje, atrasados, recentes, não revisados, por curso, por Anchor Topic, com
-  dúvidas e ideias para notas permanentes. Usa o Bases, um plugin nativo do Obsidian.
+- Nenhum caminho passa de 250 caracteres: o Obsidian não abre arquivos além do limite do Windows. A pasta da aula
+  encurta pelo que vai morar nela. Se uma imagem antiga de nome longo não cabe no lugar novo, ela ganha um nome mais
+  curto, e a nota, os Canvas e o manifesto acompanham.
 
 Regras que protegem o que é seu:
 
@@ -244,7 +280,8 @@ Regras que protegem o que é seu:
   marcadas e as propriedades que você mudou ficam.
 - Se você editar dentro do bloco do Lumen, a próxima atualização para e avisa. **Substituir mesmo assim** guarda uma
   cópia antes.
-- Reprocessar não cria cópias. A nota é achada pelo `lumen-id` mesmo se você a renomear dentro da pasta do Lumen.
+- Reprocessar não cria cópias. A nota é achada pelo `lumen-id` mesmo se você a renomear ou mover dentro da área de
+  estudos, e o Lumen não a traz de volta. Ela só muda de pasta quando você muda a organização no Lumen.
 - **Revisões:** marque `Revisão N` na nota. Ao abrir o Lumen, ele atualiza `next-review`. Os intervalos (padrão 1,
   3, 7, 14, 30 e 60 dias) ficam em Integrações → Obsidian. As revisões do dia aparecem no Início.
 - **Profundidade** (Ajustes → IA local):
