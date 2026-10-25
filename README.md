@@ -482,6 +482,7 @@ Interface (Playwright no Python do sistema, Chrome sem GPU como o WebView2; API 
 
 ```
 py -3.14 tests\ui_shots.py [nome] [--sizes] [--zoom]
+py -3.14 tests\ui_shots.py --walk          (o uso de ponta a ponta, clicando nos botões)
 py -3.14 tests\widget_ui.py
 ```
 

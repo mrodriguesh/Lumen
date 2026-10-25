@@ -56,6 +56,10 @@ de status passam de 3:1 (o mesmo teste confere). Mudou um token? Rode o teste.
 
 **Tipografia** (Inter, já no projeto): `.t-display` 30, `.t-h1` 24, `.t-h2` 18, `.t-h3` 15, corpo 14, `.t-sm` 13,
 `.t-label` 12,5/500, `.t-caption` 12, `.eyebrow`/`.t-micro` 11 em maiúsculas. Números que mudam usam `tabular-nums`.
+Todo tamanho de fonte vem de um `--fs-*`: além dos acima, a escala compacta da barra (`--fs-2xs` 9,5 · `--fs-tiny` 10 ·
+`--fs-compact` 10,5 · `--fs-meta` 11,5), o campo (`--fs-input` 13,5), a escrita do estudante (`--fs-writing` 18,
+`--fs-writing-sm` 16,5, `--fs-quote` 16) e os relógios (`--fs-clock` 44, `-sm` 40, `-xs` 34). Um `font-size: 13px`
+solto em `app.css` ou `widget.css` faz o teste falhar.
 Pesos: 600 para títulos, 500 para rótulos, 400 para o resto. Nada de negrito em tudo.
 
 ## Componentes (ui.css)
@@ -79,7 +83,9 @@ Pesos: 600 para títulos, 500 para rótulos, 400 para o resto. Nada de negrito e
 | Ícone | `<svg class="i"><use href="/icons.svg#nome"/></svg>` ou `ui.icon("nome")` | sprite próprio, grade 24, traço 1,75 |
 | Pomodoro | `.pomo` (`pomodoro.js`) | uma montagem com folha por janela |
 
-**Ícones.** Só os do `icons.svg` (a lista aparece no `/design`). Para um novo, desenhe na mesma grade e no mesmo traço.
+**Ícones.** Só os do `icons.svg` (a lista aparece no `/design`). Para trocar o ícone de um botão (pausar ↔ retomar),
+use `ui.setIcon(botão, "nome")`: mudar o `href` de um `<use>` já desenhado não redesenha no Chromium com o sprite
+externo, e o ícone some. Para um novo, desenhe na mesma grade e no mesmo traço.
 Nada de emoji ou glifo Unicode como ícone de interface; os emojis das páginas do Notion são dado do usuário e ficam.
 
 ## Navegação e layout
@@ -150,5 +156,6 @@ grande ou layout.
 3. Vazio, carregando e erro desenhados (não só o caso feliz).
 4. Funciona em 520 × 560 e em 1920 × 1040, e de 80% a 120% de zoom.
 5. Acrescente o cenário em `tests/ui_shots.py` (`SCENARIOS`), rode e **olhe** as imagens em
-   `tests/desktop-artifacts/ui/`: `py -3.14 tests\ui_shots.py <nome> --sizes --zoom`.
+   `tests/desktop-artifacts/ui/`: `py -3.14 tests\ui_shots.py <nome> --sizes --zoom`. Se a tela entra no fluxo de uma
+   aula, acrescente a etapa ao percurso de ponta a ponta (`py -3.14 tests\ui_shots.py --walk`).
 6. `.venv\Scripts\python -m unittest tests.test_ui_tokens` (contraste e cores soltas).
