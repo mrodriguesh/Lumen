@@ -623,24 +623,18 @@ def set_fields(path, values):
 # --- Revisões e painel ---------------------------------------------------------------------------------------
 
 REVIEW_MARK = re.compile(r"(?m)^\s*[-*] \[([ xX])\] Revisão \d+ · (\d{4}-\d{2}-\d{2})")
-_review_seen = {}  # nota → (mtime, estado): o Início lê a pasta a cada abertura, e só relê a nota que mudou
-
-
 def _review_state(f):
-    """Uma nota de estudo do Lumen e as revisões marcadas nela: (campos, quantas feitas, próxima data) ou None."""
+    """Uma nota de estudo do Lumen e as revisões marcadas nela: (campos, quantas feitas, próxima data) ou None.
+    Lida sempre do disco: a pasta do Lumen tem uma nota por aula, e um cache pela data de modificação erra quando duas
+    escritas caem no mesmo passo do relógio do sistema de arquivos (pendrive, rede, sincronizadores, e até o NTFS)."""
     try:
-        mtime = f.stat().st_mtime_ns
-        hit = _review_seen.get(f)
-        if hit and hit[0] == mtime:
-            return hit[1]
         fm, body = vault.split(f.read_text("utf-8"))
     except (OSError, UnicodeDecodeError):  # sem permissão, apagada no meio ou noutra codificação: só ela fica de fora
         return None
     d, marks = vault.fields(fm), REVIEW_MARK.findall(body)
-    out = (d, sum(1 for m, _ in marks if m != " "), next((day for m, day in marks if m == " "), None)) \
-        if d.get("type") == "ai-study" and marks else None
-    _review_seen[f] = (mtime, out)
-    return out
+    if d.get("type") != "ai-study" or not marks:
+        return None
+    return d, sum(1 for m, _ in marks if m != " "), next((day for m, day in marks if m == " "), None)
 
 
 def sync_reviews(cfg):

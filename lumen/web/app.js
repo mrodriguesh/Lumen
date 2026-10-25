@@ -1291,17 +1291,24 @@ const resume = (key) => { showView("new"); openUnderstanding(key, { resume: true
 function pendingRow(p) {
   const prepping = p.state === "studying" && S.job?.status === "running" && S.job.key === p.key;
   const [ic, tone] = PEND_LOOK[p.state] || ["pen", ""];
-  return el("div", { class: "lib-row", role: "listitem" },
+  return el("div", { class: "lib-row", role: "listitem", "data-key": p.key },
     el("span", { class: "lib-ico", "data-tone": tone, "aria-hidden": "true" }, icon(ic)),
     el("span", { class: "lib-text" }, el("span", { class: "lib-title" }, p.title || "Aula"),
       el("span", { class: "lib-meta" }, [prepping ? "Preparando…" : PENDING[p.state], p.label, day(p.updated)].filter(Boolean).join(" · "))),
     el("button", { class: "btn sm" + (p.state === "completed" ? "" : " primary"), type: "button", onclick: () => resume(p.key) },
       p.state === "completed" ? "Ver análise" : "Continuar"));
 }
-// O cartão principal do Início mostra a gravação, a tarefa ou, sem elas, a primeira aula em andamento
-const heroBusy = () => !!(S?.recording?.active && !S.recording.error) || ((lastJob || S?.job)?.status === "running" && (lastJob || S.job).kind !== "download");
+// O que o cartão principal do Início mostra: a gravação, a tarefa (e de que aula) ou a primeira aula em andamento
+function heroState() {
+  const r = S?.recording || {}, j = lastJob || S?.job || {}, p = S?.pending?.[0];
+  if (r.active && !r.error) return { mode: r.paused ? "paused" : "rec", key: null };
+  if (j.status === "running" && j.kind !== "download") return { mode: "job", key: j.key || j.spec?.key || null };
+  if (p) return { mode: `pending:${p.key}:${p.state}`, key: p.key };
+  return { mode: historyItems && !historyItems.length ? "first" : "start", key: null };
+}
 function renderPending() {
-  const items = S?.pending || [], more = heroBusy() ? items : items.slice(1);  // sem repetir a que já está no cartão
+  const items = S?.pending || [], shown = S ? heroState().key : null;
+  const more = items.filter((p) => p.key !== shown);  // sem repetir a aula que já está no cartão principal
   $("#pending").hidden = !more.length;
   $("#pending-all").hidden = more.length <= 3;
   swap($("#pending-list"), more.slice(0, 3).map(pendingRow));
@@ -1740,7 +1747,7 @@ function savedRow(it, compact = false) {
   const act = (ic, label, tip, attrs) => compact
     ? el(attrs.href ? "a" : "button", { class: "icon-btn sm", "aria-label": `${tip}: ${it.title}`, "data-tip": tip, ...attrs }, icon(ic))
     : el(attrs.href ? "a" : "button", { class: "btn ghost sm", "data-tip": tip, ...attrs }, icon(ic), label);
-  return el("div", { class: "lib-row", role: "listitem" },
+  return el("div", { class: "lib-row", role: "listitem", "data-key": it.key },
     el("span", { class: "lib-ico", "aria-hidden": "true" }, icon("page")),
     el("span", { class: "lib-text" }, el("span", { class: "lib-title" }, it.title),
       el("span", { class: "lib-meta" }, [course, shortDate(it.created || it.obsidian?.at)].filter(Boolean).join(" · "))),
@@ -1758,7 +1765,7 @@ const skeletonRows = (n) => Array.from({ length: n }, () => el("div", { class: "
 let libFilter = "all";
 async function loadLibrary() {
   renderLibrary();
-  try { await loadHistory(); renderLibrary(); } catch (e) { if (!historyItems) $("#library-list").replaceChildren(); fail(e); }
+  try { await loadHistory(); renderLibrary(); } catch (e) { if (!historyItems) swap($("#library-list"), []); fail(e); }
 }
 function renderLibrary() {
   const box = $("#library-list");
@@ -1782,6 +1789,8 @@ for (const b of $$("#lib-filter button")) b.addEventListener("click", () => { li
 // ---------- Início: o que está acontecendo, o que continuar, o que precisa de atenção ----------
 const STAGE_NAMES = { prepare: "Preparando a fonte", transcribe: "Transcrevendo", screen: "Lendo as telas", analyze: "Analisando",
   generate: "Escrevendo o material", connect: "Buscando conexões", obsidian: "Salvando no Obsidian", publish: "Salvando no Notion", download: "Baixando" };
+const STAGE_SHORT = { prepare: "Preparando", transcribe: "Transcrevendo", screen: "Lendo as telas", generate: "Escrevendo",
+  connect: "Conexões", obsidian: "Salvando", publish: "Salvando", download: "Baixando" };
 const pct = (j) => Number.isFinite(j.progress) ? ` · ${Math.round(j.progress * 100)}%` : "";
 let heroMode = "";
 function renderHome() {  // tudo (ao abrir o Início, ao chegar a lista de aulas); a gravação e a tarefa só mexem no cartão principal
@@ -1790,6 +1799,7 @@ function renderHome() {  // tudo (ao abrir o Início, ao chegar a lista de aulas
   $("#home-greet").textContent = h < 5 || h >= 18 ? "Boa noite" : h < 12 ? "Bom dia" : "Boa tarde";
   $("#home-date").textContent = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
   renderHero();
+  renderPending();
   const recent = (historyItems || []).slice(0, 4);
   $("#home-recent").hidden = !!historyItems && !recent.length;
   swap($("#recent-list"), historyItems ? recent.map((it) => savedRow(it, true)) : skeletonRows(3));
@@ -1797,13 +1807,12 @@ function renderHome() {  // tudo (ao abrir o Início, ao chegar a lista de aulas
 function renderHero() {
   if (!S || view !== "home") return;
   const box = $("#home-hero"), r = S.recording || {}, j = lastJob || S.job || {}, p = S.pending?.[0];
-  const busy = j.status === "running" && j.kind !== "download";
+  const { mode } = heroState(), busy = mode === "job";
   const n = S.pending?.length || 0, due = reviews.length;
   $("#home-lead").textContent = r.active ? "Uma gravação está em andamento."
     : busy ? "O Lumen está trabalhando numa aula; dá para continuar usando o app."
     : [n ? `${n} ${n === 1 ? "aula espera" : "aulas esperam"} por você` : "", due ? `${due} ${due === 1 ? "revisão" : "revisões"} para hoje` : ""].filter(Boolean).join(" · ") + (n || due ? "." : "")
       || "Grave ou escolha uma aula, escreva o que entendeu e deixe a IA local completar.";
-  const mode = r.active && !r.error ? (r.paused ? "paused" : "rec") : busy ? "job" : p ? `pending:${p.key}:${p.state}` : historyItems && !historyItems.length ? "first" : "start";
   // a cada leitura só o que mudou (o tempo, a etapa, o progresso): os botões continuam os mesmos, sem perder foco
   if (mode === heroMode && (mode === "rec" || mode === "paused")) { box.querySelector(".hero-time").textContent = mmss(r.seconds); return; }
   if (mode === heroMode && mode === "job") {
@@ -1872,7 +1881,7 @@ async function loadReviews() {
   const box = $("#home-reviews");
   box.hidden = !reviews.length;
   $("#reviews-count").textContent = reviews.length === 1 ? "1 para revisar" : `${reviews.length} para revisar`;
-  swap($("#review-list"), reviews.slice(0, 4).map((r) => el("div", { class: "lib-row", role: "listitem" },
+  swap($("#review-list"), reviews.slice(0, 4).map((r) => el("div", { class: "lib-row", role: "listitem", "data-key": r.key || r.lumen_id },
     el("span", { class: "lib-ico", "data-tone": r.overdue ? "warn" : "accent", "aria-hidden": "true" }, icon("calendar")),
     el("span", { class: "lib-text" }, el("span", { class: "lib-title" }, r.title),
       el("span", { class: "lib-meta" }, `${r.overdue ? "Atrasada · era para " + new Date(r.next_review + "T12:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" }) : "Para hoje"} · revisão ${r.stage + 1}`)),
@@ -1884,22 +1893,28 @@ async function loadReviews() {
 function renderStatus() {
   if (!S) return;
   const pill = $("#global-status"), r = S.recording || {}, j = lastJob || S.job || {};
-  let tone = "ok", ic = "check-circle", text = "Pronto";
+  let tone = "ok", ic = "check-circle", text = "Pronto", full = "";
   if (r.error) { tone = "error"; ic = "alert"; text = "Gravação interrompida"; }
   else if (r.active) { tone = r.paused ? "paused" : "rec"; ic = r.paused ? "pause" : "dot"; text = (r.paused ? "Pausado · " : "Gravando · ") + mmss(r.seconds); }
-  else if (j.status === "running") { tone = "busy"; ic = "spin"; text = (j.kind === "analyze" ? "Analisando sua compreensão" : STAGE_NAMES[j.stage] || "Processando") + pct(j); }
+  else if (j.status === "running") {  // na pílula, o nome curto da etapa; o completo vai na dica
+    tone = "busy"; ic = "spin";
+    text = (j.kind === "analyze" ? "Analisando" : STAGE_SHORT[j.stage] || "Processando") + pct(j);
+    full = (j.kind === "analyze" ? "Analisando sua compreensão" : STAGE_NAMES[j.stage] || "Processando") + pct(j) + (j.title ? ` · ${j.title}` : "");
+  }
   else if (j.status === "error" && step === "run") { tone = "error"; ic = "alert"; text = "A tarefa falhou"; }
   else if (!$("#setup").hidden) { tone = "warn"; ic = "alert"; text = "Configuração pendente"; }
   if (pill.dataset.ic !== ic) {
     pill.dataset.ic = ic;
     $("#global-status-ico").replaceChildren(ic === "spin" ? el("span", { class: "spinner" }) : ic === "dot" ? el("span", { class: "live-dot" }) : icon(ic));
   }
-  // o leitor de tela ouve só a mudança de estado (gravando, pausado, processando…), não o relógio a cada segundo
-  if (pill.dataset.tone !== tone) $("#status-live").textContent = "Lumen: " + text.replace(/ · [\d:]+$/, "").replace(/ · \d+%$/, "");
+  // o leitor de tela ouve cada mudança de estado ou de etapa, mas não o relógio nem o percentual a cada leitura
+  const said = "Lumen: " + text.replace(/ · [\d:]+$/, "").replace(/ · \d+%$/, "");
+  if ($("#status-live").textContent !== said) $("#status-live").textContent = said;
   pill.dataset.tone = tone;
   $("#global-status-text").textContent = text;
-  pill.setAttribute("aria-label", `Status do Lumen: ${text}`);
-  pill.dataset.tip = tone === "ok" ? "Tudo pronto. Clique para ir ao Início." : tone === "warn" ? "Veja o que falta no Início" : "Ver na Nova aula";
+  pill.setAttribute("aria-label", `Status do Lumen: ${full || text}`);
+  pill.dataset.tip = tone === "ok" ? "Tudo pronto. Clique para ir ao Início." : tone === "warn" ? "Veja o que falta no Início"
+    : full ? `${full}. Clique para ver o progresso.` : "Ver na Nova aula";
 }
 $("#global-status").addEventListener("click", () => {
   const t = $("#global-status").dataset.tone;

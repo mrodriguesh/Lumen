@@ -318,7 +318,7 @@ def run(scenarios, filters=(), sizes=((1120, 860),), zooms=(1.0,), out=OUT):
 # Cenários: (nome, página, JS de preparo, mudança no estado simulado, tamanho fixo ou None = todos os tamanhos)
 REC = {"active": True, "seconds": 754, "level": .28, "heard": True, "paused": False, "screens": {"seen": 6, "read": 4, "kept": 3}}
 JOB = {"status": "running", "kind": "process", "stage": "generate", "detail": "Escrevendo o material a partir da sua compreensão",
-       "progress": .42, "eta_total": 95, "dests": ["obsidian", "notion"], "skipped": ["transcribe"], "title": "Complexidade de algoritmos e notação O"}
+       "progress": .42, "eta_total": 95, "dests": ["obsidian", "notion"], "skipped": ["transcribe"], "title": "Redes neurais convolucionais", "key": "k1"}
 DONE = {"status": "done", "kind": "process", "dests": ["obsidian", "notion"], "result": {
     "key": "k2", "title": "Complexidade de algoritmos e notação O", "course": "Estudos › Inteligência Artificial",
     "notion": {"status": "ok", "url": "https://notion.so/x", "understanding_url": "https://notion.so/y"},
