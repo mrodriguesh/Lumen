@@ -42,6 +42,7 @@ fundo (--bg-base + halo azul suave)
 | Texto | `--text-primary`, `--text-secondary`, `--text-tertiary`, `--text-disabled`, `--text-inverse`, `--on-accent` | primário, descrição, metadados |
 | Acento | `--accent`, `--accent-hover`, `--accent-strong`, `--accent-soft/softer`, `--accent-text`, `--accent-line`, `--accent-border`, `--accent-grad` | ação principal, item ativo, foco, progresso |
 | Estados | `--success`, `--warning`, `--danger`, `--rec` (+ `-soft`, `-line`, `-text`) | sempre com ícone e texto |
+| Obsidian | `--obsidian`, `--obsidian-soft`, `--obsidian-line` | só no ícone e na borda esquerda do destino Obsidian; nunca fundo de cartão |
 | Borda | `--border-subtle/medium/strong`, `--border-focus` | 1 px; o ativo ganha contraste |
 | Raio | `--r-xs 4`, `--r-sm 6`, `--r-md 10`, `--r-lg 14`, `--r-xl 20`, `--r-2xl 28`, `--r-pill` | interno = externo − espaço |
 | Espaço | `--space-1…16` (4, 8, 12, 16, 20, 24, 32, 40, 48, 64) | só múltiplos de 4 |
@@ -74,6 +75,7 @@ Pesos: 600 para títulos, 500 para rótulos, 400 para o resto. Nada de negrito e
 | Linha de ajuste | `label.set-row` > `.set-text` (strong + small) + controle | quebra em janela estreita |
 | Cartão | `.card`, `.card-head` | sólido |
 | Estado | `.badge[data-tone]` (ok, warn, error, busy, rec), `.status-pill[data-tone]`, `.chip-status[data-tone]`, `.spinner`, `.live-dot` | |
+| Destino | `.dest-row` > `.dest-logo` + `.dest-main` (`.dest-top` nome + badge · `.dest-line2` destino + `btn sm` · `.dest-feats`) | Notion e Obsidian na Nova aula; estado de `notionState()`/`obsidianState()`, os mesmos de Integrações |
 | Progresso | `.progress > span` (largura = progresso real) e `.progress.indeterminate` | sem percentual confiável, use o indeterminado |
 | Carregando | `.skeleton` | em listas; nunca bloqueie a tela inteira |
 | Vazio | `.empty` > `.empty-icon` + `strong` + `p` + ação | explica a área e a próxima ação |

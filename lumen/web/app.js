@@ -624,6 +624,7 @@ function trail(p, by) {  // da página principal até p
 function renderDest() {
   const p = selectedPage(), v = $("#course").value;
   $("#dest-icon").replaceChildren(p ? pageIcon(p) : icon(v === "__none__" ? "folder" : "page", "sm"));
+  if ($("#picker").hidden) $("#dest-change").textContent = p || v === "__none__" ? "Alterar" : "Escolher";
   if (!p) return $("#dest-path").replaceChildren(v === "__none__" ? "Sem curso (organizar depois)" : "Escolha uma página");
   const t = trail(p, tree().by), shown = t.length > 3 ? t.slice(-3) : t;
   $("#dest-path").dataset.tip = t.map((x) => x.title).join(" › ");
@@ -664,21 +665,33 @@ function renderBrowse() {
 function setPicker(open) {
   if ($("#picker").hidden === !open) return;
   $("#picker").hidden = !open;
-  $("#dest-change").textContent = open ? "Pronto" : "Alterar";
+  $("#dest-card").classList.toggle("picking", open);  // a busca e a dica só aparecem com o navegador aberto
   $("#dest-change").setAttribute("aria-expanded", String(open));
   if (open) {  // abre mostrando onde a página escolhida está
+    $("#dest-change").textContent = "Pronto";
+    setObsQuick(false);
     const p = selectedPage(), { kids } = tree();
     level = p ? (kids.has(p.id) ? p.id : p.parent || null) : null;
-    renderBrowse();
-  }
+    renderBrowse();  // sem foco automático na busca: as sugestões cobririam a lista de páginas
+  } else renderDest();
+}
+function setObsQuick(open) {  // configuração rápida do cofre, no próprio cartão (os mesmos ajustes de Integrações)
+  if ($("#obs-quick").hidden === !open) return;
+  $("#obs-quick").hidden = !open;
+  $("#dest-obs-change").setAttribute("aria-expanded", String(open));
+  if (open) setPicker(false);
+  renderDestRows();
 }
 $("#dest-change").addEventListener("click", () => setPicker($("#picker").hidden));
-// fecha com Esc ou clicando fora (do navegador e do cartão do destino)
+// fecham com Esc ou clicando fora (do painel e da linha do destino)
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !e.defaultPrevented && !$("#picker").hidden) { e.preventDefault(); setPicker(false); $("#dest-change").focus(); }
+  if (e.key !== "Escape" || e.defaultPrevented) return;
+  if (!$("#picker").hidden) { e.preventDefault(); setPicker(false); $("#dest-change").focus(); }
+  else if (!$("#obs-quick").hidden) { e.preventDefault(); setObsQuick(false); $("#dest-obs-change").focus(); }
 });
 document.addEventListener("pointerdown", (e) => {
-  if (!$("#picker").hidden && !e.target.closest("#picker, .dest")) setPicker(false);
+  if (!$("#picker").hidden && !e.target.closest("#picker, .dest, .combo, #course-note")) setPicker(false);
+  if (!$("#obs-quick").hidden && !e.target.closest("#obs-quick, #dest-obsidian")) setObsQuick(false);
 });
 
 // Ao voltar para a janela, atualiza a lista de páginas em segundo plano (no máximo a cada 30 s),
@@ -814,7 +827,6 @@ function updateGo() {
   const rows = [];
   if (found) rows.push(["Fonte", `${found.label} — ${found.title}`]);
   const solo = !usesNotion();
-  $("#dest-card").classList.toggle("solo-obsidian", solo);
   rows.push(["Curso", solo ? $("#course-text").value.trim() || "—" : course && course.value !== "__new__" ? course.textContent : "—"]);
   const local = found?.has_captions || found?.resumable ? "Material escrito pela IA local (Ollama)."
     : "Transcrição (Whisper) e material (Ollama) feitos no seu PC.";
@@ -857,7 +869,7 @@ $("#go").addEventListener("click", () => {
 
 // ---------- destino que acompanha a tela ----------
 const destCard = $("#dest-card"), destHome = destCard.parentElement, destNext = destCard.nextElementSibling;
-function dockDest(slot) {  // move o cartão “Onde salvar” (com tudo ligado a ele) para outra tela, ou de volta
+function dockDest(slot) {  // move o cartão “Destinos do estudo” (com tudo ligado a ele) para outra tela, ou de volta
   if (!slot) { if (destCard.parentElement !== destHome) destHome.insertBefore(destCard, destNext); return; }
   if (destCard.parentElement !== slot) slot.append(destCard);
 }
@@ -1477,16 +1489,8 @@ function renderSettings() {
   if (!S) return;
   $("#token").placeholder = S.has_token ? "•••••••• (salvo no cofre do Windows)" : "ntn_…";
   $("#token-status").textContent = S.has_token ? "Conectado. O token fica no Gerenciador de Credenciais do Windows." : "Cole o token da integração interna do Notion.";
-  const nb = $("#notion-badge"), ob = $("#obsidian-badge"), o = S.obsidian || {};
-  const badge = (b, tone, ic, text) => { b.dataset.tone = tone; b.replaceChildren(icon(ic), text); };
-  if (!usesNotion()) badge(nb, "", "minus", "Fora dos destinos");
-  else if (!S.has_token) badge(nb, "warn", "alert", "Não conectado");
-  else if (!rootReady()) badge(nb, "warn", "alert", "Escolha a página raiz");
-  else badge(nb, "ok", "check", "Conectado");
-  if (!usesObsidian()) badge(ob, "", "minus", "Fora dos destinos");
-  else if (o.error) badge(ob, "error", "x-circle", "Cofre indisponível");
-  else if (!S.config.obsidian_vault) badge(ob, "warn", "alert", "Escolha o cofre");
-  else badge(ob, "ok", "check", "Conectado");
+  setBadge($("#notion-badge"), notionState());
+  setBadge($("#obsidian-badge"), obsidianState());
   $("#integ-notion").dataset.off = String(!usesNotion());
   $("#integ-obsidian").dataset.off = String(!usesObsidian());
   $("#forget").hidden = !S.has_token;
@@ -1541,22 +1545,75 @@ function renderDestSettings() {  // Destinos do material: o cofre só é escolhi
   const opts = [el("option", { value: "" }, o.vaults.length ? "Escolha o cofre…" : "Nenhum cofre do Obsidian encontrado neste PC")];
   for (const v of o.vaults) opts.push(el("option", { value: v.path, ...(v.ok ? {} : { disabled: "" }) },`${v.name}${v.open ? " · aberto no Obsidian" : ""}${v.ok ? "" : " · pasta não encontrada"}`));
   if (c.obsidian_vault && !o.vaults.some((v) => v.path === c.obsidian_vault)) opts.push(el("option", { value: c.obsidian_vault }, c.obsidian_vault));
+  $("#q-vault").replaceChildren(...opts.map((x) => x.cloneNode(true)));
   $("#vault").replaceChildren(...opts);
-  $("#vault").value = c.obsidian_vault;
+  $("#vault").value = $("#q-vault").value = c.obsidian_vault;
   const sug = o.vaults.find((v) => v.path === c.obsidian_vault)?.folder || o.folder;
   if (document.activeElement !== $("#vault-folder")) $("#vault-folder").value = c.obsidian_folder;
   $("#vault-folder").placeholder = sug || "Escolha o cofre primeiro";
   if (document.activeElement !== $("#canvas-folder")) $("#canvas-folder").value = c.obsidian_canvas_folder;
   if (document.activeElement !== $("#review-intervals")) $("#review-intervals").value = (c.review_intervals || []).join(", ");
-  $("#obs-canvas").checked = c.obsidian_canvas; $("#obs-connections").checked = c.obsidian_connections;
-  $("#obs-review").checked = c.obsidian_review; $("#obs-attachments").checked = c.obsidian_attachments;
-  $("#obs-open").checked = c.obsidian_open;
+  for (const i of $$("[data-cfg]")) i.checked = c[i.dataset.cfg];  // Integrações e a configuração rápida da Nova aula
   $("#review-intervals").disabled = !c.obsidian_review;
   $("#vault-status").textContent = o.error || (!c.obsidian_vault ? (o.vaults.length > 1
     ? "Há mais de um cofre neste PC: escolha qual o Lumen deve usar." : "Escolha o cofre para ligar o Obsidian.")
     : `As notas ficam em “${o.folder}”, como material da IA para revisar (type: ai-study); nada fora dessa pasta é alterado.`);
   $("#vault-dashboard").hidden = !c.obsidian_vault || !!o.error;
+  renderDestRows();
 }
+
+// ---------- Destinos do estudo (Nova aula): o mesmo estado que Integrações mostra ----------
+function setBadge(b, [tone, ic, text]) { b.dataset.tone = tone; b.replaceChildren(icon(ic), text); }
+function notionState() {
+  if (!usesNotion()) return ["", "minus", "Desativado"];
+  if (!S.has_token) return ["warn", "alert", "Não conectado"];
+  if (!rootReady()) return ["warn", "alert", "Escolha a página raiz"];
+  return ["ok", "check", "Conectado"];
+}
+function obsidianState() {
+  if (!usesObsidian()) return ["", "minus", "Desativado"];
+  if (S.obsidian?.error) return ["error", "x-circle", "Cofre indisponível"];
+  if (!S.config.obsidian_vault) return ["warn", "alert", "Escolha o cofre"];
+  return ["ok", "check", "Conectado"];
+}
+const shortDir = (f) => { const x = f.split("/"); return x.length > 2 ? `${x[0]}/…/${x.at(-1)}` : f; };  // B03 Resources/…/Lumen
+const andList = (xs) => xs.length > 1 ? `${xs.slice(0, -1).join(", ")} e ${xs.at(-1)}` : xs[0];
+function renderDestRows() {
+  if (!S) return;
+  const c = S.config, o = S.obsidian || { vaults: [] };
+  const nOn = usesNotion(), nOk = nOn && S.has_token, oOn = usesObsidian(), st = obsidianState(), oOk = st[0] === "ok";
+  $("#dest-card").classList.toggle("solo-obsidian", !nOn);
+  // Notion: conectado mostra a página (a raiz pendente aparece no caminho “Escolha uma página”); senão, o que falta
+  $("#dest-notion").dataset.off = String(!nOn);
+  setBadge($("#dest-notion-badge"), nOk ? ["ok", "check", "Conectado"] : notionState());
+  for (const x of $("#dest-notion").querySelectorAll(".notion-ok")) x.hidden = !nOk;
+  $("#dest-notion-msg").textContent = nOn && !nOk ? "Conecte para criar a página da aula." : "";
+  $("#dest-notion-fix").hidden = nOk;
+  $("#dest-notion-fix").textContent = nOn ? "Conectar" : "Ativar";
+  if (!nOk) setPicker(false);
+  // Obsidian: cofre em destaque, pasta cortada (o caminho inteiro na dica) e só os recursos ligados de verdade
+  $("#dest-obsidian").dataset.off = String(!oOn);
+  setBadge($("#dest-obs-badge"), st);
+  const name = o.vaults.find((v) => v.path === c.obsidian_vault)?.name || c.obsidian_vault.split(/[\\/]/).filter(Boolean).pop();
+  const vault = $("#dest-vault");
+  vault.dataset.tip = oOk ? `${c.obsidian_vault}${o.folder ? " › " + o.folder : ""}` : st[0] === "error" ? o.error : "";
+  vault.replaceChildren(...(!oOn ? [] : oOk ? [el("span", { class: "dest-vault-name" }, name), o.folder ? el("span", { class: "dest-vault-dir" }, "/ " + shortDir(o.folder)) : null].filter(Boolean)
+    : [el("span", { class: "dest-msg" }, st[0] === "error" ? "O cofre escolhido não foi encontrado." : "Notas, revisões e mapas mentais no seu cofre.")]));
+  $("#dest-feats").textContent = oOk ? ["Nota de estudo", c.obsidian_canvas && "Mapa no Canvas"].filter(Boolean).join(" · ") : "";
+  $("#dest-obs-help").hidden = !oOn;
+  $("#dest-obs-help").dataset.tip = `No seu cofre, o Lumen cria ${andList(["uma nota de estudo com perguntas", c.obsidian_canvas && "um mapa mental no Canvas",
+    c.obsidian_review && "as datas de revisão", c.obsidian_connections && "links para as suas notas ligadas à aula",
+    c.obsidian_attachments && "as telas escolhidas"].filter(Boolean))}.`;
+  if (!oOn) $("#obs-quick").hidden = true;
+  $("#dest-obs-change").textContent = !oOn ? "Ativar" : !$("#obs-quick").hidden ? "Pronto" : oOk ? "Alterar" : st[0] === "error" ? "Corrigir" : "Escolher cofre";
+  $("#dest-both").hidden = !(nOn && oOn);
+}
+const setDestinations = (v) => saveSettings({ destinations: v },
+  { both: "O material vai para o Notion e o Obsidian.", notion: "O material vai só para o Notion.", obsidian: "O material vai só para o Obsidian." }[v])
+  .then(() => loadCourses());
+$("#dest-notion-fix").addEventListener("click", () => usesNotion() ? goIntegrations() : setDestinations("both"));
+$("#dest-obs-change").addEventListener("click", () => usesObsidian() ? setObsQuick($("#obs-quick").hidden) : setDestinations("both"));
+for (const b of $$("[data-go-integ]")) b.addEventListener("click", () => goIntegrations());
 
 function renderWatch() {  // “Assistir a tela junto”: chave no cartão da fonte e nos Ajustes
   if (!S) return;
@@ -1630,12 +1687,11 @@ $("#music-set").addEventListener("change", (e) => saveSettings({ music_filter: e
   e.target.checked ? "Filtro de música ativo." : "Filtro de música desligado."));
 $("#music-mode").addEventListener("change", (e) => saveSettings({ music_mode: e.target.value }));
 $("#music-dl").addEventListener("click", () => download({ what: "music" }));
-$("#dest-mode").addEventListener("change", (e) => saveSettings({ destinations: e.target.value },
-  { both: "O material vai para o Notion e o Obsidian.", notion: "O material vai só para o Notion.", obsidian: "O material vai só para o Obsidian." }[e.target.value])
-  .then(() => { renderChecks(); loadCourses(); }));
+$("#dest-mode").addEventListener("change", (e) => setDestinations(e.target.value));
 $("#study-level").addEventListener("change", (e) => saveSettings({ study_level: e.target.value }));
-$("#vault").addEventListener("change", (e) => saveSettings({ obsidian_vault: e.target.value }, e.target.value ? "Cofre do Obsidian escolhido." : ""));
-$("#vault-pick").addEventListener("click", async () => {
+for (const id of ["#vault", "#q-vault"])
+  $(id).addEventListener("change", (e) => saveSettings({ obsidian_vault: e.target.value }, e.target.value ? "Cofre do Obsidian escolhido." : ""));
+for (const id of ["#vault-pick", "#q-vault-pick"]) $(id).addEventListener("click", async () => {
   try {
     const { path } = await api("/api/pick", { kind: "vault" });
     if (path) await saveSettings({ obsidian_vault: path }, "Cofre do Obsidian escolhido.");
@@ -1643,9 +1699,7 @@ $("#vault-pick").addEventListener("click", async () => {
 });
 for (const [id, key] of [["#vault-folder", "obsidian_folder"], ["#canvas-folder", "obsidian_canvas_folder"], ["#review-intervals", "review_intervals"]])
   $(id).addEventListener("change", (e) => saveSettings({ [key]: e.target.value.trim() }, "Ajuste salvo."));
-for (const [id, key] of [["#obs-canvas", "obsidian_canvas"], ["#obs-connections", "obsidian_connections"], ["#obs-review", "obsidian_review"],
-                         ["#obs-attachments", "obsidian_attachments"], ["#obs-open", "obsidian_open"]])
-  $(id).addEventListener("change", (e) => saveSettings({ [key]: e.target.checked }));
+for (const i of $$("[data-cfg]")) i.addEventListener("change", () => saveSettings({ [i.dataset.cfg]: i.checked }));
 $("#vault-dashboard").addEventListener("click", () => openObsidian("", "dashboard"));
 async function download(body) {
   try { await api("/api/download", body); poll(); } catch (e) { fail(e); }

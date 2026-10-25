@@ -123,6 +123,10 @@ try:
     check(ev("document.querySelector('#dest-card').classList.contains('solo-obsidian')"), "só Obsidian: cartão do curso em texto")
     check(ev("getComputedStyle(document.querySelector('#course-text')).display") != "none", "campo Curso visível")
     check(ev("getComputedStyle(document.querySelector('.combo')).display") == "none", "busca do Notion escondida")
+    dest = ev("[document.querySelector('#dest-obs-badge').textContent, document.querySelector('#dest-vault').textContent,"
+              " document.querySelector('#dest-notion-badge').textContent, document.querySelector('#dest-notion-fix').textContent]")
+    check(dest[0] == "Conectado" and "16 Lumen" in dest[1] and dest[2] == "Desativado" and dest[3] == "Ativar",
+          f"Destinos do estudo com o cofre real: {dest}")
     shot("3-nova-aula-so-obsidian")
 
     # Resultado: um destino ok e outro com falha, com as ações certas

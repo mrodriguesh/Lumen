@@ -56,6 +56,8 @@
   --info: var(--accent-text);
   --rec: #f04a4f; --rec-soft: rgba(240, 74, 79, .14); --rec-line: rgba(240, 74, 79, .32); --rec-text: #ff8a8a;
   --brand-spark: #ffd60a;
+  /* Obsidian: só no ícone e na borda do destino dele (Nova aula); nunca como fundo de cartão */
+  --obsidian: #a78bfa; --obsidian-soft: rgba(167, 139, 250, .1); --obsidian-line: rgba(167, 139, 250, .3);
   /* A escrita do estudante (papel) e a leitura da IA (tom azulado): dá para ver de quem é cada texto */
   --paper: #15171c;
   --paper-line: rgba(255, 255, 255, .07);

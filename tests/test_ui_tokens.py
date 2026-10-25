@@ -38,7 +38,7 @@ class Tokens(unittest.TestCase):
 
     def test_focus_ring_and_status_marks_stand_out(self):
         # elementos gráficos (anel de foco, ponto de status): 3:1
-        for name in ("border-focus", "accent-strong", "success", "warning", "danger-dot", "rec"):
+        for name in ("border-focus", "accent-strong", "success", "warning", "danger-dot", "rec", "obsidian"):
             for bg in self.surfaces:
                 self.assertGreaterEqual(contrast(self.t[name], bg), 3, f"--{name} sobre {bg}")
 

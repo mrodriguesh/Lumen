@@ -370,6 +370,21 @@ def first_use(W):
     W["obsidian"].update(folder="")
 
 
+def dest(cfg=None, obsidian=None, **kv):  # estados dos Destinos do estudo
+    def f(W):
+        W["config"].update(cfg or {})
+        W["obsidian"].update(obsidian or {})
+        W.update(kv)
+    return f
+
+
+def long_path(W):
+    W["config"].update(obsidian_vault=r"C:\Users\Estudante\Documents\Segundo Cérebro da Faculdade de Engenharia",
+                       obsidian_folder="B03 Resources/Estudos/Engenharia de Computação/Semestre 2026-2/Lumen")
+    W["obsidian"].update(vaults=[{"path": W["config"]["obsidian_vault"], "name": "Segundo Cérebro da Faculdade de Engenharia", "open": True, "ok": True}],
+                         folder=W["config"]["obsidian_folder"])
+
+
 def notion_fail(W):
     W["job"] = copy.deepcopy(DONE)
     W["job"]["result"]["notion"] = {"status": "error", "error": "O Notion recusou o pedido (limite de envio).", "action": "Tente de novo em 1 minuto."}
@@ -390,7 +405,16 @@ SCENARIOS = [
     ("new-file", "main", 'showView("new"); $("#tab-file").click();', None, None),
     ("new-captures", "main", 'showView("new"); $("#tab-captures").click(); await addCaps([{path:"C:/a.png",name:"slide 1.png"},{path:"C:/b.png",name:"código.png"},{path:"C:/c.png",name:"tabela.png"}]);', None, None),
     ("new-picker", "main", 'showView("new"); setPicker(true);', None, None),
-    ("new-search", "main", 'showView("new"); const s=$("#course-filter"); s.focus(); s.value="ia"; s.dispatchEvent(new Event("input"));', None, None),
+    ("new-search", "main", 'showView("new"); $("#dest-change").click(); const s=$("#course-filter"); s.value="ia"; s.dispatchEvent(new Event("input"));', None, None),
+    ("new-dest-quick", "main", 'showView("new"); $("#dest-obs-change").click();', None, None),
+    ("new-dest-novault", "main", 'showView("new");', dest({"obsidian_vault": ""}, {"folder": ""}), None),
+    ("new-dest-vaulterr", "main", 'showView("new");', dest(obsidian={"error": "A pasta do cofre não foi encontrada: C:\\Users\\Estudante\\Cérebro. Escolha o cofre de novo em Integrações."}), None),
+    ("new-dest-notoken", "main", 'showView("new");', dest(has_token=False), None),
+    ("new-dest-none", "main", 'showView("new");', first_use, None),
+    ("new-dest-notion", "main", 'showView("new");', dest({"destinations": "notion"}), None),
+    ("new-dest-obsidian", "main", 'showView("new");', dest({"destinations": "obsidian"}), None),
+    ("new-dest-nocanvas", "main", 'showView("new");', dest({"obsidian_canvas": False}), None),
+    ("new-dest-long", "main", 'showView("new");', long_path, None),
     ("understand", "main", UNDER, None, None),
     ("understand-rec", "main", UNDER, patch(recording=REC), None),
     ("understand-prep", "main", UNDER + ' U.state="studying"; renderUStatus({status:"running",kind:"process",key:"k1",stage:"transcribe",detail:"Transcrevendo (3 de 9 min)",progress:.33});', None, None),
@@ -476,7 +500,23 @@ def walk(out=OUT / "percurso"):
             m.goto(url + "/?frame=1")
             step("inicio", until("() => typeof S !== 'undefined' && S && !document.querySelector('#view-home').hidden"))
             m.click("#nav-new")
-            step("nova-aula", until("() => !document.querySelector('#view-new').hidden && step === 'compose'"))
+            step("nova-aula", until("() => !document.querySelector('#view-new').hidden && step === 'compose'"
+                                    " && $('#dest-obsidian').textContent.includes('Cérebro') && !$('#dest-both').hidden"
+                                    " && getComputedStyle($('#course-filter').closest('.combo')).display === 'none'"))
+            m.click("#dest-change")  # Destinos do estudo: escolher a página do Notion pelo navegador
+            step("destino-notion", until("() => !$('#picker').hidden && getComputedStyle($('#course-filter').closest('.combo')).display !== 'none'"))
+            m.click("#browse .brow:has-text('Estudos')")
+            m.click("#browse .brow:has-text('Inteligência Artificial')")
+            m.click("#dest-change")
+            step("destino-notion-escolhido", until("() => $('#picker').hidden && $('#course').value === 'p-ia'"
+                                                   " && $('#dest-path').textContent.includes('Inteligência Artificial') && $('#dest-change').textContent === 'Alterar'"))
+            m.click("#dest-obs-change")  # configuração rápida do cofre: a mesma chave de Integrações
+            step("destino-obsidian", until("() => !$('#obs-quick').hidden && $('#dest-obs-change').textContent === 'Pronto'"))
+            m.click("#obs-quick .set-row:has-text('Canvas')")
+            step("sem-canvas", until("() => !$('#dest-feats').textContent.includes('Canvas') && !$('#obs-canvas').checked"))
+            m.click("#obs-quick .set-row:has-text('Canvas')")
+            m.keyboard.press("Escape")
+            step("com-canvas", until("() => $('#obs-quick').hidden && $('#dest-feats').textContent.includes('Mapa no Canvas') && $('#obs-canvas').checked"))
             m.click("#rec-start")
             step("gravando", until("() => recorder.dataset.state === 'live' && document.querySelector('#global-status').dataset.tone === 'rec'"))
             w = ctx.new_page()

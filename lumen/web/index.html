@@ -193,14 +193,20 @@
         </section>
 
         <section class="card dest-card" id="dest-card" aria-labelledby="course-h">
-          <h2 class="side-h" id="course-h">Onde salvar</h2>
-          <label class="field obs-course" id="obs-course-row">Curso <span class="opt">opcional</span>
-            <input id="course-text" maxlength="120" autocomplete="off" placeholder="Ex.: Inteligência Artificial"></label>
-          <div class="dest notion-dest">
-            <span class="dest-icon" id="dest-icon" aria-hidden="true">📄</span>
-            <div class="dest-text"><small>A aula será salva em</small><span class="dest-path" id="dest-path"></span></div>
-            <button class="icon-btn sm" type="button" id="new-sub" aria-label="Criar subpágina dentro da página escolhida" data-tip="Nova subpágina aqui"><svg class="i"><use href="/icons.svg#plus"/></svg></button>
-            <button class="btn sm" type="button" id="dest-change" aria-expanded="false" aria-controls="picker">Alterar</button>
+          <div class="dest-head"><h2 class="side-h" id="course-h">Destinos do estudo</h2>
+            <p class="dest-both" id="dest-both" hidden><svg class="i"><use href="/icons.svg#sync"/></svg>Um processamento, dois destinos</p></div>
+          <div class="dest-row dest" id="dest-notion" data-dest="notion">
+            <span class="dest-logo" aria-hidden="true"><svg class="i"><use href="/icons.svg#page"/></svg></span>
+            <div class="dest-main">
+              <div class="dest-top"><strong>Notion</strong><span class="badge" id="dest-notion-badge"></span></div>
+              <div class="dest-line2">
+                <span class="dest-meta notion-ok"><span class="dest-icon" id="dest-icon" aria-hidden="true"></span><span class="dest-path" id="dest-path"></span></span>
+                <span class="dest-meta dest-msg" id="dest-notion-msg"></span>
+                <button class="icon-btn sm notion-ok" type="button" id="new-sub" aria-label="Criar subpágina dentro da página escolhida" data-tip="Nova subpágina aqui"><svg class="i"><use href="/icons.svg#plus"/></svg></button>
+                <button class="btn sm notion-ok" type="button" id="dest-change" aria-expanded="false" aria-controls="picker">Alterar</button>
+                <button class="btn sm" type="button" id="dest-notion-fix" hidden></button>
+              </div>
+            </div>
           </div>
           <div class="combo notion-dest">
             <span class="search-field"><svg class="i"><use href="/icons.svg#search"/></svg>
@@ -237,6 +243,30 @@
               <button class="btn primary sm" type="button" id="new-course-btn">Criar</button>
             </div>
           </div>
+          <div class="dest-row" id="dest-obsidian" data-dest="obsidian">
+            <span class="dest-logo" aria-hidden="true"><svg class="i"><use href="/icons.svg#obsidian"/></svg></span>
+            <div class="dest-main">
+              <div class="dest-top"><strong>Obsidian</strong>
+                <button class="icon-btn xs" type="button" id="dest-obs-help" aria-label="O que vai para o Obsidian" data-tip=""><svg class="i"><use href="/icons.svg#question"/></svg></button>
+                <span class="badge" id="dest-obs-badge"></span></div>
+              <div class="dest-line2">
+                <span class="dest-meta" id="dest-vault"></span>
+                <button class="btn sm" type="button" id="dest-obs-change" aria-expanded="false" aria-controls="obs-quick">Alterar</button>
+              </div>
+              <p class="dest-feats" id="dest-feats"></p>
+            </div>
+          </div>
+          <div class="picker obs-quick" id="obs-quick" hidden>
+            <label class="field">Cofre
+              <span class="input-row"><select id="q-vault" aria-label="Cofre do Obsidian"></select>
+              <button class="icon-btn" type="button" id="q-vault-pick" aria-label="Escolher a pasta do cofre" data-tip="Escolher a pasta do cofre…"><svg class="i"><use href="/icons.svg#folder"/></svg></button></span></label>
+            <label class="set-row compact"><span class="set-text"><strong>Mapa mental no Canvas</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_canvas"></label>
+            <label class="set-row compact"><span class="set-text"><strong>Conexões com o cofre</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_connections"></label>
+            <label class="set-row compact"><span class="set-text"><strong>Revisões espaçadas</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_review"></label>
+            <button class="link-btn" type="button" data-go-integ>Pastas, anexos e intervalos em Integrações</button>
+          </div>
+          <label class="field obs-course" id="obs-course-row">Curso <span class="opt">opcional</span>
+            <input id="course-text" maxlength="120" autocomplete="off" placeholder="Ex.: Inteligência Artificial"></label>
         </section>
 
         <section class="card" aria-labelledby="opts-h">
@@ -490,13 +520,13 @@
       </div>
       <div class="integ-sec">
         <h3 class="eyebrow">Estudos</h3>
-        <label class="set-row"><span class="set-text"><strong>Mapa mental no Canvas</strong><small>Um .canvas de verdade, com a nota no centro.</small></span><input type="checkbox" class="switch" role="switch" id="obs-canvas"></label>
-        <label class="set-row"><span class="set-text"><strong>Conexões com o cofre</strong><small>A IA local procura notas suas ligadas à aula.</small></span><input type="checkbox" class="switch" role="switch" id="obs-connections"></label>
-        <label class="set-row"><span class="set-text"><strong>Revisões espaçadas</strong><small>Datas de revisão na nota e no painel de estudos.</small></span><input type="checkbox" class="switch" role="switch" id="obs-review"></label>
+        <label class="set-row"><span class="set-text"><strong>Mapa mental no Canvas</strong><small>Um .canvas de verdade, com a nota no centro.</small></span><input type="checkbox" class="switch" role="switch" id="obs-canvas" data-cfg="obsidian_canvas"></label>
+        <label class="set-row"><span class="set-text"><strong>Conexões com o cofre</strong><small>A IA local procura notas suas ligadas à aula.</small></span><input type="checkbox" class="switch" role="switch" id="obs-connections" data-cfg="obsidian_connections"></label>
+        <label class="set-row"><span class="set-text"><strong>Revisões espaçadas</strong><small>Datas de revisão na nota e no painel de estudos.</small></span><input type="checkbox" class="switch" role="switch" id="obs-review" data-cfg="obsidian_review"></label>
         <label class="field review-intervals">Intervalos das revisões (dias)
           <input id="review-intervals" inputmode="numeric" spellcheck="false" autocomplete="off" placeholder="1, 3, 7, 14, 30, 60"></label>
-        <label class="set-row"><span class="set-text"><strong>Telas e gráficos no cofre</strong><small>Só as imagens escolhidas; o vídeo nunca é copiado.</small></span><input type="checkbox" class="switch" role="switch" id="obs-attachments"></label>
-        <label class="set-row"><span class="set-text"><strong>Abrir no Obsidian ao terminar</strong></span><input type="checkbox" class="switch" role="switch" id="obs-open"></label>
+        <label class="set-row"><span class="set-text"><strong>Telas e gráficos no cofre</strong><small>Só as imagens escolhidas; o vídeo nunca é copiado.</small></span><input type="checkbox" class="switch" role="switch" id="obs-attachments" data-cfg="obsidian_attachments"></label>
+        <label class="set-row"><span class="set-text"><strong>Abrir no Obsidian ao terminar</strong></span><input type="checkbox" class="switch" role="switch" id="obs-open" data-cfg="obsidian_open"></label>
       </div>
       <details class="disclosure integ-sec">
         <summary>Avançado</summary>

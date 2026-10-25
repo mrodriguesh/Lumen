@@ -382,7 +382,7 @@ transcrição, as telas, os desenhos e os envios ao Notion são cronometrados. C
 SSD). Ao criar uma página com “Enfeitar com IA”, a capa vira uma ilustração do tema gerada no seu PC (≈ 30–45 s
 numa RTX 3060). Sem ele, a capa é desenhada com emojis.
 
-**Trocar o destino e refazer:** o cartão *Onde salvar* acompanha a tela: dá para mudar a página durante a
+**Trocar o destino e refazer:** o cartão *Destinos do estudo* acompanha a tela: dá para mudar a página durante a
 transcrição e na revisão. Depois de publicar, **Refazer página** pede à IA uma versão nova (com um pedido opcional,
 como "mais exemplos") e remove a anterior; escolhendo outra página, a aula é movida para lá. Para isso o Lumen guarda
 no PC a transcrição da última aula publicada (só ela; a anterior é apagada ao publicar a próxima).
