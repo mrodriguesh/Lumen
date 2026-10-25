@@ -11,8 +11,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from . import (AppError, Cancelled, charts, eta, llm, mindmap, notion, obsidian, package, sources, store, transcribe,
-               understanding, vault, vision)
+from . import (AppError, Cancelled, area, catalog, charts, eta, llm, mindmap, notion, obsidian, package, sources, store,
+               transcribe, understanding, vault, vision)
 from . import music as _music  # só rótulos e regras; nenhum modelo é carregado sem o filtro ligado
 
 log = logging.getLogger("lumen")
@@ -549,7 +549,8 @@ def finish(spec):
 
     _set(stage="generate", detail="Validando o material…", progress=None)
     step = -(-len(screens) // MAX_SCREENS) or 1  # aula com muitas telas: no máximo 40, espalhadas pela aula
-    pkg = package.build(src, tr, lesson, mine, screens[::step], found, links, spec.get("course_title") or "", model,
+    cls = classification(spec, src["key"])
+    pkg = package.build(src, tr, lesson, mine, screens[::step], found, links, cls, model,
                         vision.MODEL, cfg["review_intervals"] if cfg["obsidian_review"] else ())
     pkg = package.validate(pkg, _vault_names(cfg) if "obsidian" in dests else None)
     package.save(pkg)
@@ -557,6 +558,8 @@ def finish(spec):
              pkg["processor_version"], len(lesson["topics"]), len(lesson["review_questions"]),
              len(lesson.get("relations") or []), len(pkg["connections"]), len(pkg["screens"]))
     out = _deliver(pkg, dests, spec, cfg, token, shots)
+    if cls["type"] != "inbox":
+        catalog.remember(cls)  # a próxima Nova aula sugere continuar daqui
     if not cfg["keep_temp"]:
         # Guarda só a transcrição da última aula publicada (para “Refazer página”); a anterior é apagada.
         for mark in store.WORK.glob("*/published"):
@@ -572,6 +575,7 @@ def deliver(spec):
     destinos pedidos, sem chamar a IA. force: substituir a nota editada à mão (com backup)."""
     entry = store.history().get(str(spec.get("key"))) or {}
     pkg = package.load(entry.get("lumen_id") or package.lumen_id(str(spec.get("key"))))
+    pkg["classification"] = catalog.classification(pkg.get("classification"))  # nomes atuais (curso renomeado)
     only = [d for d in ("obsidian", "notion") if d in (spec.get("only") or [])]
     if not only:
         raise AppError("Escolha o destino para salvar de novo.", "")
@@ -599,8 +603,92 @@ def _destinations(cfg):
     return dests, token
 
 
+def classification(spec, key):
+    """A organização pedida (Nova aula, Organizar) ou, sem ela, a que a aula já tinha: reprocessar uma aula sem mexer
+    na organização nunca a devolve para “A organizar”."""
+    raw = spec.get("classification")
+    if raw is None:
+        entry = store.history().get(key) or {}
+        raw = entry.get("classification")
+        if raw is None:
+            try:
+                raw = package.load(entry.get("lumen_id") or package.lumen_id(key)).get("classification")
+            except AppError:
+                raw = None
+    return catalog.classification(raw)
+
+
+def organize(spec):
+    """“Organizar” na Biblioteca: a aula muda de curso, módulo, tema ou tipo e o material vai junto, sem IA. Obsidian:
+    a pasta da aula (nota, mapas e anexos). Notion: a aula é publicada na página nova e a versão anterior sai, só se
+    a página onde ela está não servir mais. Sem o pacote guardado (aulas antigas), só a organização muda."""
+    key = str(spec.get("key") or "")
+    entry = store.history().get(key) or {}
+    if not entry:
+        raise AppError("Aula não encontrada na Biblioteca.", "Recarregue a Biblioteca.")
+    cls = catalog.classification(spec.get("classification"))
+    cfg = store.load_config()
+    ob = entry.get("obsidian") or {}
+    try:
+        pkg = package.load(entry.get("lumen_id") or package.lumen_id(key))
+    except AppError:
+        pkg = None
+    _set(key=key, title=entry.get("title") or "", stage="obsidian", detail="Organizando a aula…", progress=None)
+    if pkg is None:  # sem material guardado: muda a organização e, no Obsidian, leva a pasta com a nota
+        out = {"key": key, "title": entry.get("title"), "classification": cls, "notion": None,
+               "note": "Aula antiga, sem o material guardado no PC: no Notion ela continua onde está."}
+        if ob.get("status") == "ok" and ob.get("note") and cfg["destinations"] != "notion":
+            root, home = obsidian.folders(cfg)
+            note = (root / ob["note"]).resolve()
+            if note.is_file() and home in note.parents:
+                lid = entry.get("lumen_id") or ""
+                note = area.relocate(root, home, note, area.lesson_dir(home, cls, area._DATE.sub("", note.stem), lid), lid, ob)
+                obsidian.set_fields(note, obsidian.class_fields(cls))
+                ob.update(note=note.relative_to(root).as_posix(), placed=catalog.signature(cls))
+                area.refresh(cfg)
+        store.remember(key, {"classification": cls, **({"obsidian": ob} if ob else {})})
+        return out
+    pkg["classification"] = cls
+    package.save(pkg)
+    uses = {"notion": ["notion"], "obsidian": ["obsidian"]}.get(cfg["destinations"], ["obsidian", "notion"])
+    dests = [d for d in ("obsidian", "notion") if d in uses and (ob.get("status") == "ok" if d == "obsidian"
+                                                                  else entry.get("page_id"))]
+    if not dests:
+        store.remember(key, {"classification": cls})
+        return {"key": key, "title": entry.get("title"), "classification": cls}
+    dests, token = _destinations({**cfg, "destinations": "both" if len(dests) == 2 else dests[0]})
+    _set(dests=dests)
+    eta.current = eta.Plan([("obsidian", 1.5)] * ("obsidian" in dests) + [("publish", 10)] * ("notion" in dests))
+    return _deliver(pkg, dests, {**(entry.get("spec") or {}), "mode": "move", "organize": True, "classification": cls},
+                    cfg, token,
+                    vision.Shots(work_dir(key) / "screens"))
+
+
+def migrate():
+    """“Migrar para a área de estudos”: a pasta antiga do Lumen vai para “A organizar” (area.migrate) e as aulas com o
+    material guardado são reescritas no formato novo (trilha, capa, propriedades), sem IA."""
+    cfg = store.load_config()
+    _set(stage="obsidian", detail="Migrando os materiais antigos para a área de estudos…", progress=None)
+    out = area.migrate(cfg)
+    h = store.history()
+    for key in out.get("keys") or []:
+        e = h.get(key) or {}
+        try:
+            pkg = package.load(e.get("lumen_id") or package.lumen_id(key))
+        except AppError:
+            continue
+        pkg["classification"] = catalog.classification(pkg.get("classification"))
+        try:
+            ob = obsidian.deliver(pkg, cfg, prev=e.get("obsidian"), notion=e.get("url"))
+            store.remember(key, {"obsidian": {**(e.get("obsidian") or {}), **ob, "status": "ok"},
+                                 "classification": pkg["classification"]})
+        except (AppError, OSError) as err:  # bloco editado à mão: a nota fica como estava, já na pasta nova
+            log.warning("migração: nota mantida como estava (%s)", type(err).__name__)
+    return {"migration": out}
+
+
 def _vault_names(cfg):
-    root, _, _ = obsidian.folders(cfg)
+    root, _ = obsidian.folders(cfg)
     return [n["name"] for n in vault.index(root)]
 
 
@@ -609,7 +697,7 @@ def _find_links(lesson, cfg, model, lang, lid):
     como relação real. Falha → sem conexões e nada guardado (“Tentar novamente” procura de novo); nunca impede."""
     _set(stage="connect", detail="Encontrando conexões no seu cofre…", progress=None)
     try:
-        root, _, _ = obsidian.folders(cfg)
+        root, _ = obsidian.folders(cfg)
         notes = vault.index(root)
         m = lesson.get("mind_map") or {}
         query = [(lesson["title"], 2), (str(m.get("center") or ""), 2)]
@@ -635,10 +723,13 @@ def _deliver(pkg, dests, spec, cfg, token, shots, force=False):
     A falha de um não desfaz o outro: cada um tem o seu status no manifesto e “Tentar de novo” refaz só o que falhou."""
     key, plan, t0 = pkg["key"], eta.current, time.monotonic()
     prev = store.history().get(key) or {}
+    cls = pkg.get("classification") or catalog.INBOX
     res = {"key": key, "lumen_id": pkg["lumen_id"], "title": pkg["lesson"]["title"],
-           "course": pkg["course"] or notion.NO_COURSE, "dests": dests}
+           "course": " › ".join(catalog.breadcrumb(cls)), "classification": cls, "dests": dests}
     store.remember(key, {"lumen_id": pkg["lumen_id"], "content_hash": pkg["content_hash"], "title": res["title"],
-                         "processor_version": pkg["processor_version"], "spec": _spec(spec)})
+                         "processor_version": pkg["processor_version"], "spec": _spec(spec), "classification": cls,
+                         # para a busca da Biblioteca achar a aula por conceito
+                         "concepts": [t["title"] for t in pkg["lesson"]["topics"]][:12] + list(pkg.get("anchors") or [])})
     gifs = _draw(pkg["charts"], plan) if "notion" in dests or cfg["obsidian_attachments"] else []
     if "obsidian" in dests:
         if plan:
@@ -653,7 +744,7 @@ def _deliver(pkg, dests, spec, cfg, token, shots, force=False):
                     pass  # imagem já apagada (tentar de novo dias depois): a tela entra só com o texto
         try:
             ob = obsidian.deliver(pkg, cfg, assets, prev.get("obsidian"), force, notion=prev.get("url"),
-                                  transcript=_transcript(key, spec))
+                                  transcript=_transcript(key, spec), move=bool(spec.get("organize")))
             res["obsidian"] = {**ob, "status": "ok"}
         except AppError as e:
             log.warning("obsidian: não salvo (%s)", "conflito" if "editada" in str(e) else "erro")
@@ -676,7 +767,7 @@ def _deliver(pkg, dests, spec, cfg, token, shots, force=False):
     if "notion" in dests:
         check()  # cancelar aqui: o Obsidian já está salvo e “Retomar” não o duplica
         try:
-            res["notion"] = {"status": "ok", **_notion(pkg, spec, token, gifs, shots, plan)}
+            res["notion"] = {"status": "ok", **_notion(pkg, spec, token, gifs, shots, plan, cfg)}
         except AppError as e:
             res["notion"] = {"status": "error", "error": str(e), "action": e.action}
         except Cancelled:
@@ -751,17 +842,71 @@ def _draw(found, plan):
     return gifs
 
 
-def _notion(pkg, spec, token, gifs, shots, plan):
+def _notion_page(token, parent, saved, name, keep):
+    """A página do Notion de um curso ou módulo: a que o catálogo já conhece (se ainda existir), senão a filha de
+    `parent` com o mesmo nome (só se houver exatamente uma: nunca adivinha), senão uma página nova. keep(id) guarda."""
+    if saved and notion.page_url(token, saved):
+        return saved
+    same = [c for c in notion.list_courses(token, parent) if package.norm(c["title"]) == package.norm(name)]
+    pid = same[0]["id"] if len(same) == 1 else notion.create_course(token, parent, name)["id"]
+    keep(pid)
+    return pid
+
+
+def _notion_parent(pkg, cfg, token, old, spec):
+    """Onde a aula entra no Notion, pela classificação (a mesma do Obsidian): (página, criada só para esta aula?,
+    caminho legível). Curso → Cursos/<curso>[/<módulo>]; conteúdo gratuito → uma página por material em “Conteúdo
+    gratuito” (como já era feito); aula avulsa → “Sem curso”; A organizar → onde a aula já está (não há “a organizar”
+    no Notion) ou “Sem curso”."""
+    cls, root = pkg.get("classification") or catalog.INBOX, cfg["root_page_id"]
+    root_title = cfg["root_page_title"] or "Cursos"
+    if "classification" not in spec and not spec.get("organize") and spec.get("course_id") not in (None, "", "__none__"):
+        # pedido de antes da organização (“Tentar de novo” de uma aula antiga): a página que foi escolhida na época
+        return notion.page_id(spec["course_id"]), False, spec.get("course_title") or old.get("course") or "página escolhida"
+    if cls["type"] == "inbox" and old.get("page_id"):
+        return old["page_id"], bool(old.get("notion_own")), old.get("course") or "página atual"
+    if cls["type"] == "free":
+        free = cfg.get("notion_free_page_id")
+        if not free:
+            raise AppError("Falta a página de Conteúdo gratuito no Notion.",
+                           "Em Integrações → Notion, escolha a página “Conteúdo gratuito”.")
+        where = f"{cfg.get('notion_free_page_title') or 'Conteúdo gratuito'} › {pkg['lesson']['title']}"
+        if old.get("page_id") and (old.get("notion_own") or notion.parent_of(token, old["page_id"]) == notion.page_id(free)):
+            return old["page_id"], bool(old.get("notion_own")), where  # a página deste material já está lá
+        return notion.create_course(token, free, pkg["lesson"]["title"])["id"], True, where
+    if not root:
+        raise AppError("Escolha a página raiz dos cursos.", "Abra Integrações → Notion e escolha a página raiz.")
+    if cls["type"] != "course":
+        return notion.course_for(token, root, "__none__"), False, f"{root_title} › {notion.NO_COURSE}"
+    c = catalog.course(catalog.load(), cls["course_id"])
+    pid = _notion_page(token, root, c.get("notion_page_id"), c["name"],
+                       lambda x: catalog.update_course(c["id"], notion_page_id=x))
+    where = [root_title, c["name"]]
+    if cls.get("module_id"):
+        m = catalog.module(c, cls["module_id"])
+        pid = _notion_page(token, pid, m.get("notion_page_id"), m["name"],
+                           lambda x: catalog.update_module(c["id"], m["id"], notion_page_id=x))
+        where.append(m["name"])
+    return pid, False, " › ".join(where)
+
+
+def _notion(pkg, spec, token, gifs, shots, plan, cfg):
     """NotionRenderer + envio: a página da aula e a subpágina “Minha compreensão”, a partir do pacote."""
     key, lesson, src = pkg["key"], pkg["lesson"], pkg["source"]
+    old = store.history().get(key) or {}
+    _set(stage="publish", detail="Conferindo o lugar da aula no Notion…", progress=None)
+    course_id, own, where = _notion_parent(pkg, cfg, token, old, spec)
+    if spec.get("organize") and old.get("page_id") == course_id:  # a página atual já serve: nada a mover
+        store.remember(key, {"course": where})
+        return {"url": old.get("url"), "understanding_url": None, "note": "No Notion, a aula já estava no lugar certo.",
+                "where": where}
     if plan:
         plan.at("mindmap")
     _set(stage="publish", detail="Desenhando o mapa mental…", progress=None)
     mind_png = mindmap.render(pkg["map"])
     check()
-    _set(stage="publish", detail="Salvando na página escolhida do Notion…", progress=None)
-    course_id = notion.course_for(token, store.load_config()["root_page_id"], spec.get("course_id") or "__none__")
-    course = pkg["course"] or notion.NO_COURSE
+    _set(stage="publish", detail="Salvando na página da aula no Notion…", progress=None)
+    course = " › ".join(catalog.breadcrumb(pkg.get("classification"))[1:]) or notion.NO_COURSE
     meta = {"course": course, "yt_id": src.get("yt_id"), "link": src.get("link"), "captures": src["kind"] == "captures",
             "source": f"{src['label']} — {src['title']}", "duration": src.get("duration"),
             "language": src.get("language"), "model": src.get("model"), "transcript_origin": src.get("origin") or "",
@@ -785,7 +930,12 @@ def _notion(pkg, spec, token, gifs, shots, plan):
         plan.at("screens")
     if pkg["screens"]:
         _set(stage="publish", detail=f"Enviando as {len(pkg['screens'])} telas da aula ao Notion…", progress=None)
-        meta["screens"], meta["vision_model"] = _upload_screens(token, shots, pkg["screens"]), src.get("vision_model")
+        backup = {}  # telas que já saíram do PC: as do cofre (a mesma imagem, nos anexos da aula)
+        ob = old.get("obsidian") or {}
+        if ob.get("vault") and isinstance(ob.get("images"), dict):
+            backup = {i: Path(ob["vault"]) / r for i, r in ob["images"].items()}
+        meta["screens"], meta["vision_model"] = (_upload_screens(token, shots, pkg["screens"], backup),
+                                                 src.get("vision_model"))
         if plan:
             eta.learn("upload_s", plan.elapsed() / -(-len(pkg["screens"]) // 3))
         check()
@@ -804,24 +954,33 @@ def _notion(pkg, spec, token, gifs, shots, plan):
     log.info("página publicada: %d bloco(s); telas: %d na página (%d sem imagem)", len(block_ids), len(shown),
              sum(1 for s in shown if not s.get("upload")))
 
-    old = store.history().get(key) or {}
-    redo, note = spec.get("mode") == "redo", None
-    if spec.get("mode") in ("replace", "redo") and old.get("page_id"):
-        if old.get("block_ids") and (old.get("page_id") == pid or redo):  # refazer em outra página = mover
-            if redo:
-                note = ("Página refeita; a versão anterior foi removida." if old.get("page_id") == pid
-                        else f"Aula movida para {course}; a versão anterior foi removida.")
+    # refazer, mover (Organizar) ou atualizar numa organização nova: a versão anterior sai depois que a nova entrou
+    redo, note = spec.get("mode") in ("redo", "move"), None
+    moved = bool(old.get("page_id")) and old.get("page_id") != pid
+    if spec.get("mode") in ("replace", "redo", "move") and old.get("page_id"):
+        if old.get("block_ids"):
+            if redo or moved:
+                note = (f"Aula movida para {where}; a versão anterior foi removida." if moved
+                        else "Página refeita; a versão anterior foi removida.")
+            failed = False
             for bid in old["block_ids"]:
                 try:
                     notion.request("DELETE", f"/blocks/{bid}", token)
                 except AppError:
                     block_ids.append(bid)
+                    failed = True
                     note = "O material novo foi salvo, mas parte da versão anterior não pôde ser removida."
+            if moved and old.get("notion_own") and not failed:  # a página que o Lumen criou só para esta aula
+                try:
+                    if not notion.children(token, old["page_id"]):
+                        notion.trash(token, old["page_id"])  # vazia: vai para a lixeira do Notion (dá para restaurar)
+                except AppError:
+                    pass
         else:
             note = "O material foi salvo no destino escolhido. A versão anterior foi preservada."
-    store.remember(key, {"page_id": pid, "block_ids": block_ids, "url": url, "title": title, "course": course,
-                         "created": datetime.now().isoformat(timespec="minutes")})
-    return {"url": url, "understanding_url": mine_url, "note": note}
+    store.remember(key, {"page_id": pid, "block_ids": block_ids, "url": url, "title": title, "course": where,
+                         "notion_own": own, "created": datetime.now().isoformat(timespec="minutes")})
+    return {"url": url, "understanding_url": mine_url, "note": note, "where": where}
 
 
 MAX_SCREENS = 40
@@ -888,15 +1047,20 @@ def _send(token, data, name, content_type):
     return None
 
 
-def _upload_screens(token, shots, screens):
-    """Envia as telas, 3 por vez; a que não subir entra só com o texto."""
+def _upload_screens(token, shots, screens, backup=None):
+    """Envia as telas, 3 por vez; a que não subir entra só com o texto. backup: id → arquivo no cofre, para as telas
+    que já saíram da pasta de trabalho (mover a aula no Notion dias depois)."""
     from concurrent.futures import ThreadPoolExecutor
 
     def up(s):
         try:
-            return _send(token, shots.image(s["id"]), f"tela-{s['id'] + 1}.jpg", "image/jpeg")
+            data = shots.image(s["id"])
         except (OSError, ValueError, KeyError):
-            return None
+            try:
+                data = Path((backup or {})[str(s["id"])]).read_bytes()
+            except (OSError, KeyError, TypeError):
+                return None
+        return _send(token, data, f"tela-{s['id'] + 1}.jpg", "image/jpeg")
     with ThreadPoolExecutor(3) as ex:
         ups = list(ex.map(up, screens))
     return [{**s, "upload": u} for s, u in zip(screens, ups)]

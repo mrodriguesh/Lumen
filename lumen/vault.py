@@ -74,24 +74,26 @@ def inside(vault, rel):
 
 
 def default_folder(vault):
-    """Pasta padrão das notas do Lumen: dentro da área da IA do cofre (a pasta de topo com “Claude” no nome), com o
-    próximo número livre da numeração dela; sem essa área, “Lumen” na raiz."""
+    """Área de estudos padrão: uma pasta de topo que já se chame “Estudos” (com ou sem numeração, como “B02 Estudos”);
+    sem ela, “Estudos” na raiz. O usuário pode escolher outra em Integrações → Obsidian."""
     try:
-        tops = sorted(vault.iterdir(), key=lambda x: x.name)
-    except OSError:  # cofre sem permissão de leitura ou drive desconectado: a tela de Ajustes não pode quebrar
-        return "Lumen"
-    for d in tops:
-        if d.is_dir() and not d.name.startswith(".") and "claude" in d.name.casefold():
-            try:
-                kids = [c.name for c in d.iterdir() if c.is_dir()]
-            except OSError:
-                kids = []
-            mine = [c for c in kids if re.fullmatch(r"\d{2} Lumen", c)]
-            if mine:
-                return f"{d.name}/{mine[0]}"
-            nums = [int(c[:2]) for c in kids if re.match(r"\d{2} ", c) and int(c[:2]) < 90]
-            return f"{d.name}/{(max(nums) + 1 if nums else 1):02d} Lumen"
-    return "Lumen"
+        tops = sorted(d.name for d in vault.iterdir() if d.is_dir() and not d.name.startswith("."))
+    except OSError:  # cofre sem permissão de leitura ou drive desconectado: a tela de Integrações não pode quebrar
+        return "Estudos"
+    return next((t for t in tops if re.fullmatch(r"(?i)(?:[a-z]?\d{1,3}[ .-]*)?estudos", t)), "Estudos")
+
+
+def legacy_folders(vault):
+    """Onde o Lumen gravava antes da área de estudos: “NN Lumen” dentro da pasta de topo da IA (a que tem “Claude” no
+    nome, ex.: C04 Claude Obsidian/16 Lumen). Só para a migração; nada novo é gravado lá."""
+    out = []
+    try:
+        tops = [d for d in vault.iterdir() if d.is_dir() and not d.name.startswith(".") and "claude" in d.name.casefold()]
+        for d in tops:
+            out += [c.resolve() for c in d.iterdir() if c.is_dir() and re.fullmatch(r"\d{2} Lumen", c.name)]
+    except OSError:
+        pass
+    return out
 
 
 # --- Frontmatter -------------------------------------------------------------------------------------------------

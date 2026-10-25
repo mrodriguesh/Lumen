@@ -17,6 +17,8 @@ LOCK = threading.RLock()  # config.json e history.json: leia-altere-grave sem pi
 DEFAULTS = {
     "root_page_id": "",
     "root_page_title": "",
+    "notion_free_page_id": "",  # “Conteúdo gratuito” no Notion: uma página por material (catalog: tipo free)
+    "notion_free_page_title": "",
     "quality": "equilibrado",   # rapido | equilibrado | maximo (ver lumen/transcribe.py)
     "ollama_model": "qwen3:8b",
     "page_language": "pt",      # pt | original
@@ -30,8 +32,7 @@ DEFAULTS = {
     "destinations": "notion",   # notion | obsidian | both
     "study_level": "balanceado",  # rapido (1 passada) | balanceado (+ conexões) | profundo (+ crítica do material)
     "obsidian_vault": "",       # pasta do cofre (escolhida pelo usuário; vault.vaults() só sugere)
-    "obsidian_folder": "",      # pasta das notas dentro do cofre; vazio = vault.default_folder
-    "obsidian_canvas_folder": "",  # pasta dos mapas (.canvas); vazio = a mesma das notas
+    "obsidian_folder": "",      # área de estudos dentro do cofre; vazio = vault.default_folder (ex.: B02 Estudos)
     "obsidian_canvas": True,    # mapa conceitual como Canvas
     "obsidian_board": True,     # painel visual: segundo Canvas, com as imagens reais da aula (precisa dos anexos)
     "obsidian_board_density": "equilibrado",  # compacto (até 5 imagens) | equilibrado (até 10) | visual (até 15)

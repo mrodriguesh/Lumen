@@ -205,6 +205,24 @@ def trash(token, pid):
     request("PATCH", f"/pages/{pid}", token, {"in_trash": True})
 
 
+def parent_of(token, pid):
+    """A página-mãe (id com hífens) ou None (no topo do workspace, num banco de dados ou inacessível)."""
+    try:
+        return (request("GET", f"/pages/{pid}", token).get("parent") or {}).get("page_id")
+    except AppError:
+        return None
+
+
+def children(token, pid):
+    """Os blocos do primeiro nível da página (só a primeira leva: serve para saber se ela ficou vazia)."""
+    return request("GET", f"/blocks/{pid}/children?page_size=10", token).get("results") or []
+
+
+def set_title(token, pid, title):
+    """Renomear um curso ou módulo no Lumen renomeia a página associada (nada mais muda nela)."""
+    request("PATCH", f"/pages/{pid}", token, {"properties": {"title": {"title": _rt(str(title)[:200])}}})
+
+
 # --- Blocos ----------------------------------------------------------------
 
 def _rt(text, bold=False, italic=False, color="default", link=None):

@@ -38,8 +38,8 @@ def norm(text):
 
 def _canon(pkg):
     """O que define o conteúdo (sem horários): o mesmo material dá o mesmo hash."""
-    keep = ("source", "course", "understanding", "lesson", "map", "charts", "screens", "connections", "anchors",
-            "anchor_suggestion")
+    keep = ("source", "understanding", "lesson", "map", "charts", "screens", "connections", "anchors",
+            "anchor_suggestion")  # a organização (curso, módulo…) não é conteúdo: mover a aula não muda o hash
     return json.dumps({k: pkg.get(k) for k in keep}, ensure_ascii=False, sort_keys=True)
 
 
@@ -47,10 +47,12 @@ def content_hash(pkg):
     return hashlib.sha256(_canon(pkg).encode()).hexdigest()[:24]
 
 
-def build(src, tr, lesson, mine, screens=(), charts=(), links=None, course="", model="", vision_model="",
+def build(src, tr, lesson, mine, screens=(), charts=(), links=None, classification=None, model="", vision_model="",
           intervals=(), today=None):
     """Junta o que o Lumen já produziu numa representação só. screens: telas escolhidas (vision.select) com o texto
-    lido; charts: os gráficos conferidos (sem os uploads do Notion); links: llm.connect (ou None)."""
+    lido; charts: os gráficos conferidos (sem os uploads do Notion); links: llm.connect (ou None); classification:
+    catalog.classification (a organização do estudo, a mesma para todos os destinos)."""
+    classification = classification or {"type": "inbox"}
     from .mindmap import data as mind_map
     today = today or date.today()
     edited = sum(1 for s in tr.get("segments") or [] if s.get("edited"))
@@ -64,7 +66,7 @@ def build(src, tr, lesson, mine, screens=(), charts=(), links=None, course="", m
                    "origin": (tr.get("origin") or "") + (f" {edited} trecho(s) corrigido(s) pelo usuário." if edited else ""),
                    "uncertain": sum(1 for s in tr.get("segments") or [] if s.get("uncertain") and not s.get("edited")),
                    "model": model, "vision_model": vision_model if screens else ""},
-        "course": course or "",
+        "classification": classification, "course": classification.get("course") or "",
         "understanding": {k: mine.get(k) for k in _MINE},
         "lesson": lesson,
         "map": mind_map(lesson),

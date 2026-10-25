@@ -12,8 +12,8 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (AppError, cover, eta, imagegen, jobs, llm, music, notion, obsidian, pomodoro, record, sources, store,
-               transcribe, understanding, vault, vision)
+from . import (AppError, area, catalog, cover, eta, imagegen, jobs, llm, music, notion, obsidian, package, pomodoro,
+               record, sources, store, transcribe, understanding, vault, vision)
 
 log = logging.getLogger("lumen")
 WEB = Path(__file__).parent / "web"
@@ -127,8 +127,8 @@ def obsidian_view(cfg):
            "folder": "", "error": None}
     if cfg["obsidian_vault"]:
         try:
-            root, notes, _ = obsidian.folders(cfg)
-            out["folder"] = notes.relative_to(root).as_posix()
+            root, home = obsidian.folders(cfg)
+            out["folder"] = home.relative_to(root).as_posix()
         except AppError as e:
             out["error"] = f"{e} {e.action}".strip()
     return out
@@ -149,10 +149,11 @@ def inspect(spec):
     if dup and not (dup.get("page_id") or (dup.get("obsidian") or {}).get("status") == "ok"):
         dup = None
     if dup:
-        dup = {**dup, "key": src["key"]}  # “Abrir” de uma aula que só está no Obsidian
+        dup = {**dup, "key": src["key"], "classification": _classified(dup)}  # “Abrir”: aula que só está no Obsidian
     resumable = (jobs.work_dir(src["key"]) / "transcript.json").exists()
     needs_tr = not src.get("captions") and bool(src.get("path")) and not resumable
     return {
+        "suggest": catalog.suggest(src["title"], src.get("link") or "", spec.get("path") or ""),
         "title": src["title"], "label": src["label"], "link": src["link"], "author": src.get("author"),
         "info": src["info"], "duration": src["duration"], "duplicate": dup, "resumable": resumable,
         "has_captions": bool(src.get("captions")), "segments": len(src.get("captions") or []),
@@ -279,11 +280,13 @@ def _apply_settings(body):
     if "obsidian_vault" in body:
         raw = str(body["obsidian_vault"] or "").strip()
         cfg["obsidian_vault"] = str(vault.check(raw)) if raw else ""
-    for k in ("obsidian_folder", "obsidian_canvas_folder"):
-        if k in body:
-            rel = str(body[k] or "").strip().replace("\\", "/").strip("/")[:200]
-            vault.inside(Path(cfg["obsidian_vault"] or "."), rel)  # recusa “..”, caminho absoluto e pasta oculta
-            cfg[k] = rel
+    if "obsidian_folder" in body:  # a área de estudos
+        rel = str(body["obsidian_folder"] or "").strip().replace("\\", "/").strip("/")[:200]
+        vault.inside(Path(cfg["obsidian_vault"] or "."), rel)  # recusa “..”, caminho absoluto e pasta oculta
+        cfg["obsidian_folder"] = rel
+    if "notion_free_page" in body:  # “Conteúdo gratuito” no Notion
+        cfg["notion_free_page_id"] = notion.page_id(body["notion_free_page"]) if body["notion_free_page"] else ""
+        cfg["notion_free_page_title"] = str(body.get("notion_free_page_title") or "")[:200] if body["notion_free_page"] else ""
     if body.get("obsidian_board_density") in ("compacto", "equilibrado", "visual"):
         cfg["obsidian_board_density"] = body["obsidian_board_density"]
     for k in ("obsidian_canvas", "obsidian_board", "obsidian_connections", "obsidian_review", "obsidian_attachments",
@@ -520,9 +523,15 @@ def _open(h):
     """Abre no Obsidian a nota, o mapa ou o painel de uma aula. Só arquivos do cofre configurado, achados pelo
     manifesto; o endereço obsidian:// é montado aqui (nenhum vem da interface)."""
     body = h._json()
-    root, folder, _ = obsidian.folders(store.load_config())
-    if body.get("what") == "dashboard":
-        path = folder / "Lumen Dashboard.md"
+    cfg = store.load_config()
+    root, home = obsidian.folders(cfg)
+    if body.get("what") in ("home", "dashboard"):
+        area.refresh(cfg)  # a Home existe mesmo antes da primeira aula
+        path = home / area.HOME
+    elif body.get("what") == "course":
+        path = area._course_notes(home).get(str(body.get("course_id") or ""))
+        if not path:
+            raise AppError("A nota deste curso ainda não está no cofre.", "Ela é criada quando o Obsidian está ligado.")
     else:
         ob = (store.history().get(str(body.get("key") or "")) or {}).get("obsidian") or {}
         rel = ob.get({"canvas": "canvas", "board": "board"}.get(body.get("what"), "note"))
@@ -546,12 +555,211 @@ def _reviews():
     return {"items": [{**i, "key": keys.get(i["lumen_id"])} for i in items]}
 
 
+def _classified(entry):
+    """A organização de uma aula da history, com os nomes atuais do catálogo (curso renomeado). Aulas de antes da
+    organização (ou com o curso que sumiu) ficam em “A organizar”."""
+    try:
+        return catalog.classification(entry.get("classification"))
+    except (AppError, ValueError, TypeError):
+        return dict(catalog.INBOX)
+
+
 def _history():
-    """Biblioteca: aulas salvas em algum destino, com a chave (para abrir no Obsidian ou salvar de novo)."""
-    items = [{**v, "key": k} for k, v in store.history().items()
-             if v.get("url") or (v.get("obsidian") or {}).get("status") == "ok"]
+    """Biblioteca: aulas salvas em algum destino, com a chave (para abrir no Obsidian ou salvar de novo), a
+    organização, a trilha e a revisão (lida das notas do cofre), e o catálogo de cursos."""
+    cfg = store.load_config()
+    review = {}
+    if cfg["destinations"] != "notion" and cfg["obsidian_vault"]:
+        try:
+            review = {l["lid"]: {"next": str(l["next"] or ""), "stage": str(l["stage"] or ""), "status": l["status"]}
+                      for l in area._lessons(obsidian.folders(cfg)[1]) if l["lid"]}
+        except (AppError, OSError):
+            pass
+    items = []
+    for k, v in store.history().items():
+        if not (v.get("url") or (v.get("obsidian") or {}).get("status") == "ok"):
+            continue
+        cls = _classified(v)
+        it = {**{x: y for x, y in v.items() if x not in ("block_ids", "spec")}, "key": k, "classification": cls,
+              "crumbs": catalog.breadcrumb(cls), "review": review.get(v.get("lumen_id"))}
+        if isinstance(it.get("obsidian"), dict):
+            it["obsidian"] = {x: y for x, y in it["obsidian"].items() if x not in ("board_layout", "board_user", "files")}
+        items.append(it)
     when = lambda x: x.get("created") or (x.get("obsidian") or {}).get("at") or ""  # noqa: E731
-    return {"items": sorted(items, key=when, reverse=True)}
+    cat = catalog.load()
+    return {"items": sorted(items, key=when, reverse=True), "courses": cat["courses"],
+            "categories": catalog.categories(items)}
+
+
+def _catalog(h):
+    """Organização: cursos e módulos do catálogo, temas usados e, com ?notion=1, as páginas de curso do Notion que
+    ainda não estão no catálogo (para adotar em vez de criar outra). Sem rede, sem Notion: só o local."""
+    q, cfg = h._query(), store.load_config()
+    cat = catalog.load()
+    out = {"courses": cat["courses"], "categories": catalog.categories(_history()["items"]),
+           "last": cat.get("last")}
+    if q.get("notion") and store.get_token() and cfg["root_page_id"] and cfg["destinations"] != "obsidian":
+        tok = store.get_token()
+        linked = {c.get("notion_page_id") for c in cat["courses"]}
+        try:
+            if q.get("course_id"):  # módulos: subpáginas da página do curso
+                c = catalog.course(cat, q["course_id"]) or {}
+                mods = {m.get("notion_page_id") for m in c.get("modules") or []}
+                out["notion"] = [p for p in notion.list_courses(tok, c["notion_page_id"])
+                                 if p["id"] not in mods] if c.get("notion_page_id") else []
+            else:
+                out["notion"] = [p for p in notion.list_courses(tok, cfg["root_page_id"])
+                                 if p["id"] not in linked and p["title"] != notion.NO_COURSE]
+            out["root_ok"] = True
+        except AppError as e:
+            out["notion_error"], out["root_ok"] = f"{e} {e.action}".strip(), False
+    return out
+
+
+def _notion_course(cfg, name, decorate=False, parent=None):
+    """Página do curso (ou módulo) no Notion: a filha de mesmo nome se houver exatamente uma, senão uma nova (com os
+    enfeites da IA, se pedido). None quando o Notion não está em uso ou falha (o curso fica só no Lumen)."""
+    tok = store.get_token()
+    parent = parent or cfg["root_page_id"]
+    if not (tok and parent and cfg["destinations"] != "obsidian"):
+        return None, None
+    try:
+        same = [c for c in notion.list_courses(tok, parent) if package.norm(c["title"]) == package.norm(name)]
+        if len(same) == 1:
+            return same[0]["id"], None
+        decor, png = None, None
+        if decorate:
+            try:
+                decor = llm.decorate(name, cfg.get("root_page_title") or "", cfg["ollama_model"])
+                png, _ = _cover_png(decor, name, seed=secrets.randbelow(2**31))
+            except AppError:
+                decor = None
+        return notion.create_course(tok, parent, name, decor, png)["id"], None
+    except AppError as e:
+        return None, f"No Notion não foi possível criar a página ({e}); tente de novo ao salvar a primeira aula."
+
+
+def _rerender(cfg, keep):
+    """Reescreve no cofre as notas das aulas escolhidas (sem IA): a trilha do bloco acompanha um curso renomeado."""
+    if cfg["destinations"] == "notion" or not cfg["obsidian_vault"]:
+        return
+    for k, v in store.history().items():
+        ob = v.get("obsidian") or {}
+        if ob.get("status") != "ok" or not keep(v.get("classification") or {}):
+            continue
+        try:
+            pkg = package.load(v.get("lumen_id") or package.lumen_id(k))
+            pkg["classification"] = catalog.classification(pkg.get("classification"))
+            out = obsidian.deliver(pkg, cfg, prev=ob, notion=v.get("url"))
+            store.remember(k, {"obsidian": {**ob, **out, "status": "ok"}})
+        except (AppError, OSError, ValueError, KeyError) as e:
+            log.warning("renomear: nota não reescrita (%s)", type(e).__name__)
+
+
+def _catalog_course(h):
+    """Criar (nome e plataforma bastam) ou editar/renomear um curso. Renomear muda pasta, nota do curso, propriedades
+    das aulas e o título da página no Notion; o id fica."""
+    body, cfg = h._json(), store.load_config()
+    uses_ob = cfg["destinations"] != "notion" and bool(cfg["obsidian_vault"])
+    note = None
+    if body.get("id"):
+        kw = {k: body[k] for k in ("name", "platform", "url") if k in body}
+        old, new = catalog.update_course(body["id"], **kw)
+        if uses_ob:
+            area.rename_course(cfg, old, new)
+        if old["name"] != new["name"]:
+            if new.get("notion_page_id") and store.get_token():
+                try:
+                    notion.set_title(store.get_token(), new["notion_page_id"], new["name"])
+                except AppError as e:
+                    note = f"No Notion o título não mudou ({e})."
+            _rerender(cfg, lambda c: c.get("course_id") == new["id"])
+        return {"course": new, "note": note}
+    c = catalog.create_course(body.get("name"), body.get("platform"), body.get("url"),
+                              notion.page_id(body["notion_page_id"]) if body.get("notion_page_id") else None)
+    if not c["notion_page_id"]:
+        pid, note = _notion_course(cfg, c["name"], body.get("decorate") is True)
+        if pid:
+            _, c = catalog.update_course(c["id"], notion_page_id=pid)
+    if uses_ob:
+        try:
+            area.refresh(cfg)  # pasta do curso + nota inicial
+        except (AppError, OSError) as e:
+            note = f"No Obsidian a pasta do curso fica para a primeira aula ({e})."
+    return {"course": c, "note": note}
+
+
+def _catalog_module(h):
+    body, cfg = h._json(), store.load_config()
+    uses_ob = cfg["destinations"] != "notion" and bool(cfg["obsidian_vault"])
+    c = catalog.course(catalog.load(), body.get("course_id"))
+    if not c:
+        raise AppError("Curso não encontrado.", "Escolha o curso de novo.")
+    note = None
+    if body.get("id"):
+        kw = {k: body[k] for k in ("name", "order") if k in body}
+        old, new = catalog.update_module(c["id"], body["id"], **kw)
+        if uses_ob:
+            area.rename_module(cfg, c, old, new)
+        if old["name"] != new["name"] and new.get("notion_page_id") and store.get_token():
+            try:
+                notion.set_title(store.get_token(), new["notion_page_id"], new["name"])
+            except AppError as e:
+                note = f"No Notion o título não mudou ({e})."
+        if (old["name"], old.get("order")) != (new["name"], new.get("order")):
+            _rerender(cfg, lambda x: x.get("module_id") == new["id"])
+        return {"module": new, "note": note}
+    m = catalog.create_module(c["id"], body.get("name"), body.get("order"),
+                              notion.page_id(body["notion_page_id"]) if body.get("notion_page_id") else None)
+    if not m["notion_page_id"] and c.get("notion_page_id"):
+        pid, note = _notion_course(cfg, m["name"], parent=c["notion_page_id"])
+        if pid:
+            _, m = catalog.update_module(c["id"], m["id"], notion_page_id=pid)
+    if uses_ob:
+        try:
+            area.refresh(cfg)
+        except (AppError, OSError):
+            pass
+    return {"module": m, "note": note}
+
+
+def _organize_preview(h):
+    """Para onde a aula vai em cada destino, em palavras (sem rede e sem criar nada)."""
+    body, cfg = h._json(), store.load_config()
+    cls = catalog.classification(body.get("classification"))
+    title = str(body.get("title") or "")[:200]
+    root = cfg["root_page_title"] or "Cursos"
+    crumbs = catalog.breadcrumb(cls)
+    if cls["type"] == "course":
+        nt = " › ".join([root, cls["course"]] + ([cls["module"]] if cls.get("module") else []))
+    elif cls["type"] == "free":
+        nt = (cfg.get("notion_free_page_title") or "Conteúdo gratuito") + (f" › {title}" if title else " › página do material")
+    else:
+        nt = f"{root} › {notion.NO_COURSE}"
+    ob = " / ".join(["Estudos"] + crumbs[:1] + [x.split(" · Aula")[0] for x in crumbs[1:]])
+    path = None
+    if cfg["obsidian_vault"]:
+        try:
+            r, home = obsidian.folders(cfg)
+            path = area.lesson_dir(home, cls, title or "Aula").parent.relative_to(r).as_posix()
+        except AppError:
+            pass
+    return {"classification": cls, "crumbs": crumbs, "notion": nt, "obsidian": ob, "obsidian_path": path,
+            "notion_ready": cls["type"] != "free" or bool(cfg.get("notion_free_page_id"))}
+
+
+def _organize(h):
+    body = h._json()
+    jobs.start("organize", jobs.organize, body, spec=body)
+    return job_view()
+
+
+def _migration(h):
+    cfg = store.load_config()
+    if h.command == "GET":
+        return area.plan_view(cfg) if cfg["obsidian_vault"] else {"lessons": [], "folders": []}
+    jobs.start("migrate", jobs.migrate, spec={})
+    return job_view()
 
 
 def _start(h):
@@ -625,6 +833,13 @@ ROUTES = {
     ("POST", "/api/clear"): _clear,
     ("GET", "/api/record"): lambda h: record.status(),
     ("GET", "/api/history"): lambda h: _history(),
+    ("GET", "/api/catalog"): _catalog,
+    ("POST", "/api/catalog/course"): _catalog_course,
+    ("POST", "/api/catalog/module"): _catalog_module,
+    ("POST", "/api/organize/preview"): _organize_preview,
+    ("POST", "/api/organize"): _organize,
+    ("GET", "/api/migration"): _migration,
+    ("POST", "/api/migration"): _migration,
     ("GET", "/api/reviews"): lambda h: _reviews(),
     ("POST", "/api/deliver"): _deliver,
     ("POST", "/api/open"): _open,

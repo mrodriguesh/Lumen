@@ -43,6 +43,7 @@ TR = {"duration": 600, "language": "pt", "origin": "Transcrição importada.",
       "segments": [{"start": 0, "end": 5, "text": "oi"}]}
 MINE = {"original_understanding": NOTE, "current_understanding": NOTE, "ai_analysis": ANALYSIS,
         "submitted": "2026-10-23T10:00:00", "model": "m", "analyzed_text": NOTE, "earlier": []}
+IA = {"type": "course", "course_id": "c-0000aaaa", "course": "IA"}
 LINKS = {"links": [{"note": "Busca semântica", "relation": "fundamenta", "reason": "RAG depende de busca por sentido."},
                    {"note": "Projeto Lumen", "relation": "usado no projeto", "reason": "O Lumen busca no cofre."},
                    {"note": "Nota Inventada", "relation": "relacionado", "reason": "não existe"}],
@@ -87,7 +88,7 @@ class Base(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def pkg(self, les=None, links=LINKS, mine=MINE, today=date(2026, 10, 23)):
-        p = package.build(SRC, TR, les or lesson(), dict(mine), links=json.loads(json.dumps(links)), course="IA",
+        p = package.build(SRC, TR, les or lesson(), dict(mine), links=json.loads(json.dumps(links)), classification=IA,
                           model="qwen3:8b", intervals=self.cfg["review_intervals"], today=today)
         return package.validate(p, [n["name"] for n in vault.index(self.root)])
 
@@ -140,14 +141,15 @@ class Note(Base):
     def test_note_canvas_and_dashboard_are_created_and_valid(self):
         out = self.deliver()
         self.assertEqual(out["state"], "created")
-        self.assertEqual(out["note"], "C04 Claude Obsidian/16 Lumen/2026-10-23 - RAG busca + geração.md")
-        self.assertEqual(out["canvas"], "C04 Claude Obsidian/16 Lumen/Mapa - RAG busca + geração.canvas")
+        self.assertEqual(out["note"], "Estudos/01 - Cursos/IA/RAG busca + geração/RAG busca + geração.md")  # uma pasta por aula, na área de estudos
+        self.assertEqual(out["canvas"], "Estudos/01 - Cursos/IA/RAG busca + geração/Mapa - RAG busca + geração.canvas")
         text = self.read(out["note"])
         fm = vault.fields(vault.split(text)[0])
         self.assertEqual((fm["type"], fm["author"], fm["status"]), ("ai-study", "lumen-ai", "review-required"))
         self.assertEqual(fm["topics"], ["[[Inteligência Artificial]]"])
         self.assertEqual(fm["related"], ["[[Busca semântica]]", "[[Projeto Lumen]]"])
-        self.assertEqual(fm["aliases"], ["RAG busca + geração"])
+        self.assertNotIn("aliases", fm)  # o nome do arquivo já é o título da aula
+        self.assertEqual((fm["study-type"], fm["course"], fm["course-id"]), ("course", "IA", "c-0000aaaa"))
         self.assertEqual((fm["next-review"], fm["review-stage"]), ("2026-10-24", "0"))
         self.assertEqual(fm["lumen-id"], package.lumen_id(SRC["key"]))
         self.assertTrue(re.match(r"---\n.*?\n---\n\n> \[!info\]- Como usar esta nota", text, re.S))
@@ -168,7 +170,9 @@ class Note(Base):
         self.assertEqual(canvas.check(cv), [])
         self.assertEqual([n["file"] for n in cv["nodes"] if n["type"] == "file"][0], out["note"])
         self.assertIn("leva a", [e.get("label") for e in cv["edges"]])
-        self.assertTrue((self.root / "C04 Claude Obsidian/16 Lumen/Lumen Dashboard.md").exists())
+        self.assertTrue((self.root / "Estudos/00 - Estudos.md").exists())
+        self.assertTrue((self.root / "Estudos/Estudos.base").exists())
+        self.assertIn("- **Organização:** Cursos › IA", text)
         self.assertFalse([p for p in self.root.rglob("*") if p.name.endswith(".lumen-tmp")])
 
     def test_ai_text_cannot_create_links_tags_comments_or_html(self):
@@ -189,7 +193,7 @@ class Note(Base):
         again = self.deliver(prev=first)
         self.assertEqual(again["state"], "unchanged")
         self.assertEqual(self.read(first["note"]), before)
-        self.assertEqual(len(list((self.root / "C04 Claude Obsidian/16 Lumen").glob("*.md"))), 2)  # nota + painel
+        self.assertEqual(len(list((self.root / "Estudos").rglob("*.md"))), 2)  # a nota + a Home dos estudos
         self.assertEqual(len(list(self.root.rglob("*.canvas"))), 1)
 
     def test_update_keeps_user_notes_keys_status_and_checked_boxes(self):
@@ -230,13 +234,13 @@ class Note(Base):
 
     def test_renamed_note_is_found_by_lumen_id(self):
         first = self.deliver()
-        new = self.root / "C04 Claude Obsidian/16 Lumen/Sub/Meu nome.md"
+        new = self.root / "Estudos/Sub/Meu nome.md"  # movida no Obsidian, dentro da área: o Lumen não a traz de volta
         new.parent.mkdir()
         os.replace(self.root / first["note"], new)
         out = self.deliver(self.pkg(lesson(summary="Mudou.")), prev=first)
-        self.assertEqual(out["note"], "C04 Claude Obsidian/16 Lumen/Sub/Meu nome.md")
+        self.assertEqual(out["note"], "Estudos/Sub/Meu nome.md")
         self.assertIn("Mudou.", new.read_text("utf-8"))
-        self.assertEqual(len(list(self.root.rglob("2026-10-23 - *.md"))), 0)
+        self.assertEqual(len(list(self.root.rglob("RAG busca + geração.md"))), 0)
 
     def test_note_moved_out_of_the_lumen_folder_is_not_touched(self):
         first = self.deliver()
@@ -249,10 +253,10 @@ class Note(Base):
 
     def test_name_collision_uses_the_course_never_a_counter(self):
         (self.root / "Outra pasta").mkdir()
-        (self.root / "Outra pasta/2026-10-23 - RAG busca + geração.md").write_text("minha", "utf-8")
+        (self.root / "Outra pasta/RAG busca + geração.md").write_text("minha", "utf-8")
         out = self.deliver()
-        self.assertEqual(Path(out["note"]).name, "2026-10-23 - RAG busca + geração (IA).md")
-        self.assertEqual(self.read("Outra pasta/2026-10-23 - RAG busca + geração.md"), "minha")
+        self.assertEqual(Path(out["note"]).name, "RAG busca + geração (IA).md")
+        self.assertEqual(self.read("Outra pasta/RAG busca + geração.md"), "minha")
 
     def test_canvas_failure_keeps_the_note_without_a_broken_embed(self):
         with mock.patch.object(canvas, "check", return_value=["sobreposição: a × b"]):
@@ -291,9 +295,8 @@ class Paths(Base):
                 obsidian.folders({**self.cfg, "obsidian_folder": bad})
         with self.assertRaises(AppError):
             obsidian.folders({**self.cfg, "obsidian_vault": self.tmp})  # sem .obsidian: não é cofre
-        root, notes, maps = obsidian.folders(self.cfg)
-        self.assertEqual(notes, root / "C04 Claude Obsidian" / "16 Lumen")
-        self.assertEqual(maps, notes)
+        root, home = obsidian.folders(self.cfg)
+        self.assertEqual(home, root / "Estudos")
 
     @unittest.skipUnless(os.name == "nt", "junction é do Windows")
     def test_junction_pointing_outside_is_refused(self):
@@ -323,7 +326,7 @@ class Canvas(unittest.TestCase):
                                               "children": [f"Filho {i}.{j} {text}" for j in range(i % 4 + 1)]}
                                              for i in range(n)]}
         les = lesson(mind_map=mm, relations=[{"from": "Ramo 0 " + text[:40], "type": "causa", "to": "Tema"}])
-        p = package.build(SRC, TR, les, MINE, links=LINKS, course="IA")
+        p = package.build(SRC, TR, les, MINE, links=LINKS, classification=IA)
         return package.validate(p, ["Busca semântica", "Projeto Lumen", "Inteligência Artificial"])
 
     def test_layout_has_no_overlaps_and_valid_edges(self):
@@ -435,7 +438,11 @@ class Vault(Base):
             got = vault.vaults()
         self.assertEqual([(v["name"], v["open"], v["ok"]) for v in got], [("Cérebro com espaço", True, True),
                                                                            ("sumiu", False, False)])
-        self.assertEqual(vault.default_folder(self.root), "C04 Claude Obsidian/16 Lumen")
+        self.assertEqual(vault.default_folder(self.root), "Estudos")
+        (self.root / "B02 Estudos").mkdir()  # uma área de estudos que já existe (com a numeração do cofre) é usada
+        self.assertEqual(vault.default_folder(self.root), "B02 Estudos")
+        (self.root / "C04 Claude Obsidian/16 Lumen").mkdir()
+        self.assertEqual(vault.legacy_folders(self.root), [(self.root / "C04 Claude Obsidian/16 Lumen").resolve()])
 
     def test_search_ranks_meaning_words_and_skips_templates_and_system(self):
         notes = vault.index(self.root)
@@ -458,7 +465,9 @@ class Vault(Base):
         r = subprocess.run(["node", r"D:\downloads\cerebro\Cerebro Oficial\.claude\scripts\vault-check.mjs",
                             str(self.root)], capture_output=True, text=True, encoding="utf-8")
         errors = r.stdout.split("## Links amb")[0]  # links quebrados, frontmatter e callout; órfãs são só aviso
-        self.assertEqual([ln for ln in errors.splitlines() if "Lumen" in ln], [], r.stdout)
+        self.assertEqual([ln for ln in errors.splitlines() if "Estudos/" in ln], [], r.stdout)
+        ambiguous = r.stdout.split("## Links amb")[1].split("##")[0] if "## Links amb" in r.stdout else ""
+        self.assertNotIn("Estudos/", ambiguous)  # nomes únicos: nenhum link do Lumen ambíguo
 
 
 class Connect(unittest.TestCase):

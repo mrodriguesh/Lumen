@@ -9,7 +9,7 @@ from unittest import mock
 import numpy as np
 
 from lumen import board, canvas, obsidian, package, vault
-from tests.test_obsidian import LINKS, MINE, SRC, TR, Base, lesson
+from tests.test_obsidian import IA, LINKS, MINE, SRC, TR, Base, lesson
 
 
 def jpeg(seed, w=1280, h=720, noise=0):
@@ -42,7 +42,7 @@ SCREENS = [
 class Pkg(Base):
     def make(self, screens=SCREENS, les=None, mine=MINE, links=LINKS):
         p = package.build(SRC, TR, les or lesson(), dict(mine), screens=screens, links=json.loads(json.dumps(links)),
-                          course="IA", model="qwen3:8b", intervals=self.cfg["review_intervals"], today=date(2026, 10, 23))
+                          classification=IA, model="qwen3:8b", intervals=self.cfg["review_intervals"], today=date(2026, 10, 23))
         return package.validate(p, [n["name"] for n in vault.index(self.root)])
 
     def avail(self, p, data=None):
@@ -207,7 +207,7 @@ class Deliver(Pkg):
         self.assets = {"screens": {s["id"]: jpeg(s["id"] + 1) for s in self.p["screens"]}, "charts": []}
 
     def folder(self):
-        return self.root / "C04 Claude Obsidian" / "16 Lumen"
+        return self.root / "Estudos/01 - Cursos/IA/RAG busca + geração"  # a pasta da aula
 
     def test_board_is_a_second_canvas_beside_the_map(self):
         r = self.deliver(self.p, assets=self.assets)

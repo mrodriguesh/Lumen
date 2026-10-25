@@ -1,9 +1,10 @@
 """Destino Obsidian: ObsidianRenderer (StudyPackage → Markdown, Canvas e anexos) e ObsidianWriter (grava no cofre
 sem destruir nada do usuário).
 
-Onde: a pasta configurada (padrão: a área da IA do cofre, ex. “C04 Claude Obsidian/16 Lumen”, vault.default_folder);
-nada é escrito fora dela. A nota é material da IA (`type: ai-study`, `author: lumen-ai`, `status: review-required`):
-nunca vira nota permanente sozinha; as ideias candidatas ficam marcáveis para o usuário escrever com as palavras dele.
+Onde: a área de estudos configurada (padrão: vault.default_folder, ex. “B02 Estudos”), numa pasta por aula que a
+classificação decide (area.lesson_dir); nada é escrito fora da área. A nota é material da IA (`type: ai-study`,
+`author: lumen-ai`, `status: review-required`): nunca vira nota permanente sozinha; as ideias candidatas ficam
+marcáveis para o usuário escrever com as palavras dele.
 
 Atualizar sem destruir. O Lumen só controla o que está entre `%% lumen:begin %%` e `%% lumen:end <hash> %%` e
 algumas chaves do frontmatter; o resto da nota (as anotações do usuário, chaves que ele criou) fica byte a byte.
@@ -23,7 +24,7 @@ import urllib.parse
 from datetime import date, datetime
 from pathlib import Path
 
-from . import AppError, board, canvas, store, vault
+from . import AppError, board, canvas, catalog, store, vault
 from .canvas import md
 from .llm import fmt_time
 from .package import QUESTION_KINDS, norm
@@ -34,8 +35,10 @@ BEGIN = "%% lumen:begin · bloco gerado pelo Lumen; o que você escrever fora de
 _BEGIN = re.compile(r"^%% lumen:begin\b.*%%[ \t]*$", re.M)
 _END = re.compile(r"^%% lumen:end(?: ([0-9a-f]{12}))? %%[ \t]*$", re.M)
 _CHECK = re.compile(r"(?m)^(\s*[-*] )\[[^\]]\]")
-OWNED = {"source", "course", "duration", "updated", "open-questions", "permanent-candidates", "lumen-id",
-         "lumen-version", "content-hash", "notion"}  # o Lumen atualiza; o resto só entra se faltar
+# a organização do estudo (catalog.classification): reorganizar troca estas chaves e apaga as que deixaram de valer
+CLASS = ("study-type", "course", "course-id", "module", "module-id", "lesson", "category", "platform")
+OWNED = {"source", "duration", "updated", "open-questions", "permanent-candidates", "lumen-id",
+         "lumen-version", "content-hash", "notion", *CLASS}  # o Lumen atualiza; o resto só entra se faltar
 UNION = {"topics", "related", "aliases"}            # listas: o que o usuário pôs fica, o que é novo entra
 RECALL = ("recordacao", "compreensao", "relacao")    # “Perguntas de active recall”; o resto, “Teste de compreensão”
 KIND_LABEL = {"recordacao": "Recordação", "compreensao": "Compreensão", "relacao": "Relação", "aplicacao": "Aplicação",
@@ -140,13 +143,22 @@ def merge_fields(old, new, owned=OWNED, remove=()):
     return [ln for k, ls in blocks if k not in remove for ln in ls]
 
 
+def class_fields(cls):
+    """As propriedades da organização (vazias saem da nota ao atualizar: obsidian.CLASS)."""
+    cls = cls or catalog.INBOX
+    return {"study-type": cls.get("type") or "inbox", "course": cls.get("course"), "course-id": cls.get("course_id"),
+            "module": cls.get("module"), "module-id": cls.get("module_id"), "lesson": cls.get("lesson"),
+            "category": cls.get("category"), "platform": cls.get("platform")}
+
+
 def fields(pkg, ctx):
     lesson, src = pkg["lesson"], pkg["source"]
     stage_dates = ctx.get("review_dates") or []
     return {
-        "type": "ai-study", "author": "lumen-ai", "status": "review-required", "created": ctx["created"],
-        "updated": date.today().isoformat(), "source": src.get("link") or "", "course": pkg.get("course") or "",
-        "duration": _duration(src.get("duration")) or "",
+        "type": "ai-study", "author": "lumen-ai", "status": "review-required",
+        **class_fields(pkg.get("classification")), "created": ctx["created"], "updated": date.today().isoformat(),
+        "source": src.get("link") or "", "duration": _duration(src.get("duration")) or "",
+        "cover": f"[[{ctx['cover']}]]" if ctx.get("cover") else None,
         "topics": [f"[[{a}]]" for a in pkg["anchors"]], "related": [f"[[{c['note']}]]" for c in pkg["connections"]],
         "aliases": [clean(lesson["title"], 200)] if clean(lesson["title"], 200) != ctx["name"] else [],
         "review-stage": 0 if stage_dates else None, "next-review": stage_dates[0] if stage_dates else None,
@@ -252,7 +264,8 @@ def render(pkg, ctx):
     s = [f"# {md(lesson['title'])}"]
 
     info = [f"- **Aula original:** [Assistir ao material original]({_url(src['link'])})" if src.get("link") else "",
-            f"- **Curso:** {md(pkg['course'])}" if pkg.get("course") else "",
+            # a trilha em texto (sem link): renomear o curso não quebra nada aqui dentro
+            "- **Organização:** " + md(" › ".join(catalog.breadcrumb(pkg.get("classification")))),
             f"- **Duração:** {_duration(src.get('duration'))}" if src.get("duration") else "",
             f"- **Origem:** {md(src.get('label') or '')} · {md(src.get('title') or '')}",
             f"- **Transcrição:** {md(src.get('origin') or '')}" if src.get("origin") else ""]
@@ -392,12 +405,13 @@ def new_file(fm, block):
 def update(text, fm_new, block, force=False):
     """Nota existente + material novo → texto novo (ou AppError de conflito). Fora do bloco, nada muda."""
     p = parts(text)
+    gone = [k for k in CLASS if k in fm_new and fm_new[k] in (None, "")]  # ex.: saiu do curso: course-id não fica
     if not p:
         if not force:
             raise AppError("A nota do Obsidian foi editada e perdeu as marcas do bloco do Lumen.",
                            "Use “Substituir mesmo assim” (uma cópia da nota atual é guardada) ou restaure as marcas.")
         fm, body = vault.split(text.replace("\r\n", "\n"))
-        return new_file(merge_fields(fm, fm_new), block) + "\n" + _callout(
+        return new_file(merge_fields(fm, fm_new, remove=gone), block) + "\n" + _callout(
             "note", "Texto anterior da nota (guardado pelo Lumen ao substituir)", md(body))
     fm, before, old, saved, after = p
     if saved != block_hash(old) and not force:
@@ -406,7 +420,7 @@ def update(text, fm_new, block, force=False):
                        "para “Minhas anotações”.")
     done = {norm(x) for x in re.findall(r"(?m)^\s*[-*] \[[xX]\] (.+)$", old)}
     block = re.sub(r"(?m)^(\s*[-*] )\[ \] (.+)$", lambda m: m[1] + ("[x] " if norm(m[2]) in done else "[ ] ") + m[2], block)
-    return compose(merge_fields(fm, fm_new), before, block, after)
+    return compose(merge_fields(fm, fm_new, remove=gone), before, block, after)
 
 
 def check(text, known):
@@ -472,42 +486,65 @@ def _backup(path, lid):
 
 
 def folders(cfg):
-    """(cofre, pasta das notas, pasta dos mapas), todos conferidos dentro do cofre."""
+    """(cofre, área de estudos), conferidos dentro do cofre."""
     root = vault.check(cfg["obsidian_vault"])
-    notes = vault.inside(root, cfg["obsidian_folder"] or vault.default_folder(root))
-    maps = vault.inside(root, cfg["obsidian_canvas_folder"]) if cfg["obsidian_canvas_folder"] else notes
-    return root, notes, maps
+    return root, vault.inside(root, cfg["obsidian_folder"] or vault.default_folder(root))
 
 
-def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcript=None):
+def _attachment(attach, names, taken, lid):
+    """O arquivo de uma imagem da aula: o nome que já existe na pasta fica (os embeds continuam valendo); um arquivo
+    novo ganha o último nome da lista, com um código curto se outro arquivo do cofre já usa esse nome."""
+    for n in names:
+        if (attach / n).exists():
+            return attach / n
+    n = names[-1]
+    hit = taken.get(unicodedata.normalize("NFC", n).casefold())
+    if hit and Path(hit).parent != attach:
+        stem, ext = n.rsplit(".", 1)
+        n = f"{stem} {lid[3:9]}.{ext}"
+    return attach / n
+
+
+def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcript=None, move=False):
     """Grava a aula no cofre e devolve o que foi feito (para o manifesto e a tela). Canvas e painel têm status
-    próprio: falha neles não desfaz a nota. AppError só quando a nota em si não pôde ser salva."""
-    root, folder, maps = folders(cfg)
+    próprio: falha neles não desfaz a nota. AppError só quando a nota em si não pôde ser salva.
+
+    A aula é achada pelo lumen-id onde estiver na área e atualizada lá. Ela só muda de pasta quando a organização
+    mudou no Lumen (move=True, ou classificação diferente da última gravada): mover a pasta no Obsidian não briga
+    com o Lumen."""
+    from . import area
+    root, home = folders(cfg)
     assets, prev = assets or {}, prev or {}
+    cls = pkg.get("classification") or catalog.INBOX
     notes = vault.index(root)
-    taken = _taken(root)
     lid, lesson = pkg["lumen_id"], pkg["lesson"]
     found = vault.find(notes, lid)
-    path = (root / found["path"]) if found else None  # renomeada ou movida dentro da pasta do Lumen: atualiza lá
-    if path and folder not in path.resolve().parents:
-        raise AppError(f"A nota desta aula foi movida para fora da pasta do Lumen ({found['path']}) e não foi alterada.",
-                       "Para o Lumen atualizá-la, mova a nota de volta para a pasta do Lumen.")
+    path = (root / found["path"]).resolve() if found else None  # renomeada ou movida dentro da área: atualiza lá
+    if path and home not in path.parents:
+        if any(d in path.parents for d in vault.legacy_folders(root)):
+            raise AppError("A nota desta aula ainda está na pasta antiga do Lumen.",
+                           "Use “Migrar para a área de estudos” em Integrações → Obsidian.")
+        raise AppError(f"A nota desta aula foi movida para fora da área de estudos ({found['path']}) e não foi alterada.",
+                       "Para o Lumen atualizá-la, mova a pasta da aula de volta para a área de estudos.")
+    title = clean(lesson["title"])
+    if path and (move or (prev.get("placed") and prev["placed"] != catalog.signature(cls))):
+        path = area.relocate(root, home, path, area.lesson_dir(home, cls, title, lid), lid, prev)
+        notes = vault.index(root)
     created = pkg["date"]
     text = None
     if path:
         text = path.read_text("utf-8")
         created = str(vault.fields(vault.split(text)[0]).get("created") or created)
-    title = clean(lesson["title"])
-    course = clean(pkg["course"], 40) if pkg.get("course") else ""
+    taken = _taken(root)
+    course = clean(cls["course"], 40) if cls.get("course") else ""
     if not path:
-        base = f"{pkg['date']} - {title}"
-        while len(str(folder / base)) > 230 and len(title) > 20:
+        here = area.lesson_dir(home, cls, title, lid)
+        while len(str(here / f"{title}.md")) > 230 and len(title) > 20:
             title = title[:len(title) - 10].rstrip(" .")
-            base = f"{pkg['date']} - {title}"
-        name = _free(base, ".md", taken, None, [f"{base} ({course})" if course else base, f"{base} · {lid[3:9]}"])
-        path = folder / f"{name}.md"
-    name = path.stem
-    _within(path, folder)
+        name = _free(title, ".md", taken, None, [f"{title} ({course})" if course else title, f"{title} · {lid[3:9]}"])
+        path = here / f"{name}.md"
+    name, folder = path.stem, path.parent
+    _within(path, home)
 
     from datetime import timedelta
     start = date.fromisoformat(created) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", created) else date.fromisoformat(pkg["date"])
@@ -518,26 +555,27 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
 
     # Tudo é calculado antes de gravar: uma nota em conflito não deixa canvas nem anexos pela metade.
     # Anexos: só as telas escolhidas e os gráficos desenhados; o vídeo nunca entra no cofre.
-    images, charts, writes, own, pics = {}, {}, [], {}, []  # own: anexo → tamanho; pics: o que o painel pode usar
+    images, charts, writes, own, pics, rels = {}, {}, [], {}, [], {}  # own: anexo → tamanho; pics: o que o painel usa
     if cfg["obsidian_attachments"]:
-        attach, slug = folder / "Anexos", clean(lesson["title"], 40).casefold()
+        attach, slug, short = folder / "Anexos", clean(lesson["title"], 40).casefold(), clean(title, 28).casefold()
         shots, gifs, named = assets.get("screens") or {}, assets.get("charts") or [], []
         for sc in pkg["screens"]:
             k = sc["id"]
             what = (f"{int(sc['t']) // 60:02d}m{int(sc['t']) % 60:02d}" if sc.get("t") is not None and not sc["manual"]
                     else f"captura {int(k) + 1:02d}")
-            # o que a imagem é vem primeiro: é o rótulo que o Obsidian mostra em cima dela no painel
+            # o que a imagem é vem primeiro: é o rótulo que o Obsidian mostra em cima dela no painel. Os dois
+            # primeiros nomes são os de antes (continuam valendo onde já existem)
             names = [f"{pkg['date']} {slug} tela {int(k) + 1:02d}.jpg",
-                     f"{what} {clean(sc.get('titulo') or 'tela', 36).casefold()} · {slug} {pkg['date']}.jpg"]
+                     f"{what} {clean(sc.get('titulo') or 'tela', 36).casefold()} · {slug} {pkg['date']}.jpg",
+                     f"{what} {clean(sc.get('titulo') or 'tela', 30).casefold()} · {short}.jpg"]
             named.append((names, k, shots.get(k), images, "tela"))
         for i, c in enumerate(pkg.get("charts") or []):
             names = [f"{pkg['date']} {slug} grafico {i + 1}.gif",
-                     f"grafico {i + 1} {clean(c.get('titulo') or 'grafico', 36).casefold()} · {slug} {pkg['date']}.gif"]
+                     f"grafico {i + 1} {clean(c.get('titulo') or 'grafico', 36).casefold()} · {slug} {pkg['date']}.gif",
+                     f"grafico {i + 1} {clean(c.get('titulo') or 'grafico', 30).casefold()} · {short}.gif"]
             named.append((names, i, gifs[i] if i < len(gifs) else None, charts, "grafico"))
         for names, k, data, into, source in named:
-            # o nome que já existe fica (os embeds continuam valendo); um arquivo novo ganha o nome que diz o que é
-            paths = [_within(attach / n, folder) for n in names]
-            f = next((x for x in paths if x.exists()), paths[-1])
+            f = _within(_attachment(attach, names, taken, lid), home)
             if data:
                 if not (f.exists() and f.stat().st_size == len(data)):
                     writes.append((f, data))
@@ -548,21 +586,24 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
             into[k] = f.name
             rel = f.relative_to(root).as_posix()
             own[rel] = len(data)
+            if source == "tela":
+                rels[str(k)] = rel
             pics.append({"key": f"{source}:{k}", "source": source, "ref": k, "file": rel, "data": data})
         known |= {n.casefold() for n in [*images.values(), *charts.values()]}
 
     out = {"status": "ok", "vault": str(root), "connections": len([c for c in pkg["connections"] if c["note"] in files]),
-           "questions": len(lesson.get("review_questions") or []), "attachments": len(images) + len(charts)}
+           "questions": len(lesson.get("review_questions") or []), "attachments": len(images) + len(charts),
+           "images": rels, "placed": catalog.signature(cls)}
     plan = None  # (caminho do canvas, JSON)
     if cfg["obsidian_canvas"]:
         try:
-            cpath = _canvas_of(root, maps, lid, prev)
+            cpath = _canvas_of(root, folder, lid, prev)
             if not cpath:
                 cbase = f"Mapa - {title}"
                 cname = _free(cbase, ".canvas", taken, None, [f"{cbase} ({course})" if course else cbase,
                                                               f"{cbase} · {lid[3:9]}"])
-                cpath = maps / f"{cname}.canvas"
-            _within(cpath, maps)
+                cpath = folder / f"{cname}.canvas"
+            _within(cpath, home)
             fresh = canvas.build(pkg, path.relative_to(root).as_posix(), files)
             probs = canvas.check(fresh)
             if probs:
@@ -584,7 +625,7 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
             out["canvas_error"] = str(e) if isinstance(e, AppError) else "Não foi possível gerar o mapa mental."
 
     # Painel visual: um segundo canvas, só com imagens reais da aula (board.py); precisa dos anexos no cofre
-    bplan = None  # (caminho, JSON, layout calculado, imagens, composição, arquivos que ele mostra)
+    bplan, cover = None, None  # (caminho, JSON, layout calculado, imagens, composição, arquivos que ele mostra)
     out.update(board_error=None, board_skipped=None)
     if cfg.get("obsidian_board"):
         if not cfg["obsidian_attachments"]:
@@ -595,13 +636,14 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
                 if not bp:
                     out["board_skipped"] = "sem-imagens"
                 else:
-                    bpath = _board_of(root, maps, lid, prev)
+                    cover = next((a["file"] for a in bp["assets"] if a.get("role") == "hero"), bp["assets"][0]["file"])
+                    bpath = _board_of(root, folder, lid, prev)
                     if not bpath:
                         bbase = f"Painel - {title}"
                         bfree = _free(bbase, ".canvas", taken, None, [f"{bbase} ({course})" if course else bbase,
                                                                       f"{bbase} · {lid[3:9]}"])
-                        bpath = maps / f"{bfree}.canvas"
-                    _within(bpath, maps)
+                        bpath = folder / f"{bfree}.canvas"
+                    _within(bpath, home)
                     fresh, units = board.build(bp, pkg, name, plan[0].name if plan else None, files)
                     probs = board.check(fresh)
                     if probs:
@@ -622,11 +664,13 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
             except (AppError, OSError, ValueError, KeyError, TypeError, IndexError) as e:
                 log.warning("obsidian: painel visual não gerado: %s", type(e).__name__)
                 out["board_error"] = str(e) if isinstance(e, AppError) else "Não foi possível gerar o painel visual."
+    # capa (Bases, cards): a imagem principal do painel; sem painel, a primeira tela; sem telas, nenhuma
+    cover = Path(cover).name if cover else next((p["file"].rsplit("/", 1)[-1] for p in pics if p["source"] == "tela"), None)
 
     def note(canvas_name, board_name=None):
         ctx = {"name": name, "canvas": canvas_name, "board": board_name, "files": files, "images": images, "charts": charts,
                "template": template, "review_dates": dates, "created": created, "notion": notion,
-               "transcript": transcript}
+               "transcript": transcript, "cover": cover}
         fm, block = fields(pkg, ctx), render(pkg, ctx)
         if text is None:
             return new_file(merge_fields([], fm), block), "created"
@@ -680,23 +724,23 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
             _backup(path, lid)
         _write(path, result)
     if cfg["obsidian_attachments"]:  # com os anexos desligados nada é apagado: só deixam de entrar
-        _tidy(root, folder, prev.get("files"), set(own) | shown)
+        _tidy(root, home, prev.get("files"), set(own) | shown)
         out["files"] = own
     canvas_name = out.get("canvas")
     out.update(note=path.relative_to(root).as_posix(), state=state)
     log.info("obsidian: nota %s; canvas %s; %d conexões; %d anexos", state, "ok" if canvas_name else "não",
              out["connections"], out["attachments"])
-    for step in (lambda: dashboard(root, folder), lambda: sync_reviews(cfg)):
+    for step in (lambda: area.refresh(cfg), lambda: sync_reviews(cfg)):
         try:
             step()
         except (AppError, OSError, ValueError) as e:
-            log.warning("obsidian: painel/revisões: %s", type(e).__name__)
+            log.warning("obsidian: área/revisões: %s", type(e).__name__)
     return out
 
 
 def _tidy(root, folder, before, used):
     """Anexos que o próprio Lumen gravou para esta aula e que nada usa mais (a tela saiu, o nome mudou): saem do
-    cofre. Só os da lista dele (o manifesto), do mesmo tamanho de quando gravou e dentro da pasta do Lumen: uma
+    cofre. Só os da lista dele (o manifesto), do mesmo tamanho de quando gravou e dentro da área de estudos: uma
     imagem que o usuário pôs ou trocou nunca é tocada."""
     if not isinstance(before, dict):
         return
@@ -772,10 +816,10 @@ def _review_state(f):
 
 def sync_reviews(cfg):
     """Revisões marcadas → `review-stage` (quantas) e `next-review` (a próxima data não marcada; some no fim).
-    Só nas notas `ai-study` da pasta do Lumen, e só essas duas chaves."""
+    Só nas notas `ai-study` da área de estudos, e só essas duas chaves."""
     if cfg["destinations"] == "notion" or not cfg["obsidian_review"]:
         return 0
-    root, folder, _ = folders(cfg)
+    root, folder = folders(cfg)
     changed = 0
     for f in folder.rglob("*.md"):
         st = _review_state(f)
@@ -794,7 +838,7 @@ def due_reviews(cfg, today=None):
     if cfg["destinations"] == "notion" or not cfg["obsidian_review"]:
         return []
     today = (today or date.today()).isoformat()
-    _, folder, _ = folders(cfg)
+    _, folder = folders(cfg)
     out = []
     for f in folder.rglob("*.md"):
         st = _review_state(f)
@@ -804,133 +848,3 @@ def due_reviews(cfg, today=None):
         out.append({"title": re.sub(r"^\d{4}-\d{2}-\d{2} - ", "", f.stem), "lumen_id": d.get("lumen-id"),
                     "next_review": nxt, "stage": stage, "overdue": nxt < today})
     return sorted(out, key=lambda r: r["next_review"])
-
-
-def dashboard(root, folder):
-    """Painel dos estudos (Bases, plugin nativo do Obsidian): criado se faltar; o bloco do Lumen acompanha o modelo."""
-    path = folder / "Lumen Dashboard.md"
-    rel = folder.relative_to(root).as_posix()
-    block = DASHBOARD.replace("{folder}", rel.replace('"', '\\"'))
-    fm = ["type: system", "author: lumen-ai", "status: active", f"created: {date.today().isoformat()}"]
-    if not path.exists():
-        _write(path, compose(fm, "\n" + DASH_INFO + "\n\n" + BEGIN, block, "\n\n" + USER))
-        return
-    text = path.read_text("utf-8")
-    p = parts(text)
-    if p and p[3] == block_hash(p[2]) and block_hash(block) != p[3]:
-        _write(path, compose(p[0], p[1], block, p[4]))
-
-
-DASH_INFO = """> [!info]- Como usar esta nota
-> Painel dos estudos processados pelo Lumen. "Para revisar" mostra o que vence hoje e o que está atrasado; as outras visões agrupam por curso, por Anchor Topic, por dúvidas e por ideias que podem virar nota permanente. As listas se atualizam sozinhas (Bases, plugin nativo). Ao marcar uma revisão numa nota, o Lumen atualiza a próxima data quando é aberto ou processa outra aula."""
-
-_STUDY = """filters:
-  and:
-    - file.inFolder("{folder}")
-    - 'type == "ai-study"'"""
-DASHBOARD = f"""# Lumen Dashboard
-
-## Para revisar
-```base
-{_STUDY}
-views:
-  - type: table
-    name: Para revisar hoje
-    filters:
-      and:
-        - 'note["next-review"] <= today()'
-    order:
-      - file.name
-      - course
-      - review-stage
-      - next-review
-    sort:
-      - property: next-review
-        direction: ASC
-  - type: table
-    name: Atrasados
-    filters:
-      and:
-        - 'note["next-review"] < today()'
-    order:
-      - file.name
-      - course
-      - review-stage
-      - next-review
-    sort:
-      - property: next-review
-        direction: ASC
-  - type: table
-    name: Estudando agora
-    filters:
-      and:
-        - 'note["review-stage"] > 0'
-        - 'note["next-review"]'
-    order:
-      - file.name
-      - course
-      - review-stage
-      - next-review
-```
-
-## Biblioteca de estudos
-```base
-{_STUDY}
-views:
-  - type: table
-    name: Processados recentemente
-    limit: 20
-    order:
-      - file.name
-      - course
-      - topics
-      - created
-    sort:
-      - property: created
-        direction: DESC
-  - type: table
-    name: Não revisados
-    filters:
-      and:
-        - 'status == "review-required"'
-    order:
-      - file.name
-      - course
-      - created
-  - type: table
-    name: Por curso
-    order:
-      - file.name
-      - course
-      - created
-    groupBy:
-      property: course
-      direction: ASC
-  - type: table
-    name: Por Anchor Topic
-    order:
-      - file.name
-      - topics
-      - course
-    groupBy:
-      property: topics
-      direction: ASC
-  - type: table
-    name: Com dúvidas
-    filters:
-      and:
-        - 'note["open-questions"] > 0'
-    order:
-      - file.name
-      - open-questions
-      - course
-  - type: table
-    name: Para virar nota permanente
-    filters:
-      and:
-        - 'note["permanent-candidates"] > 0'
-    order:
-      - file.name
-      - permanent-candidates
-      - topics
-```"""
