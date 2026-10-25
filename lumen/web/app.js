@@ -435,6 +435,10 @@ $("#rec-recover-drop").addEventListener("click", async () => {
   try { renderRec(await api("/api/record/recover", { use: false })); toast("Gravação descartada."); } catch (e) { fail(e); }
 });
 Pomodoro.mount($("#u-pomo"), { sheet: true });
+Pomodoro.mount($("#set-pomo"), { panel: true });  // Ajustes → Pomodoro: as mesmas durações do painel
+// o painel do Pomodoro diz o que está sendo estudado agora (só na tela; nada é guardado junto com o timer)
+Pomodoro.setContext(() => S?.recording?.active ? "gravando uma aula"
+  : U && (step === "understand" || step === "analysis") && view === "new" ? U.title || "" : "");
 Pomodoro.watch();
 $("#lesson-link").addEventListener("change", () => currentSpec() && inspect());
 $("#course-text").addEventListener("input", () => updateGo());
@@ -1995,6 +1999,10 @@ function palCommands() {
   add("Ações", "Adicionar capturas de tela", "image", () => { toCompose(); $("#tab-captures").click(); });
   if (step === "understand" && U) add("Ações", Notes.floating(U.key) ? "Trazer a nota de volta" : "Destacar a nota numa janela flutuante", "detach", () => { showView("new"); $("#u-detach").click(); }, Notes.shortcutLabel);
   if (usesObsidian() && vaultReady()) add("Ações", "Abrir o painel de estudos no Obsidian", "external", () => openObsidian("", "dashboard"));
+  const pomo = Pomodoro.state();
+  if (pomo) add("Pomodoro", pomo.running ? "Pausar o Pomodoro" : Pomodoro.status() === "paused" ? "Continuar o Pomodoro" : "Iniciar o Pomodoro",
+    pomo.running ? "pause" : "play", Pomodoro.toggle, "não afeta a gravação");
+  add("Pomodoro", "Abrir o Pomodoro", "timer", () => Pomodoro.open());
   for (const [v, ic] of [["home", "home"], ["new", "new"], ["library", "library"], ["integrations", "plug"]]) add("Ir para", VIEW_NAMES[v], ic, () => { libFilter = "all"; showView(v); });
   for (const b of $$("#settings-nav [data-cat]")) add("Ajustes", b.textContent.trim(), b.querySelector("use").getAttribute("href").split("#")[1], () => goSettings(b.dataset.cat));
   for (const p of S?.pending || []) add("Em andamento", p.title || "Aula", (PEND_LOOK[p.state] || ["pen"])[0], () => resume(p.key), PENDING[p.state]);

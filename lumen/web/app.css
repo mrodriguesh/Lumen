@@ -49,6 +49,8 @@ body {
   app-region: drag; -webkit-app-region: drag; user-select: none;
 }
 .topbar button, .topbar .pomo { app-region: no-drag; -webkit-app-region: no-drag; }
+/* Pomodoro na barra: “Pomodoro · Foco 18:42”; com menos espaço, “Foco 18:42” e depois só o anel e o tempo */
+.topbar .pomo:is([data-state=ready], [data-state=focusdone], [data-state=breakdone]) .pomo-clock { display: none; }
 .where { flex: 1 1 0; min-width: 0; display: flex; align-items: baseline; gap: 8px; overflow: hidden; white-space: nowrap; font-size: var(--fs-sm); font-weight: 600; }
 .where-sub { color: var(--text-tertiary); font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
 .where-sub::before { content: "/"; margin-right: 8px; color: var(--text-disabled); }
@@ -60,7 +62,8 @@ body {
 .search-btn:hover { border-color: var(--border-medium); color: var(--text-secondary); }
 .search-btn .i { width: 16px; height: 16px; }
 .search-btn span { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.top-right { flex: 1 1 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.top-right { flex: 1 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.top-right > .status-pill, .top-right .pomo { flex-shrink: 0; }  /* o status e o Pomodoro não encolhem; cedem o título e a busca */
 .status-pill {
   display: inline-flex; align-items: center; gap: 8px; min-width: 0; height: 30px; padding: 0 12px 0 10px; border-radius: var(--r-pill);
   border: 1px solid var(--border-subtle); background: var(--surface-2); color: var(--text-secondary); font-size: var(--fs-label); font-weight: 500;
@@ -148,10 +151,10 @@ h1:focus, h2:focus { outline: none; }
 .flow li strong { display: block; color: var(--text-primary); font-size: var(--fs-sm); font-weight: 500; }
 #home-system { grid-row: span 1; }
 .sys-list { display: grid; gap: 2px; }
-.sys { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 0; border-top: 1px solid var(--border-subtle); font-size: var(--fs-sm); }
+.sys { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 40px; padding: 4px 0; border-top: 1px solid var(--border-subtle); font-size: var(--fs-sm); }
 .sys:first-child { border-top: 0; }
 .sys .i { width: 18px; height: 18px; color: var(--text-tertiary); }
-.sys > span:not(.badge) { flex: 1; min-width: 0; }
+.sys > span:not(.badge) { flex: 1 1 120px; min-width: 0; }
 .sys small { display: block; color: var(--text-tertiary); font-size: var(--fs-caption); line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-note { margin-top: 12px; }
 #pending, #home-recent, #home-reviews { min-width: 0; }
@@ -169,7 +172,7 @@ h1:focus, h2:focus { outline: none; }
 .lib-title { font-size: var(--fs-sm); font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lib-meta { font-size: var(--fs-caption); line-height: 17px; color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lib-badges { display: flex; gap: 6px; flex: none; }
-.lib-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.lib-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 2px; flex: 0 1 auto; min-width: 0; }
 .rows .empty { padding: 22px 8px; }
 .rows .empty-icon { width: 40px; height: 40px; }
 
@@ -642,8 +645,11 @@ body.note-window { display: flex; flex-direction: column; height: 100vh; overflo
 .nw-hint:empty { display: none; }
 body.note-window.compact .nw-body { display: none; }
 body.note-window.compact .nw-bar { height: 100vh; border-bottom: 0; }
-.nw-bar .pomo-time::before { display: none; }  /* pouco espaço: só o tempo; a fase aparece na folha */
+.nw-bar .pomo-name, .nw-bar .pomo-label { display: none; }  /* pouco espaço: Foco/Pausa e o tempo; o resto no painel */
+.nw-bar .pomo-short { display: inline; }
+.nw-bar .pomo-ring { width: 16px; height: 16px; }
 .nw-title { flex: 1 1 120px; }
+@media (max-width: 470px) { .nw-bar .pomo-short { display: none; } }  /* o título da nota vem antes; o anel já diz que é o Pomodoro */
 @media (max-width: 520px) { .nw-title span { display: none; } }
 @media (max-width: 330px) { .nw-title strong { display: none; } }
 @media (max-height: 380px) { .nw-status { display: none; } }
@@ -661,6 +667,7 @@ body.note-window.compact .nw-bar { height: 100vh; border-bottom: 0; }
   .integ-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 900px) {
+  .topbar .pomo-name { display: none; }
   .search-btn span, .search-btn kbd { display: none; }
   .search-btn { flex: none; width: 34px; padding: 0; justify-content: center; }
   .settings-layout { grid-template-columns: minmax(0, 1fr); }
@@ -688,6 +695,8 @@ body.note-window.compact .nw-bar { height: 100vh; border-bottom: 0; }
   .stepper li > span:last-child { display: none; }
   .stepper li[data-on=now] > span:last-child { display: inline; }
   .status-pill > span:last-child { max-width: 150px; }
+  .topbar .pomo-label { display: none; }
+  .topbar .pomo:is([data-state=ready], [data-state=focusdone], [data-state=breakdone]) .pomo-label { display: inline; }
 }
 @media (max-width: 640px) {  /* as abas da fonte ficam só com o ícone (o nome continua para o leitor de tela e na dica) */
   .src-tabs .tab-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

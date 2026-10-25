@@ -412,18 +412,29 @@ def _new_course(h):
     return {**made, "decor": decor, "note": note or made.pop("cover_note", None)}
 
 
+def _refuse(h, n, err):
+    """Recusa um envio lendo (e jogando fora) o corpo antes: com o corpo por ler, o Windows às vezes derruba a conexão
+    (WinError 10053) e a interface não recebe a mensagem. Acima de 64 MB, fechar é mais barato que ler."""
+    while 0 < n <= 64 << 20:
+        chunk = h.rfile.read(min(n, 1 << 20))
+        if not chunk:
+            break
+        n -= len(chunk)
+    raise err
+
+
 def _upload(h):
     name = Path(h._query().get("name", "")).name
     image = Path(name).suffix.lower() in sources.IMAGES  # captura de tela (arrastada ou colada com Ctrl+V)
-    if not image and Path(name).suffix.lower() not in sources.MEDIA:
-        raise AppError("Formato não suportado.", "Use um destes formatos: " + ", ".join([*sources.MEDIA, *sources.IMAGES]) + ".")
     n = int(h.headers.get("Content-Length") or 0)
+    if not image and Path(name).suffix.lower() not in sources.MEDIA:
+        _refuse(h, n, AppError("Formato não suportado.", "Use um destes formatos: " + ", ".join([*sources.MEDIA, *sources.IMAGES]) + "."))
     if image and n > sources.MAX_IMAGE_BYTES:
-        raise AppError("A imagem é grande demais (máx. 25 MB).", "Reduza a imagem ou tire outra captura.")
+        _refuse(h, n, AppError("A imagem é grande demais (máx. 25 MB).", "Reduza a imagem ou tire outra captura."))
     up = store.WORK / "uploads"
     up.mkdir(parents=True, exist_ok=True)
     if shutil.disk_usage(up).free < n + 500_000_000:
-        raise AppError("Sem espaço em disco para copiar o arquivo.", "Libere espaço ou use “Escolher arquivo”.")
+        _refuse(h, n, AppError("Sem espaço em disco para copiar o arquivo.", "Libere espaço ou use “Escolher arquivo”."))
     dest = up / f"{secrets.token_hex(4)}_{name}"
     with open(dest, "wb") as f:
         while n > 0:

@@ -83,7 +83,7 @@ Pesos: 600 para títulos, 500 para rótulos, 400 para o resto. Nada de negrito e
 | Aviso | `ui.toast(msg, "success"\|"info"\|"warning"\|"error")` | 4 s, aviso 6 s, erro 9 s; um por vez |
 | Dica | `[data-tip]` (vazio = usa o `aria-label`), `data-kbd`, `data-tip-pos` | `ui.js`; nunca `title` (some atrás das janelas sempre por cima) |
 | Ícone | `<svg class="i"><use href="/icons.svg#nome"/></svg>` ou `ui.icon("nome")` | sprite próprio, grade 24, traço 1,75 |
-| Pomodoro | `.pomo` (`pomodoro.js`) | uma montagem com folha por janela |
+| Pomodoro | `.pomo[data-state]` (ready, focus, paused, short, long, focusdone, breakdone) > `.pomo-ring` + `.pomo-name` + `.pomo-label`/`.pomo-short` + `.pomo-clock`; `.pomo-sheet` (painel); `.pomo-panel` (Ajustes) | estado sempre em palavras; o anel usa `--pomo-p`. Uma montagem com painel por janela; o relógio é um só por janela (`pomodoro.js`) e o estado vem do servidor |
 
 **Ícones.** Só os do `icons.svg` (a lista aparece no `/design`). Para trocar o ícone de um botão (pausar ↔ retomar),
 use `ui.setIcon(botão, "nome")`: mudar o `href` de um `<use>` já desenhado não redesenha no Chromium com o sprite

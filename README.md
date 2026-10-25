@@ -138,9 +138,14 @@ atalho: `localStorage` `captureShortcut` (tabela `SHORTCUTS` em `understanding-e
 
 ### Pomodoro
 
-Um timer só (`lumen/pomodoro.py`, guardado em `pomodoro.json`), mostrado na barra, na janela flutuante de “Minha
-compreensão” (clique no tempo para os controles) e na barra superior da janela principal, em qualquer tela. Foco, pausa curta, pausa longa e ciclos são
-personalizáveis (25/5/15/4 por padrão; atalhos 25 e 50 min), com **Iniciar a próxima etapa sozinho** (desligado) e
+Um timer só (`lumen/pomodoro.py`, guardado em `pomodoro.json`), sempre à vista no canto da barra superior da janela
+principal, em qualquer tela, e também na barra flutuante e na janela flutuante de “Minha compreensão”. O chip mostra um
+anel que se fecha com a etapa, o nome **Pomodoro**, o estado em palavras (Iniciar, Foco, Pausado, Pausa, Pausa longa,
+Foco concluído, Hora de focar), o tempo e o play/pausa; em janela estreita fica só o anel e o tempo. Clicar abre o
+painel: o tempo dentro do anel, a sessão (2 de 4), o que você está estudando agora, **Pausar/Continuar**, **Encerrar
+foco/pausa** e **Reiniciar**, com as durações e o som recolhidos. As durações também ficam em **Ajustes → Pomodoro**, e a
+busca (Ctrl+K) inicia, pausa ou abre o Pomodoro. Foco, pausa curta, pausa longa e ciclos são
+personalizáveis (25/5/15/4 por padrão; atalhos 25/5 e 50/10), com **Iniciar a próxima etapa sozinho** (desligado) e
 **Som ao terminar** (ligado). O tempo vem do horário em que a etapa termina, não de ticks: minimizar, fechar janelas,
 reiniciar o app ou suspender o PC não atrasa nada. É independente da captura: um nunca pausa o outro. No fim de uma
 etapa: notificação do Windows sem som, destaque discreto no timer e um som curto do Lumen, que não toca enquanto a

@@ -549,6 +549,7 @@
     <nav class="settings-nav" id="settings-nav" aria-label="Categorias de ajustes">
       <button type="button" data-cat="general" aria-current="true"><svg class="i"><use href="/icons.svg#sidebar"/></svg>Geral</button>
       <button type="button" data-cat="capture"><svg class="i"><use href="/icons.svg#screen"/></svg>Captura</button>
+      <button type="button" data-cat="pomodoro"><svg class="i"><use href="/icons.svg#timer"/></svg>Pomodoro</button>
       <button type="button" data-cat="transcription"><svg class="i"><use href="/icons.svg#wave"/></svg>Transcrição</button>
       <button type="button" data-cat="ai"><svg class="i"><use href="/icons.svg#cpu"/></svg>IA local</button>
       <button type="button" data-cat="covers"><svg class="i"><use href="/icons.svg#image"/></svg>Capas com IA</button>
@@ -615,6 +616,12 @@
             <datalist id="model-list"></datalist>
             <button class="btn" type="button" id="model-save">Usar</button></span></label>
         </details>
+      </section>
+
+      <section class="card set-panel" data-cat="pomodoro" hidden aria-labelledby="set-pomo-h">
+        <h2 class="t-h2" id="set-pomo-h">Pomodoro</h2>
+        <p class="field-hint">Sessões de foco com pausas entre elas. É o mesmo timer da barra superior, da barra flutuante e da nota, e não interfere na gravação.</p>
+        <div id="set-pomo"></div>
       </section>
 
       <section class="card set-panel" data-cat="covers" hidden aria-labelledby="set-cov-h">

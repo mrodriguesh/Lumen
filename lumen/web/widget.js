@@ -57,8 +57,13 @@ function render(d) {
   $("#action-label").textContent = r.active ? "Parar" : "Gravar";
   $("#time").textContent = clock(r.active ? r.seconds : 0);
   document.body.dataset.job = j.status === "running" ? "running" : "";
-  $("#status").textContent = r.error ? "Gravação interrompida" : paused ? "Captura pausada" : r.active ? "Gravando" : j.status === "running" ? (j.kind === "analyze" ? "Analisando sua nota" : j.kind === "download" ? "Baixando"
-    : ["prepare", "transcribe", "screen"].includes(j.stage) ? "Preparando a aula" : "Salvando o material") : j.review ? "Escreva sua compreensão" : "Pronto para gravar";
+  // curto: divide o topo com o Pomodoro; a frase inteira fica na dica e o detalhe da tarefa, no rodapé
+  const [short, full] = r.error ? ["Interrompida", "Gravação interrompida"] : paused ? ["Pausada", "Captura pausada"] : r.active ? ["Gravando", "Gravando a aula"]
+    : j.status === "running" ? (j.kind === "analyze" ? ["Analisando", "Analisando sua nota"] : j.kind === "download" ? ["Baixando", "Baixando"]
+      : ["prepare", "transcribe", "screen"].includes(j.stage) ? ["Preparando", "Preparando a aula"] : ["Salvando", "Salvando o material"])
+    : j.review ? ["Sua vez", "Escreva sua compreensão"] : ["Pronto", "Pronto para gravar"];
+  $("#status").textContent = short;
+  $("#status").parentElement.dataset.tip = full;
   $("#detail").textContent = r.error || (paused ? `Pausada há ${clock(r.paused_for)} · nada é gravado` : r.active && !r.heard ? "Dê play com o volume ligado." : "");
   const left = Number.isFinite(j.eta_total) ? ` · faltam ~${j.eta_total < 90 ? `${Math.max(5, Math.round(j.eta_total / 5) * 5)} s` : `${Math.round(j.eta_total / 60)} min`}` : "";
   $("#job").textContent = j.status === "running" ? `${j.detail || j.stage || "Processando"}${Number.isFinite(j.progress) ? ` · ${Math.round(j.progress * 100)}%` : ""}${left}` : j.review ? "Abra o Lumen e escreva sua compreensão" : "";

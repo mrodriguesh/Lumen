@@ -917,3 +917,19 @@ Incremental sobre a v1: mesmos detector, separador, emenda, cache, recuo e integ
   mudariam a geometria testada). A barra não ganhou modos compacto/mínimo novos: a alça recolhida já é o modo mínimo e
   mostra gravando (vermelho) e pausado (âmbar). Abaixo de 380 px de altura, a janela da nota mostra só o texto (o
   status e “Processar” ficam na janela principal e na barra).
+
+## Pomodoro como função global (25/10/2026; `lumen/web/pomodoro.js`, `lumen/web/ui.css`)
+- **O estado não mudou.** `lumen/pomodoro.py` já era a fonte única (horário de término, persistido, etapas contadas
+  depois de suspender), e `pomodoro.js` já tinha um relógio só por janela. O redesign é só de interface.
+- **Estados à vista** derivados no cliente: Iniciar (nada começou), Foco, Pausado, Pausa, Pausa longa, Foco concluído
+  (parado no começo de uma pausa, sem início automático) e Hora de focar. No chip da barra o estado inicial diz
+  “Iniciar”, não “Pronto”, porque a pílula de status do Lumen ao lado já diz “Pronto”.
+- **Anel** (`stroke-dashoffset` de `--pomo-p`) no chip e no painel: identifica o Pomodoro sem depender de cor e não se
+  confunde com o relógio da gravação. Sem histórico confiável de sessões, o Início não mostra métricas de foco.
+- **Contexto** (“Agora: <aula>”) é só o que está aberto na tela, lido ao desenhar o painel; nada é guardado com o
+  timer.
+- **Sem atalho novo:** `Ctrl+Alt+P` já pausa a captura. Iniciar, pausar e abrir o Pomodoro ficam na busca (Ctrl+K).
+- **Barra flutuante:** o chip mostra anel, Foco/Pausa e o tempo; para caber, o status do topo da barra ficou curto
+  (Pronto, Gravando, Pausada…) com a frase inteira na dica. Os controles completos ficam na janela principal e na nota.
+- Correção encontrada nos testes: recusar um envio (`_upload`) sem ler o corpo derrubava a conexão às vezes
+  (WinError 10053) e a mensagem de erro se perdia; agora o corpo é lido antes, até 64 MB.

@@ -249,12 +249,13 @@ body[data-edge=top][data-panel=note] .panel, body[data-edge=bottom][data-panel=n
 #note-go:disabled { opacity: .35; cursor: default; }
 
 /* Pomodoro em tamanho de barra: só o tempo e o play (os controles completos ficam na janela principal e na flutuante) */
-.pomo { height: 26px; }
-.pomo-time { padding: 0 3px 0 8px; font-size: var(--fs-compact); }
-.pomo-time::before { display: none; }
+.pomo { height: 26px; }  /* barra estreita: anel, Foco/Pausa e o tempo; “Pomodoro” vai na dica */
+.pomo-time { gap: 5px; padding: 0 2px 0 5px; font-size: var(--fs-compact); }
+.pomo-name, .pomo-label { display: none; }
+.pomo-short { display: inline; font-size: var(--fs-2xs); }
+.pomo-ring { width: 15px; height: 15px; }
 .pomo-play { width: 24px; height: 24px; }
-.pomo svg { width: 10px; height: 10px; }
-.pomo::after { left: 8px; right: 22px; bottom: 2px; height: 1.5px; }
+.pomo svg:not(.pomo-ring) { width: 10px; height: 10px; }
 .tip { font-size: var(--fs-micro); padding: 5px 8px; max-width: 220px; }
 
 @keyframes fade-in { from { opacity: 0; } }

@@ -341,6 +341,8 @@ def run(scenarios, filters=(), sizes=((1120, 860),), zooms=(1.0,), out=OUT):
 
 # ---------------------------------------------------------------------------------------------------------------
 # Cenários: (nome, página, JS de preparo, mudança no estado simulado, tamanho fixo ou None = todos os tamanhos)
+POMO = {"phase": "focus", "running": True, "left": 1122, "total": 1500, "done": 1, "event": None,
+        "settings": {"focus": 25, "short": 5, "long": 15, "cycles": 4, "auto": False, "sound": True}}
 REC = {"active": True, "seconds": 754, "level": .28, "heard": True, "paused": False, "screens": {"seen": 6, "read": 4, "kept": 3}}
 JOB = {"status": "running", "kind": "process", "stage": "generate", "detail": "Escrevendo o material a partir da sua compreensão",
        "progress": .42, "eta_total": 95, "dests": ["obsidian", "notion"], "skipped": ["transcribe"], "title": "Redes neurais convolucionais", "key": "k1"}
@@ -434,7 +436,15 @@ SCENARIOS = [
     ("library-none", "main", 'showView("library"); const s=$("#lib-search"); s.value="quântica"; s.dispatchEvent(new Event("input"));', None, None),
     ("integrations", "main", 'showView("integrations");', None, None),
     ("integrations-off", "main", 'showView("integrations");', first_use, None),
-    *[(f"settings-{c}", "main", f'goSettings("{c}");', None, None) for c in ("general", "capture", "transcription", "ai", "covers", "privacy")],
+    *[(f"settings-{c}", "main", f'goSettings("{c}");', None, None) for c in ("general", "capture", "pomodoro", "transcription", "ai", "covers", "privacy")],
+    # Pomodoro: cada estado no chip da barra e no painel aberto (o mesmo timer em todas as telas)
+    *[(f"pomo-{n}", "main", 'await new Promise(r => setTimeout(r, 300)); Pomodoro.open();', patch(pomodoro={**POMO, **kv}), None) for n, kv in (
+        ("ready", {"running": False, "left": 1500, "done": 0}), ("focus", {}), ("paused", {"running": False}),
+        ("short", {"phase": "short", "left": 252, "total": 300, "done": 2}), ("long", {"phase": "long", "left": 754, "total": 900, "done": 4}),
+        ("focusdone", {"phase": "short", "running": False, "left": 300, "total": 300, "done": 2}),
+        ("breakdone", {"phase": "focus", "running": False, "left": 1500, "done": 2}))],
+    ("pomo-understand", "main", UNDER + ' await new Promise(r => setTimeout(r, 300)); Pomodoro.open();', None, None),
+    ("pomo-run", "main", run_js(JOB) + ' await new Promise(r => setTimeout(r, 300)); Pomodoro.open();', None, None),
     ("palette", "main", 'openPalette();', None, None),
     ("palette-typed", "main", 'openPalette(); palIn.value="kant"; palIn.dispatchEvent(new Event("input"));', None, None),
     ("confirm", "main", 'showView("settings"); ui.confirm("Apaga o histórico de aulas e as notas de compreensão deste PC.",{title:"Limpar os dados locais?",ok:"Apagar dados locais",danger:true});', None, None),
@@ -447,6 +457,8 @@ SCENARIOS = [
     ("widget-paused", "widget", WOPEN, patch(recording={**REC, "paused": True, "paused_for": 42}), (304, 252)),
     ("widget-error", "widget", WOPEN, patch(recording={"active": False, "seconds": 0, "error": "A saída de áudio foi desconectada. Confira o fone ou alto-falante e tente de novo."}), (304, 252)),
     ("widget-job", "widget", WOPEN, patch(job=JOB), (304, 252)),
+    ("widget-pomo-break", "widget", WOPEN, patch(recording=REC, pomodoro={**POMO, "phase": "short", "left": 252, "total": 300, "done": 2}), (304, 252)),
+    ("widget-pomo-paused", "widget", WOPEN, patch(pomodoro={**POMO, "running": False}), (304, 252)),
     ("widget-note", "widget", WOPEN + ' Notes.setActive("k1"); await new Promise(r=>setTimeout(r,1300)); showNote(true);', None, (360, 440)),
     ("widget-prefs", "widget", WOPEN + ' await openPreferences();', None, (304, 252)),
     ("widget-prefs-desktop", "widget", WOPEN + ' await openPreferences(); await openCategory("desktop");', None, (304, 252)),
@@ -534,8 +546,16 @@ def walk(out=OUT / "percurso"):
             m.click("#u-pomo .pomo-time")
             m.wait_for_timeout(200)
             m.click("#u-pomo [data-act=toggle]")
-            step("pomodoro", until("() => !document.querySelector('#u-pomo .pomo-sheet').hidden && document.querySelector('#u-pomo .pomo').dataset.running === 'false'"))
+            step("pomodoro", until("() => !document.querySelector('#u-pomo .pomo-sheet').hidden && document.querySelector('#u-pomo .pomo').dataset.running === 'false'"
+                                   " && document.querySelector('#u-pomo .pomo').dataset.state === 'paused' && document.querySelector('#u-pomo .pomo-label').textContent === 'Pausado'"))
+            m.click("#u-pomo [data-act=toggle]")  # retoma; o mesmo estado em todas as telas e na barra flutuante
             m.keyboard.press("Escape")
+            for nav in ("#nav-library", "#open-settings", "#nav-new"):
+                m.click(nav)
+            step("pomodoro-global", until("() => { const p = document.querySelector('#u-pomo .pomo'); return p.dataset.state === 'focus'"
+                                          " && getComputedStyle(p).display !== 'none' && document.querySelector('#u-pomo .pomo-sheet').hidden; }")
+                 and until("() => document.querySelector('#pomo-main .pomo').dataset.state === 'focus'"
+                           " && document.querySelector('#pomo-main .pomo-short').textContent === 'Foco'", w))
             m.click("#rec-start")
             step("gravacao-pronta", until("() => recorder.dataset.state === 'done' && found && !document.querySelector('#go').disabled"
                                           " && document.querySelector('#global-status').dataset.tone !== 'rec'"))
