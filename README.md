@@ -274,19 +274,34 @@ Cada aula tem a sua pasta, com:
 
 ### Estudos no Graph View
 
-No Graph View do Obsidian, os estudos do Lumen (aulas e páginas de curso) aparecem em azul **#5B8CFF**. É um grupo de
-cor nativo do Obsidian, sem plugin, CSS ou campo extra nas notas. A consulta usa a propriedade que as notas já têm:
-`[type:ai-study] OR [type:course]`. Então a cor acompanha a aula quando ela muda de pasta ou de nome, e notas suas,
-anexos, Canvas e a central `00 - Estudos` ficam com a cor de sempre.
+No Graph View do Obsidian, o Lumen usa dois grupos de cor nativos do Obsidian, sem plugin, sem CSS e sem nada escrito
+dentro das notas ou dos Canvas:
 
-- O grupo é criado **uma vez por cofre**, na primeira aula entregue ou ao abrir o Lumen. Se o Obsidian estiver aberto,
-  o Lumen espera ele fechar (o Obsidian regravaria o arquivo por cima). Antes da primeira mudança, ele guarda uma cópia
-  de `.obsidian/graph.json` em `graph.json.lumen-backup`. Nenhuma outra configuração do Graph muda (forças, filtros,
-  órfãos, seus grupos). Se o `graph.json` estiver corrompido, nada é escrito.
-- **Para mudar a cor:** no Graph View, abra o painel do canto superior direito (o ⚙, se estiver fechado) → **Grupos**.
-  Clique no círculo de cor da linha `[type:ai-study] OR [type:course]`. A sua cor fica: o Lumen nunca recria nem repinta o grupo, mesmo que você o apague.
-- O grupo entra em primeiro na lista porque o Obsidian pinta cada nota com o primeiro grupo que casa: um grupo seu
-  por pasta (ex.: `path:"B02 Estudos"`) não tira o azul das aulas.
+| No gráfico | Cor | Consulta (a linha em **Grupos**) |
+|---|---|---|
+| Notas de estudo (aulas e páginas de curso) | azul **#5B8CFF** | `[type:ai-study] OR [type:course]` |
+| Canvas dos estudos (Mapa, Painel e outros) | violeta **#A78BFA** | `path:/^B02 Estudos\// file:/\.canvas$/` |
+
+- As notas são reconhecidas pela propriedade que já têm. A cor acompanha a aula quando ela muda de pasta ou de nome, e
+  as suas notas, os anexos e a central `00 - Estudos` ficam com a cor de sempre.
+- Canvas não tem propriedades, então é reconhecido pelo lugar: todo `.canvas` dentro da área de estudos fica violeta,
+  inclusive um Canvas seu dentro da pasta de uma aula. Um Canvas fora da área (ex.: em Projetos) fica com a cor de
+  sempre. A consulta usa regex ancorada (`^…/` e `\.canvas$`), porque `path:"B02 Estudos"` também pegaria uma pasta
+  como `Arquivo/B02 Estudos antigo/` e `file:.canvas` pegaria uma nota `Ideias.canvas.md`. Ela usa o nome da área no
+  momento da instalação; se você mudar a área depois, ajuste a consulta em Grupos.
+- Os Canvas aparecem no gráfico sem ligar "Anexos": a opção fica como você deixou.
+- Os grupos são criados **uma vez por cofre**, na primeira aula entregue ou ao abrir o Lumen. Se o Obsidian estiver
+  aberto, o Lumen espera ele fechar (o Obsidian regravaria o arquivo por cima). Antes da primeira mudança, ele guarda
+  uma cópia de `.obsidian/graph.json` em `graph.json.lumen-backup`. Nenhuma outra configuração do Graph muda (forças,
+  filtros, anexos, órfãos, seus grupos). Se o `graph.json` estiver corrompido, nada é escrito.
+- **Para mudar uma cor:** no Graph View, abra o painel do canto superior direito (o ⚙, se estiver fechado) → **Grupos**.
+  Clique no círculo de cor da linha do grupo. A sua cor fica: o Lumen nunca recria nem repinta um grupo, mesmo que você
+  o apague.
+- Os dois grupos entram em primeiro na lista, porque o Obsidian pinta cada nó com o primeiro grupo que casa: um grupo
+  seu por pasta (ex.: `path:"B02 Estudos"`) não tira as cores do Lumen. Os dois não disputam o mesmo nó (um só pega
+  notas, o outro só Canvas).
+- O **gráfico local** (o de uma nota só) tem grupos próprios em cada aba e não lê esta configuração; se quiser as
+  cores nele também, crie os grupos lá, com as mesmas consultas.
 
 Regras que protegem o que é seu:
 

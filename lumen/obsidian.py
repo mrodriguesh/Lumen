@@ -818,11 +818,13 @@ def _review_state(f):
 
 
 def graph_identity(cfg):
-    """Cor dos estudos no Graph View (lumen/graph.py): instala uma vez por cofre; depois é só uma consulta ao catálogo."""
+    """Cores dos estudos e dos Canvas no Graph View (lumen/graph.py): instala uma vez por cofre; depois é só uma
+    consulta ao catálogo."""
     if cfg["destinations"] == "notion" or not cfg["obsidian_vault"]:
         return None
     try:
-        return graph.ensure(vault.check(cfg["obsidian_vault"]))
+        root, home = folders(cfg)
+        return graph.ensure(root, home.relative_to(root).as_posix())
     except (AppError, OSError, ValueError) as e:
         log.warning("graph: %s", type(e).__name__)
         return None

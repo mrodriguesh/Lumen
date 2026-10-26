@@ -1083,7 +1083,7 @@ Incremental sobre a v1: mesmos detector, separador, emenda, cache, recuo e integ
   - módulos e temas no Notion de conteúdo gratuito;
   - tela de detalhe da aula: a trilha fica na linha da Biblioteca e na visão do curso.
 
-## Lumen Study Graph Identity: os estudos em azul no Graph View (26/10/2026; `lumen/graph.py`)
+## Lumen Graph Identity: estudos em azul, Canvas em violeta no Graph View (26/10/2026; `lumen/graph.py`)
 - **Pedido do usuário:** reconhecer de relance, no Graph View do Obsidian, tudo o que é estudo do Lumen, sem
   reorganizar a área, sem cor escrita em cada nota, sem CSS e sem plugin.
 - **Identificação semântica, não por pasta.** A consulta é `[type:ai-study] OR [type:course]`: as aulas (os quatro
@@ -1117,3 +1117,38 @@ Incremental sobre a v1: mesmos detector, separador, emenda, cache, recuo e integ
     - um grupo genérico `path:"B02 Estudos"` depois do nosso não repinta as aulas;
     - a cor trocada dentro do Obsidian sobrevive a uma nova execução do Lumen;
     - três aulas novas entregues pelo `obsidian.deliver` nascem azuis.
+
+### Canvas dos estudos em violeta (26/10/2026; `lumen/graph.py`)
+- **Pedido do usuário:** uma segunda identidade no Graph View: notas de estudo em azul, Canvas dos estudos em violeta,
+  sem pintar Canvas manuais fora da área e sem trocar o azul.
+- **Estado anterior:** os Canvas já apareciam no gráfico (o Obsidian 1.14 mostra `.canvas` mesmo com `showAttachments:
+  false`), na cor padrão, porque a consulta dos estudos só casa `.md` com `type`.
+- **Consulta:** `path:/^<área>\// file:/\.canvas$/` (no cofre do usuário, `path:/^B02 Estudos\// file:/\.canvas$/`),
+  conferida no Graph View real numa cópia do cofre com Canvas-armadilha:
+
+  | Consulta | Resultado |
+  |---|---|
+  | `file:.canvas` | pega o Canvas de Projetos, o do arquivo e a nota `Ideias.canvas.md` |
+  | `path:"B02 Estudos" file:.canvas` | pega `B04 Archives/B02 Estudos antigo/Velho.canvas` (`path:` casa trecho) e `Ideias.canvas.md` |
+  | `path:"B02 Estudos/" file:.canvas` | ainda pega `Ideias.canvas.md` |
+  | `path:/^B02 Estudos\// file:/\.canvas$/` | só os 12 Canvas da área, inclusive um Canvas manual na pasta de uma aula |
+
+  O nome da área passa por escape de regex (`Estudos (2026)` vira `Estudos \(2026\)`, também conferido no Obsidian).
+- **Por lugar, não por nome nem por manifesto.** Canvas é JSON Canvas, sem frontmatter, e nada foi escrito nele. O nome
+  (`Mapa - `, `Painel - `) deixaria de fora um Canvas futuro de outro tipo, e uma lista do manifesto teria de ser
+  regravada no graph.json a cada aula. A área é do Lumen, e o usuário pediu que um Canvas dele dentro da pasta de uma
+  aula também conte.
+- **Cor:** `#A78BFA` ("Lumen Canvas Purple", `graph.CANVAS_COLOR`). No fundo escuro do Obsidian, ao lado do
+  `#5B8CFF`, distingue-se de relance, inclusive em nós vizinhos; não foi ajustada.
+- **Prioridade:** as duas consultas não se cruzam (uma só casa `.md` com `type`, a outra só `.canvas`); as duas entram
+  antes dos grupos do usuário. Ordem na instalação: Canvas, Estudos, depois os do usuário.
+- **Instalação por grupo:** `meta.graph_installed` guarda `cofre|grupo`. A marca antiga (só o cofre) vale como
+  "estudos instalado": no cofre do usuário entra só o grupo violeta, e o azul (ou a ausência dele, se o usuário o
+  apagou) fica como está.
+- **Gráfico local:** guarda grupos próprios em cada aba (`workspace.json`) e não lê o `graph.json`. Ficou como está;
+  o README explica como repetir as consultas lá.
+- **Testes reais** (Obsidian 1.14 isolado, cópia do cofre, conferência de cada nó do gráfico):
+  - 108 nós: 11 notas de estudo azuis, 17 Canvas violeta e nenhum nó com a cor errada;
+  - aulas novas de curso com módulo, curso sem módulo, gratuito, avulsa e A organizar;
+  - uma aula movida de A organizar para curso e módulo (`area.relocate`) e uma renomeada dentro do Obsidian;
+  - a cor trocada para `#C084FC` no Obsidian sobreviveu a 50 execuções do Lumen (graph.json idêntico byte a byte).
