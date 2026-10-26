@@ -24,7 +24,7 @@ import urllib.parse
 from datetime import date, datetime
 from pathlib import Path
 
-from . import AppError, board, canvas, catalog, store, vault
+from . import AppError, board, canvas, catalog, graph, store, vault
 from .canvas import md
 from .llm import fmt_time
 from .package import QUESTION_KINDS, norm
@@ -733,7 +733,7 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
     out.update(note=path.relative_to(root).as_posix(), state=state)
     log.info("obsidian: nota %s; canvas %s; %d conexões; %d anexos", state, "ok" if canvas_name else "não",
              out["connections"], out["attachments"])
-    for step in (lambda: area.refresh(cfg), lambda: sync_reviews(cfg)):
+    for step in (lambda: area.refresh(cfg), lambda: sync_reviews(cfg), lambda: graph_identity(cfg)):
         try:
             step()
         except (AppError, OSError, ValueError) as e:
@@ -815,6 +815,17 @@ def _review_state(f):
     if d.get("type") != "ai-study" or not marks:
         return None
     return d, sum(1 for m, _ in marks if m != " "), next((day for m, day in marks if m == " "), None)
+
+
+def graph_identity(cfg):
+    """Cor dos estudos no Graph View (lumen/graph.py): instala uma vez por cofre; depois é só uma consulta ao catálogo."""
+    if cfg["destinations"] == "notion" or not cfg["obsidian_vault"]:
+        return None
+    try:
+        return graph.ensure(vault.check(cfg["obsidian_vault"]))
+    except (AppError, OSError, ValueError) as e:
+        log.warning("graph: %s", type(e).__name__)
+        return None
 
 
 def sync_reviews(cfg):

@@ -26,6 +26,9 @@ def _reviews():
             logging.info("revisões: %d nota(s) atualizada(s)", n)
     except (AppError, OSError, ValueError) as e:
         logging.warning("revisões: %s", type(e).__name__)
+    # cor dos estudos no Graph View (uma vez por cofre); com o Obsidian aberto, tenta de novo até ele fechar
+    while obsidian.graph_identity(store.load_config()) == "busy":
+        time.sleep(300)
 
 
 def main():

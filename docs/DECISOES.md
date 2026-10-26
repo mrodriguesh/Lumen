@@ -1082,3 +1082,38 @@ Incremental sobre a v1: mesmos detector, separador, emenda, cache, recuo e integ
   - renomear as notas antigas para tirar a data: o nome antigo continua valendo e os links não quebram;
   - módulos e temas no Notion de conteúdo gratuito;
   - tela de detalhe da aula: a trilha fica na linha da Biblioteca e na visão do curso.
+
+## Lumen Study Graph Identity: os estudos em azul no Graph View (26/10/2026; `lumen/graph.py`)
+- **Pedido do usuário:** reconhecer de relance, no Graph View do Obsidian, tudo o que é estudo do Lumen, sem
+  reorganizar a área, sem cor escrita em cada nota, sem CSS e sem plugin.
+- **Identificação semântica, não por pasta.** A consulta é `[type:ai-study] OR [type:course]`: as aulas (os quatro
+  tipos de estudo) e as páginas de curso já têm essas propriedades. Não entrou propriedade nova nem tag, e nenhuma nota
+  antiga precisou de migração, porque todas já tinham `type: ai-study`. `path:` foi descartado: uma aula movida ou
+  renomeada pelo usuário perderia a cor, e a central `00 - Estudos`, a `Estudos.base` e os Canvas ficariam azuis.
+  Ficam de fora, de propósito: anexos, Canvas, a central (`type: system`) e as notas do usuário.
+- **Cor:** `#5B8CFF` ("Lumen Study Blue"), numa constante única (`graph.STUDY_COLOR`). `STUDY_QUERY` fica ao lado: um
+  grupo futuro (projetos, livros…) entra como outra consulta e outra cor, sem mudar o resto.
+- **Um Color Group nativo** em `.obsidian/graph.json` (`{"query", "color": {"a": 1, "rgb"}}`). O Obsidian não tem nome
+  de grupo: quem identifica o grupo é a consulta.
+- **Regras de escrita:**
+  - criado só se nenhum grupo tiver a consulta de estudos: a cor que o usuário escolher fica;
+  - entra em primeiro, porque o Obsidian pinta com o primeiro grupo que casa;
+  - o resto do arquivo não muda (forças, filtros, órfãos, tamanho, setas, outros grupos);
+  - JSON inválido (ou `colorGroups` que não é lista) nunca é sobrescrito;
+  - com o Obsidian aberto, espera: ele guarda as opções do Graph na memória e regravaria o arquivo. Na abertura do
+    Lumen, tenta de novo a cada 5 minutos até o Obsidian fechar; cada entrega também tenta;
+  - backup único `graph.json.lumen-backup` antes da primeira mudança; escrita atômica (`.graph.json.lumen-tmp` +
+    `os.replace`); se o arquivo mudou entre a leitura e a escrita, não escreve.
+- **Uma vez por cofre.** O catálogo guarda `meta.graph_installed`. Depois disso, a entrega de uma aula nova não lê nem
+  escreve o `graph.json`. Se o usuário apagar o grupo, ele não volta.
+- **Testes:**
+  - unitários (`tests/test_graph.py`): arquivo ausente, vazio e sem `.obsidian`; grupo ausente, existente e com cor do
+    usuário; outros grupos preservados; JSON inválido; 100 execuções seguidas; Obsidian aberto; entrega que instala
+    uma vez só;
+  - visuais, no Obsidian 1.14 isolado numa cópia do cofre:
+    - as aulas antigas, as dos quatro tipos e uma página de curso em azul;
+    - uma aula renomeada e movida de "A organizar" para um curso continua azul;
+    - uma nota de projeto que linka estudos fica com o grupo do projeto, e um recurso fica com a cor padrão;
+    - um grupo genérico `path:"B02 Estudos"` depois do nosso não repinta as aulas;
+    - a cor trocada dentro do Obsidian sobrevive a uma nova execução do Lumen;
+    - três aulas novas entregues pelo `obsidian.deliver` nascem azuis.

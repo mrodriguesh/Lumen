@@ -272,6 +272,22 @@ Cada aula tem a sua pasta, com:
   encurta pelo que vai morar nela. Se uma imagem antiga de nome longo não cabe no lugar novo, ela ganha um nome mais
   curto, e a nota, os Canvas e o manifesto acompanham.
 
+### Estudos no Graph View
+
+No Graph View do Obsidian, os estudos do Lumen (aulas e páginas de curso) aparecem em azul **#5B8CFF**. É um grupo de
+cor nativo do Obsidian, sem plugin, CSS ou campo extra nas notas. A consulta usa a propriedade que as notas já têm:
+`[type:ai-study] OR [type:course]`. Então a cor acompanha a aula quando ela muda de pasta ou de nome, e notas suas,
+anexos, Canvas e a central `00 - Estudos` ficam com a cor de sempre.
+
+- O grupo é criado **uma vez por cofre**, na primeira aula entregue ou ao abrir o Lumen. Se o Obsidian estiver aberto,
+  o Lumen espera ele fechar (o Obsidian regravaria o arquivo por cima). Antes da primeira mudança, ele guarda uma cópia
+  de `.obsidian/graph.json` em `graph.json.lumen-backup`. Nenhuma outra configuração do Graph muda (forças, filtros,
+  órfãos, seus grupos). Se o `graph.json` estiver corrompido, nada é escrito.
+- **Para mudar a cor:** no Graph View, abra o painel do canto superior direito (o ⚙, se estiver fechado) → **Grupos**.
+  Clique no círculo de cor da linha `[type:ai-study] OR [type:course]`. A sua cor fica: o Lumen nunca recria nem repinta o grupo, mesmo que você o apague.
+- O grupo entra em primeiro na lista porque o Obsidian pinta cada nota com o primeiro grupo que casa: um grupo seu
+  por pasta (ex.: `path:"B02 Estudos"`) não tira o azul das aulas.
+
 Regras que protegem o que é seu:
 
 - O material da IA nunca vira nota permanente sozinho. As ideias candidatas ficam marcáveis para você escrever com as
