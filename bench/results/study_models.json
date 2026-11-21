@@ -1,0 +1,3253 @@
+{
+ "qwen3:8b|base": {
+  "model": "qwen3:8b",
+  "tag": "base",
+  "host": "http://127.0.0.1:11434",
+  "num_ctx": 16384,
+  "when": "2026-11-01 00:11",
+  "think": {
+   "off": {
+    "answers": [
+     {
+      "q": "gancho",
+      "thinking_chars": 0,
+      "ttft": 5.681719500000099,
+      "ttft_text": 5.681719500000099,
+      "wall": 15.943630900000016,
+      "load": 2.8572472,
+      "prompt_tokens": 5449,
+      "out_tokens": 528,
+      "tps": 51.4549420863907,
+      "done_reason": "stop",
+      "chars": 1934,
+      "citations": 7,
+      "valid_citations": 7,
+      "distinct_valid": 3,
+      "sources": 8
+     },
+     {
+      "q": "keyframes",
+      "thinking_chars": 0,
+      "ttft": 1.3001047000000199,
+      "ttft_text": 1.3001047000000199,
+      "wall": 12.305382000000009,
+      "load": 0.002711,
+      "prompt_tokens": 2687,
+      "out_tokens": 607,
+      "tps": 55.15682211288794,
+      "done_reason": "stop",
+      "chars": 2321,
+      "citations": 3,
+      "valid_citations": 3,
+      "distinct_valid": 3,
+      "sources": 8
+     },
+     {
+      "q": "preco",
+      "thinking_chars": 0,
+      "ttft": 0.5614026999999169,
+      "ttft_text": 0.5614026999999169,
+      "wall": 12.197520700000041,
+      "load": 0.0031834,
+      "prompt_tokens": 1349,
+      "out_tokens": 660,
+      "tps": 56.72102947637208,
+      "done_reason": "stop",
+      "chars": 2328,
+      "citations": 9,
+      "valid_citations": 9,
+      "distinct_valid": 6,
+      "sources": 8
+     },
+     {
+      "q": "persuasao",
+      "thinking_chars": 0,
+      "ttft": 1.1013115999999172,
+      "ttft_text": 1.1013115999999172,
+      "wall": 18.368966900000032,
+      "load": 0.0025909,
+      "prompt_tokens": 2593,
+      "out_tokens": 942,
+      "tps": 54.55412887306806,
+      "done_reason": "stop",
+      "chars": 3372,
+      "citations": 13,
+      "valid_citations": 13,
+      "distinct_valid": 8,
+      "sources": 8
+     }
+    ],
+    "vram": {
+     "size_gb": 7.02,
+     "vram_gb": 7.02,
+     "gpu_used_mib": 7889,
+     "others": []
+    },
+    "router": [
+     {
+      "text": "faz uns flashcards de keyframes do premiere",
+      "expected": "flashcards",
+      "got": "flashcards",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 12.678452099999959,
+      "done_reason": "stop",
+      "out_tokens": 104
+     },
+     {
+      "text": "me testa sobre gatilhos mentais",
+      "expected": "quiz",
+      "got": "quiz",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 2.6330209999998715,
+      "done_reason": "stop",
+      "out_tokens": 152
+     },
+     {
+      "text": "o que eu preciso estudar antes de tráfego pago?",
+      "expected": "plan",
+      "got": "gaps",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": false,
+      "wall": 2.3219057000001158,
+      "done_reason": "stop",
+      "out_tokens": 134
+     },
+     {
+      "text": "como as ideias de copywriting se conectam com storytelling?",
+      "expected": "map",
+      "got": "map",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.3223840000000564,
+      "done_reason": "stop",
+      "out_tokens": 133
+     },
+     {
+      "text": "o que ainda falta eu estudar de inglês?",
+      "expected": "gaps",
+      "got": "gaps",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 2.3672985999999128,
+      "done_reason": "stop",
+      "out_tokens": 135
+     },
+     {
+      "text": "qual a diferença entre reels e tiktok pra alcance?",
+      "expected": "compare",
+      "got": "compare",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.5143960999998853,
+      "done_reason": "stop",
+      "out_tokens": 143
+     },
+     {
+      "text": "resume a aula de precificação",
+      "expected": "summary",
+      "got": "summary",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.2487604999998894,
+      "done_reason": "stop",
+      "out_tokens": 129
+     },
+     {
+      "text": "me explica o que é CTR de um jeito bem simples",
+      "expected": "explain",
+      "got": "explain",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 1.9087994999999864,
+      "done_reason": "stop",
+      "out_tokens": 110
+     },
+     {
+      "text": "onde eu anotei aquela parte sobre roteiro de vídeo?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 2.3213139000001775,
+      "done_reason": "stop",
+      "out_tokens": 133
+     },
+     {
+      "text": "valeu, ajudou muito!",
+      "expected": "chat",
+      "got": "chat",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 0.45254640000007385,
+      "done_reason": "stop",
+      "out_tokens": 25
+     },
+     {
+      "text": "monta um cronograma pra eu terminar o curso de premiere em 2 semanas",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.472237899999982,
+      "done_reason": "stop",
+      "out_tokens": 143
+     },
+     {
+      "text": "quais estudos recentes da internet falam sobre retenção em vídeos curtos?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.549385499999971,
+      "done_reason": "stop",
+      "out_tokens": 144
+     }
+    ],
+    "learn": [
+     {
+      "kind": "flashcards",
+      "json": true,
+      "wall": 25.520262400000092,
+      "done_reason": "stop",
+      "out_tokens": 993,
+      "tps": 51.506583117075714,
+      "repeats": 0,
+      "items": 10,
+      "ok": true
+     },
+     {
+      "kind": "map",
+      "json": true,
+      "wall": 27.01605299999983,
+      "done_reason": "stop",
+      "out_tokens": 1401,
+      "tps": 54.45511227392577,
+      "repeats": 2,
+      "items": 14,
+      "relations": 22,
+      "relations_linked": 20,
+      "ok": true
+     }
+    ],
+    "tools": [
+     {
+      "id": "buscar",
+      "ok": false,
+      "called": [],
+      "wall": 3.787471500000038
+     },
+     {
+      "id": "ler",
+      "ok": true,
+      "called": [
+       "read_document"
+      ],
+      "wall": 1.4098794000001362
+     },
+     {
+      "id": "links",
+      "ok": true,
+      "called": [
+       "follow_links"
+      ],
+      "wall": 0.4304617000000235
+     }
+    ]
+   },
+   "on": {
+    "answers": [
+     {
+      "q": "gancho",
+      "thinking_chars": 2161,
+      "ttft": 12.497324399999798,
+      "ttft_text": 21.53533029999994,
+      "wall": 37.63546069999984,
+      "load": 9.5364026,
+      "prompt_tokens": 5443,
+      "out_tokens": 1281,
+      "tps": 50.8080059456076,
+      "done_reason": "stop",
+      "chars": 2782,
+      "citations": 12,
+      "valid_citations": 12,
+      "distinct_valid": 4,
+      "sources": 8
+     },
+     {
+      "q": "keyframes",
+      "thinking_chars": 1627,
+      "ttft": 1.3571269000001394,
+      "ttft_text": 7.547817200000054,
+      "wall": 22.94922870000005,
+      "load": 0.0031392,
+      "prompt_tokens": 2681,
+      "out_tokens": 1177,
+      "tps": 54.41547104426571,
+      "done_reason": "stop",
+      "chars": 2983,
+      "citations": 12,
+      "valid_citations": 12,
+      "distinct_valid": 4,
+      "sources": 8
+     },
+     {
+      "q": "preco",
+      "thinking_chars": 1139,
+      "ttft": 0.6403103999998621,
+      "ttft_text": 4.584701300000006,
+      "wall": 18.058339999999816,
+      "load": 0.0024254,
+      "prompt_tokens": 1343,
+      "out_tokens": 1000,
+      "tps": 57.29129069257149,
+      "done_reason": "stop",
+      "chars": 2463,
+      "citations": 21,
+      "valid_citations": 21,
+      "distinct_valid": 5,
+      "sources": 8
+     },
+     {
+      "q": "persuasao",
+      "thinking_chars": 2361,
+      "ttft": 1.1698863999999958,
+      "ttft_text": 9.085454900000059,
+      "wall": 28.286113699999987,
+      "load": 0.0027909,
+      "prompt_tokens": 2587,
+      "out_tokens": 1499,
+      "tps": 55.20319378648465,
+      "done_reason": "stop",
+      "chars": 3401,
+      "citations": 17,
+      "valid_citations": 17,
+      "distinct_valid": 6,
+      "sources": 8
+     }
+    ],
+    "vram": {
+     "size_gb": 7.02,
+     "vram_gb": 7.02,
+     "gpu_used_mib": 7870,
+     "others": []
+    },
+    "router": [
+     {
+      "text": "faz uns flashcards de keyframes do premiere",
+      "expected": "flashcards",
+      "got": "flashcards",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 25.86326770000005,
+      "done_reason": "stop",
+      "out_tokens": 473
+     },
+     {
+      "text": "me testa sobre gatilhos mentais",
+      "expected": "quiz",
+      "got": "quiz",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 8.740079700000024,
+      "done_reason": "stop",
+      "out_tokens": 513
+     },
+     {
+      "text": "o que eu preciso estudar antes de tráfego pago?",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 10.108938200000011,
+      "done_reason": "stop",
+      "out_tokens": 591
+     },
+     {
+      "text": "como as ideias de copywriting se conectam com storytelling?",
+      "expected": "map",
+      "got": "map",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 11.864813899999945,
+      "done_reason": "stop",
+      "out_tokens": 687
+     },
+     {
+      "text": "o que ainda falta eu estudar de inglês?",
+      "expected": "gaps",
+      "got": "gaps",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 10.016099599999961,
+      "done_reason": "stop",
+      "out_tokens": 579
+     },
+     {
+      "text": "qual a diferença entre reels e tiktok pra alcance?",
+      "expected": "compare",
+      "got": "find",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": true,
+      "wall": 9.616220099999964,
+      "done_reason": "stop",
+      "out_tokens": 558
+     },
+     {
+      "text": "resume a aula de precificação",
+      "expected": "summary",
+      "got": "summary",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 8.504668999999922,
+      "done_reason": "stop",
+      "out_tokens": 495
+     },
+     {
+      "text": "me explica o que é CTR de um jeito bem simples",
+      "expected": "explain",
+      "got": "explain",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": true,
+      "wall": 7.145421799999895,
+      "done_reason": "stop",
+      "out_tokens": 416
+     },
+     {
+      "text": "onde eu anotei aquela parte sobre roteiro de vídeo?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 7.51943429999983,
+      "done_reason": "stop",
+      "out_tokens": 439
+     },
+     {
+      "text": "valeu, ajudou muito!",
+      "expected": "chat",
+      "got": "chat",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 9.420597499999985,
+      "done_reason": "stop",
+      "out_tokens": 550
+     },
+     {
+      "text": "monta um cronograma pra eu terminar o curso de premiere em 2 semanas",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 5.0471152000000075,
+      "done_reason": "stop",
+      "out_tokens": 290
+     },
+     {
+      "text": "quais estudos recentes da internet falam sobre retenção em vídeos curtos?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 8.253193200000169,
+      "done_reason": "stop",
+      "out_tokens": 479
+     }
+    ],
+    "learn": [
+     {
+      "kind": "flashcards",
+      "json": true,
+      "wall": 50.37605779999967,
+      "done_reason": "stop",
+      "out_tokens": 1834,
+      "tps": 52.01188729698986,
+      "repeats": 0,
+      "items": 10,
+      "ok": true
+     },
+     {
+      "kind": "map",
+      "json": true,
+      "wall": 37.05955010000025,
+      "done_reason": "stop",
+      "out_tokens": 1965,
+      "tps": 54.94688789076011,
+      "repeats": 0,
+      "items": 14,
+      "relations": 9,
+      "relations_linked": 8,
+      "ok": true
+     }
+    ],
+    "tools": [
+     {
+      "id": "buscar",
+      "ok": true,
+      "called": [
+       "search_knowledge"
+      ],
+      "wall": 6.559086499999921
+     },
+     {
+      "id": "ler",
+      "ok": true,
+      "called": [
+       "read_document"
+      ],
+      "wall": 19.680694499999845
+     },
+     {
+      "id": "links",
+      "ok": true,
+      "called": [
+       "follow_links"
+      ],
+      "wall": 9.1296083000002
+     }
+    ]
+   }
+  }
+ },
+ "qwen3.5:9b|base": {
+  "model": "qwen3.5:9b",
+  "tag": "base",
+  "host": "http://127.0.0.1:11434",
+  "num_ctx": 16384,
+  "when": "2026-11-01 00:20",
+  "think": {
+   "off": {
+    "answers": [
+     {
+      "q": "gancho",
+      "thinking_chars": 0,
+      "ttft": 144.32929119999972,
+      "ttft_text": 144.32929119999972,
+      "wall": 163.87213669999983,
+      "load": 141.7466142,
+      "prompt_tokens": 4917,
+      "out_tokens": 1004,
+      "tps": 51.37493447649044,
+      "done_reason": "stop",
+      "chars": 3746,
+      "citations": 10,
+      "valid_citations": 10,
+      "distinct_valid": 6,
+      "sources": 8
+     },
+     {
+      "q": "keyframes",
+      "thinking_chars": 0,
+      "ttft": 1.5367001999998138,
+      "ttft_text": 1.5367001999998138,
+      "wall": 16.833730399999695,
+      "load": 0.0819617,
+      "prompt_tokens": 2500,
+      "out_tokens": 796,
+      "tps": 52.03778256810118,
+      "done_reason": "stop",
+      "chars": 3114,
+      "citations": 8,
+      "valid_citations": 8,
+      "distinct_valid": 3,
+      "sources": 8
+     },
+     {
+      "q": "preco",
+      "thinking_chars": 0,
+      "ttft": 0.7725874000002477,
+      "ttft_text": 0.7725874000002477,
+      "wall": 19.579316599999856,
+      "load": 0.0032191,
+      "prompt_tokens": 1257,
+      "out_tokens": 986,
+      "tps": 52.42877914589478,
+      "done_reason": "stop",
+      "chars": 3807,
+      "citations": 15,
+      "valid_citations": 15,
+      "distinct_valid": 7,
+      "sources": 8
+     },
+     {
+      "q": "persuasao",
+      "thinking_chars": 0,
+      "ttft": 1.2047174000003906,
+      "ttft_text": 1.2047174000003906,
+      "wall": 23.513726600000155,
+      "load": 0.0044426,
+      "prompt_tokens": 2405,
+      "out_tokens": 1161,
+      "tps": 52.042649332146226,
+      "done_reason": "stop",
+      "chars": 4468,
+      "citations": 5,
+      "valid_citations": 5,
+      "distinct_valid": 5,
+      "sources": 8
+     }
+    ],
+    "vram": {
+     "size_gb": 5.73,
+     "vram_gb": 5.73,
+     "gpu_used_mib": 7686,
+     "others": []
+    },
+    "router": [
+     {
+      "text": "faz uns flashcards de keyframes do premiere",
+      "expected": "flashcards",
+      "got": "flashcards",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 41.908727899999576,
+      "done_reason": "stop",
+      "out_tokens": 168
+     },
+     {
+      "text": "me testa sobre gatilhos mentais",
+      "expected": "quiz",
+      "got": "quiz",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 3.8596666000003097,
+      "done_reason": "stop",
+      "out_tokens": 192
+     },
+     {
+      "text": "o que eu preciso estudar antes de tráfego pago?",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 3.909955699999955,
+      "done_reason": "stop",
+      "out_tokens": 198
+     },
+     {
+      "text": "como as ideias de copywriting se conectam com storytelling?",
+      "expected": "map",
+      "got": "map",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 3.5560081999997237,
+      "done_reason": "stop",
+      "out_tokens": 180
+     },
+     {
+      "text": "o que ainda falta eu estudar de inglês?",
+      "expected": "gaps",
+      "got": "gaps",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 3.4844381000002613,
+      "done_reason": "stop",
+      "out_tokens": 176
+     },
+     {
+      "text": "qual a diferença entre reels e tiktok pra alcance?",
+      "expected": "compare",
+      "got": "compare",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 3.639898300000368,
+      "done_reason": "stop",
+      "out_tokens": 183
+     },
+     {
+      "text": "resume a aula de precificação",
+      "expected": "summary",
+      "got": "summary",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 3.369487400000253,
+      "done_reason": "stop",
+      "out_tokens": 169
+     },
+     {
+      "text": "me explica o que é CTR de um jeito bem simples",
+      "expected": "explain",
+      "got": "explain",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": true,
+      "wall": 3.8262289999997847,
+      "done_reason": "stop",
+      "out_tokens": 193
+     },
+     {
+      "text": "onde eu anotei aquela parte sobre roteiro de vídeo?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 3.193889499999841,
+      "done_reason": "stop",
+      "out_tokens": 158
+     },
+     {
+      "text": "valeu, ajudou muito!",
+      "expected": "chat",
+      "got": "chat",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 1.1919531999997162,
+      "done_reason": "stop",
+      "out_tokens": 51
+     },
+     {
+      "text": "monta um cronograma pra eu terminar o curso de premiere em 2 semanas",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 3.293689000000086,
+      "done_reason": "stop",
+      "out_tokens": 165
+     },
+     {
+      "text": "quais estudos recentes da internet falam sobre retenção em vídeos curtos?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 3.702500500000042,
+      "done_reason": "stop",
+      "out_tokens": 185
+     }
+    ],
+    "learn": [
+     {
+      "kind": "flashcards",
+      "json": true,
+      "wall": 58.03375649999998,
+      "done_reason": "stop",
+      "out_tokens": 901,
+      "tps": 51.310218677773825,
+      "repeats": 0,
+      "items": 11,
+      "ok": true
+     },
+     {
+      "kind": "map",
+      "json": true,
+      "wall": 12.057293699999718,
+      "done_reason": "stop",
+      "out_tokens": 560,
+      "tps": 51.736885785004226,
+      "repeats": 0,
+      "items": 10,
+      "relations": 6,
+      "relations_linked": 6,
+      "ok": true
+     }
+    ],
+    "tools": [
+     {
+      "id": "buscar",
+      "ok": false,
+      "called": [],
+      "wall": 7.313217899999927
+     },
+     {
+      "id": "ler",
+      "ok": false,
+      "called": [],
+      "wall": 11.437130100000104
+     },
+     {
+      "id": "links",
+      "ok": true,
+      "called": [
+       "follow_links"
+      ],
+      "wall": 4.877508800000214
+     }
+    ]
+   },
+   "on": {
+    "answers": [
+     {
+      "q": "gancho",
+      "thinking_chars": 1537,
+      "ttft": 32.41000669999994,
+      "ttft_text": 40.069300999999996,
+      "wall": 52.75072460000001,
+      "load": 29.860679,
+      "prompt_tokens": 4915,
+      "out_tokens": 1056,
+      "tps": 51.916528644575955,
+      "done_reason": "stop",
+      "chars": 2606,
+      "citations": 11,
+      "valid_citations": 11,
+      "distinct_valid": 6,
+      "sources": 8
+     },
+     {
+      "q": "keyframes",
+      "thinking_chars": 1294,
+      "ttft": 1.4353666000001795,
+      "ttft_text": 7.36873340000011,
+      "wall": 21.548842499999864,
+      "load": 0.0031645,
+      "prompt_tokens": 2498,
+      "out_tokens": 1059,
+      "tps": 52.651861467035985,
+      "done_reason": "stop",
+      "chars": 2854,
+      "citations": 3,
+      "valid_citations": 3,
+      "distinct_valid": 3,
+      "sources": 8
+     },
+     {
+      "q": "preco",
+      "thinking_chars": 12745,
+      "ttft": 0.7982887000002847,
+      "ttft_text": 61.41511800000035,
+      "wall": 77.39384740000014,
+      "load": 0.0040926,
+      "prompt_tokens": 1255,
+      "out_tokens": 4021,
+      "tps": 52.49672587412173,
+      "done_reason": "stop",
+      "chars": 3211,
+      "citations": 18,
+      "valid_citations": 18,
+      "distinct_valid": 7,
+      "sources": 8
+     },
+     {
+      "q": "persuasao",
+      "thinking_chars": 2396,
+      "ttft": 1.2718442999998842,
+      "ttft_text": 11.523888799999895,
+      "wall": 29.437895900000058,
+      "load": 0.0031032,
+      "prompt_tokens": 2403,
+      "out_tokens": 1480,
+      "tps": 52.54616526784396,
+      "done_reason": "stop",
+      "chars": 3321,
+      "citations": 9,
+      "valid_citations": 9,
+      "distinct_valid": 6,
+      "sources": 8
+     }
+    ],
+    "vram": {
+     "size_gb": 5.73,
+     "vram_gb": 5.73,
+     "gpu_used_mib": 7446,
+     "others": []
+    },
+    "router": [
+     {
+      "text": "faz uns flashcards de keyframes do premiere",
+      "expected": "flashcards",
+      "got": "flashcards",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 46.87631290000036,
+      "done_reason": "stop",
+      "out_tokens": 2048
+     },
+     {
+      "text": "me testa sobre gatilhos mentais",
+      "expected": "quiz",
+      "got": "quiz",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 42.93892470000037,
+      "done_reason": "stop",
+      "out_tokens": 2255
+     },
+     {
+      "text": "o que eu preciso estudar antes de tráfego pago?",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 33.107976300000246,
+      "done_reason": "stop",
+      "out_tokens": 1739
+     },
+     {
+      "text": "como as ideias de copywriting se conectam com storytelling?",
+      "expected": "map",
+      "got": "explain",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": true,
+      "wall": 54.34659539999984,
+      "done_reason": "stop",
+      "out_tokens": 2846
+     },
+     {
+      "text": "o que ainda falta eu estudar de inglês?",
+      "expected": "gaps",
+      "got": "gaps",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 38.233313499999895,
+      "done_reason": "stop",
+      "out_tokens": 2013
+     },
+     {
+      "text": "qual a diferença entre reels e tiktok pra alcance?",
+      "expected": "compare",
+      "got": "compare",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 27.684224300000096,
+      "done_reason": "stop",
+      "out_tokens": 1454
+     },
+     {
+      "text": "resume a aula de precificação",
+      "expected": "summary",
+      "got": "summary",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 32.288848000000144,
+      "done_reason": "stop",
+      "out_tokens": 1687
+     },
+     {
+      "text": "me explica o que é CTR de um jeito bem simples",
+      "expected": "explain",
+      "got": "explain",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 53.08156299999973,
+      "done_reason": "stop",
+      "out_tokens": 2792
+     },
+     {
+      "text": "onde eu anotei aquela parte sobre roteiro de vídeo?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 22.51131280000027,
+      "done_reason": "stop",
+      "out_tokens": 1179
+     },
+     {
+      "text": "valeu, ajudou muito!",
+      "expected": "chat",
+      "got": "chat",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 43.250355200000286,
+      "done_reason": "stop",
+      "out_tokens": 2273
+     },
+     {
+      "text": "monta um cronograma pra eu terminar o curso de premiere em 2 semanas",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 32.827792300000056,
+      "done_reason": "stop",
+      "out_tokens": 1713
+     },
+     {
+      "text": "quais estudos recentes da internet falam sobre retenção em vídeos curtos?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 42.71410789999982,
+      "done_reason": "stop",
+      "out_tokens": 2227
+     }
+    ],
+    "learn": [
+     {
+      "kind": "flashcards",
+      "json": true,
+      "wall": 266.9114340000001,
+      "done_reason": "stop",
+      "out_tokens": 5736,
+      "tps": 51.40466380462657,
+      "repeats": 0,
+      "items": 8,
+      "ok": true
+     },
+     {
+      "kind": "map",
+      "json": true,
+      "wall": 83.7284095,
+      "done_reason": "stop",
+      "out_tokens": 4307,
+      "tps": 52.231469791619595,
+      "repeats": 0,
+      "items": 10,
+      "relations": 10,
+      "relations_linked": 2,
+      "ok": true
+     }
+    ],
+    "tools": [
+     {
+      "id": "buscar",
+      "ok": true,
+      "called": [
+       "search_knowledge"
+      ],
+      "wall": 3.029080900000281
+     },
+     {
+      "id": "ler",
+      "ok": true,
+      "called": [
+       "read_document"
+      ],
+      "wall": 2.9789636999998947
+     },
+     {
+      "id": "links",
+      "ok": true,
+      "called": [
+       "follow_links"
+      ],
+      "wall": 2.1189611999998306
+     }
+    ]
+   }
+  }
+ },
+ "gemma4:12b|base": {
+  "model": "gemma4:12b",
+  "tag": "base",
+  "host": "http://127.0.0.1:11434",
+  "num_ctx": 16384,
+  "when": "2026-11-01 00:43",
+  "think": {
+   "off": {
+    "answers": [
+     {
+      "q": "gancho",
+      "thinking_chars": 0,
+      "ttft": 62.55180659999996,
+      "ttft_text": 62.55180659999996,
+      "wall": 77.90793890000032,
+      "load": 58.1978977,
+      "prompt_tokens": 5012,
+      "out_tokens": 920,
+      "tps": 59.91343680600947,
+      "done_reason": "stop",
+      "chars": 3466,
+      "citations": 12,
+      "valid_citations": 12,
+      "distinct_valid": 5,
+      "sources": 8
+     },
+     {
+      "q": "keyframes",
+      "thinking_chars": 0,
+      "ttft": 2.552720799999861,
+      "ttft_text": 2.552720799999861,
+      "wall": 16.22114620000002,
+      "load": 0.0250223,
+      "prompt_tokens": 2609,
+      "out_tokens": 736,
+      "tps": 53.849326949261496,
+      "done_reason": "stop",
+      "chars": 2934,
+      "citations": 5,
+      "valid_citations": 5,
+      "distinct_valid": 3,
+      "sources": 8
+     },
+     {
+      "q": "preco",
+      "thinking_chars": 0,
+      "ttft": 1.4632036999996672,
+      "ttft_text": 1.4632036999996672,
+      "wall": 15.413961699999618,
+      "load": 0.0037294,
+      "prompt_tokens": 1286,
+      "out_tokens": 851,
+      "tps": 61.00206245751002,
+      "done_reason": "stop",
+      "chars": 3170,
+      "citations": 11,
+      "valid_citations": 11,
+      "distinct_valid": 7,
+      "sources": 8
+     },
+     {
+      "q": "persuasao",
+      "thinking_chars": 0,
+      "ttft": 2.154248099999677,
+      "ttft_text": 2.154248099999677,
+      "wall": 19.531999899999846,
+      "load": 0.0030634,
+      "prompt_tokens": 2426,
+      "out_tokens": 1096,
+      "tps": 63.071528177090116,
+      "done_reason": "stop",
+      "chars": 3996,
+      "citations": 18,
+      "valid_citations": 18,
+      "distinct_valid": 6,
+      "sources": 8
+     }
+    ],
+    "vram": {
+     "size_gb": 1.37,
+     "vram_gb": 1.37,
+     "gpu_used_mib": 9855,
+     "others": []
+    },
+    "router": [
+     {
+      "text": "faz uns flashcards de keyframes do premiere",
+      "expected": "flashcards",
+      "got": "flashcards",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 47.75886760000003,
+      "done_reason": "stop",
+      "out_tokens": 164
+     },
+     {
+      "text": "me testa sobre gatilhos mentais",
+      "expected": "quiz",
+      "got": "quiz",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 2.421045099999901,
+      "done_reason": "stop",
+      "out_tokens": 177
+     },
+     {
+      "text": "o que eu preciso estudar antes de tráfego pago?",
+      "expected": "plan",
+      "got": "gaps",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": false,
+      "wall": 2.875709299999926,
+      "done_reason": "stop",
+      "out_tokens": 191
+     },
+     {
+      "text": "como as ideias de copywriting se conectam com storytelling?",
+      "expected": "map",
+      "got": "explain",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": true,
+      "wall": 2.5244321999998647,
+      "done_reason": "stop",
+      "out_tokens": 175
+     },
+     {
+      "text": "o que ainda falta eu estudar de inglês?",
+      "expected": "gaps",
+      "got": "gaps",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 2.147227500000099,
+      "done_reason": "stop",
+      "out_tokens": 158
+     },
+     {
+      "text": "qual a diferença entre reels e tiktok pra alcance?",
+      "expected": "compare",
+      "got": "compare",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.812010999999984,
+      "done_reason": "stop",
+      "out_tokens": 189
+     },
+     {
+      "text": "resume a aula de precificação",
+      "expected": "summary",
+      "got": "summary",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.62507770000002,
+      "done_reason": "stop",
+      "out_tokens": 175
+     },
+     {
+      "text": "me explica o que é CTR de um jeito bem simples",
+      "expected": "explain",
+      "got": "explain",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.714461399999891,
+      "done_reason": "stop",
+      "out_tokens": 173
+     },
+     {
+      "text": "onde eu anotei aquela parte sobre roteiro de vídeo?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 2.482800000000225,
+      "done_reason": "stop",
+      "out_tokens": 165
+     },
+     {
+      "text": "valeu, ajudou muito!",
+      "expected": "chat",
+      "got": "chat",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 2.068864500000018,
+      "done_reason": "stop",
+      "out_tokens": 135
+     },
+     {
+      "text": "monta um cronograma pra eu terminar o curso de premiere em 2 semanas",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.5520745999997416,
+      "done_reason": "stop",
+      "out_tokens": 167
+     },
+     {
+      "text": "quais estudos recentes da internet falam sobre retenção em vídeos curtos?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.682527399999799,
+      "done_reason": "stop",
+      "out_tokens": 183
+     }
+    ],
+    "learn": [
+     {
+      "kind": "flashcards",
+      "json": true,
+      "wall": 57.6142276999999,
+      "done_reason": "stop",
+      "out_tokens": 637,
+      "tps": 68.71850559149642,
+      "repeats": 0,
+      "items": 8,
+      "ok": true
+     },
+     {
+      "kind": "map",
+      "json": true,
+      "wall": 10.289119999999912,
+      "done_reason": "stop",
+      "out_tokens": 651,
+      "tps": 80.8441972121543,
+      "repeats": 0,
+      "items": 11,
+      "relations": 9,
+      "relations_linked": 4,
+      "ok": true
+     }
+    ],
+    "tools": [
+     {
+      "id": "buscar",
+      "ok": false,
+      "called": [],
+      "wall": 6.474960699999883
+     },
+     {
+      "id": "ler",
+      "ok": false,
+      "called": [],
+      "wall": 11.304762899999787
+     },
+     {
+      "id": "links",
+      "ok": false,
+      "called": [],
+      "wall": 5.489641499999834
+     }
+    ]
+   },
+   "on": {
+    "answers": [
+     {
+      "q": "gancho",
+      "thinking_chars": 4057,
+      "ttft": 48.84133880000036,
+      "ttft_text": 66.51463439999998,
+      "wall": 85.06438800000024,
+      "load": 44.450936,
+      "prompt_tokens": 5010,
+      "out_tokens": 2252,
+      "tps": 62.041835371604144,
+      "done_reason": "stop",
+      "chars": 4116,
+      "citations": 13,
+      "valid_citations": 13,
+      "distinct_valid": 4,
+      "sources": 8
+     },
+     {
+      "q": "keyframes",
+      "thinking_chars": 4561,
+      "ttft": 2.6665579000000434,
+      "ttft_text": 21.39464080000016,
+      "wall": 36.62429259999999,
+      "load": 0.0242333,
+      "prompt_tokens": 2607,
+      "out_tokens": 2086,
+      "tps": 61.34491221182359,
+      "done_reason": "stop",
+      "chars": 3505,
+      "citations": 5,
+      "valid_citations": 5,
+      "distinct_valid": 3,
+      "sources": 8
+     },
+     {
+      "q": "preco",
+      "thinking_chars": 4001,
+      "ttft": 1.5373862000001282,
+      "ttft_text": 17.770928899999944,
+      "wall": 32.416549699999905,
+      "load": 0.0042939,
+      "prompt_tokens": 1284,
+      "out_tokens": 2029,
+      "tps": 65.60828124604903,
+      "done_reason": "stop",
+      "chars": 3390,
+      "citations": 8,
+      "valid_citations": 8,
+      "distinct_valid": 5,
+      "sources": 8
+     },
+     {
+      "q": "persuasao",
+      "thinking_chars": 3340,
+      "ttft": 2.199545599999965,
+      "ttft_text": 16.362225299999864,
+      "wall": 33.645455500000025,
+      "load": 0.0039604,
+      "prompt_tokens": 2424,
+      "out_tokens": 1959,
+      "tps": 62.20224722526063,
+      "done_reason": "stop",
+      "chars": 3786,
+      "citations": 18,
+      "valid_citations": 18,
+      "distinct_valid": 7,
+      "sources": 8
+     }
+    ],
+    "vram": {
+     "size_gb": 1.37,
+     "vram_gb": 1.37,
+     "gpu_used_mib": 9855,
+     "others": []
+    },
+    "router": [
+     {
+      "text": "faz uns flashcards de keyframes do premiere",
+      "expected": "flashcards",
+      "got": "flashcards",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 55.04765940000016,
+      "done_reason": "stop",
+      "out_tokens": 677
+     },
+     {
+      "text": "me testa sobre gatilhos mentais",
+      "expected": "quiz",
+      "got": "quiz",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 10.772840599999654,
+      "done_reason": "stop",
+      "out_tokens": 830
+     },
+     {
+      "text": "o que eu preciso estudar antes de tráfego pago?",
+      "expected": "plan",
+      "got": "gaps",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": false,
+      "wall": 11.396331799999643,
+      "done_reason": "stop",
+      "out_tokens": 850
+     },
+     {
+      "text": "como as ideias de copywriting se conectam com storytelling?",
+      "expected": "map",
+      "got": "explain",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": true,
+      "wall": 9.973894899999323,
+      "done_reason": "stop",
+      "out_tokens": 742
+     },
+     {
+      "text": "o que ainda falta eu estudar de inglês?",
+      "expected": "gaps",
+      "got": "gaps",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 10.230397799999992,
+      "done_reason": "stop",
+      "out_tokens": 749
+     },
+     {
+      "text": "qual a diferença entre reels e tiktok pra alcance?",
+      "expected": "compare",
+      "got": "compare",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 11.21032600000035,
+      "done_reason": "stop",
+      "out_tokens": 793
+     },
+     {
+      "text": "resume a aula de precificação",
+      "expected": "summary",
+      "got": "summary",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 10.837517800000569,
+      "done_reason": "stop",
+      "out_tokens": 792
+     },
+     {
+      "text": "me explica o que é CTR de um jeito bem simples",
+      "expected": "explain",
+      "got": "explain",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 9.098546700000043,
+      "done_reason": "stop",
+      "out_tokens": 670
+     },
+     {
+      "text": "onde eu anotei aquela parte sobre roteiro de vídeo?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 9.063639900000453,
+      "done_reason": "stop",
+      "out_tokens": 680
+     },
+     {
+      "text": "valeu, ajudou muito!",
+      "expected": "chat",
+      "got": "chat",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 7.568094000000201,
+      "done_reason": "stop",
+      "out_tokens": 533
+     },
+     {
+      "text": "monta um cronograma pra eu terminar o curso de premiere em 2 semanas",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 10.764028999999937,
+      "done_reason": "stop",
+      "out_tokens": 786
+     },
+     {
+      "text": "quais estudos recentes da internet falam sobre retenção em vídeos curtos?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 9.381741900000634,
+      "done_reason": "stop",
+      "out_tokens": 691
+     }
+    ],
+    "learn": [
+     {
+      "kind": "flashcards",
+      "json": true,
+      "wall": 77.0793464999997,
+      "done_reason": "stop",
+      "out_tokens": 1847,
+      "tps": 70.20047042296828,
+      "repeats": 0,
+      "items": 8,
+      "ok": true
+     },
+     {
+      "kind": "map",
+      "json": true,
+      "wall": 64.8780712000007,
+      "done_reason": "stop",
+      "out_tokens": 4989,
+      "tps": 79.56380217947725,
+      "repeats": 0,
+      "items": 13,
+      "relations": 11,
+      "relations_linked": 0,
+      "ok": true
+     }
+    ],
+    "tools": [
+     {
+      "id": "buscar",
+      "ok": true,
+      "called": [
+       "search_knowledge"
+      ],
+      "wall": 3.1170842999999877
+     },
+     {
+      "id": "ler",
+      "ok": false,
+      "called": [],
+      "wall": 23.064683100000366
+     },
+     {
+      "id": "links",
+      "ok": false,
+      "called": [],
+      "wall": 19.24928380000074
+     }
+    ]
+   }
+  }
+ },
+ "granite4.2:8b|base": {
+  "model": "granite4.2:8b",
+  "tag": "base",
+  "host": "http://127.0.0.1:11434",
+  "num_ctx": 16384,
+  "when": "2026-11-01 00:57",
+  "think": {
+   "off": {
+    "answers": [
+     {
+      "q": "gancho",
+      "thinking_chars": 0,
+      "ttft": 103.91235150000011,
+      "ttft_text": 103.91235150000011,
+      "wall": 152.66125459999967,
+      "load": 100.6788228,
+      "prompt_tokens": 5615,
+      "out_tokens": 2349,
+      "tps": 48.18354496863177,
+      "done_reason": "stop",
+      "chars": 7920,
+      "citations": 6,
+      "valid_citations": 6,
+      "distinct_valid": 4,
+      "sources": 8
+     },
+     {
+      "q": "keyframes",
+      "thinking_chars": 0,
+      "ttft": 1.6985288000005312,
+      "ttft_text": 1.6985288000005312,
+      "wall": 32.22010959999989,
+      "load": 0.0030039,
+      "prompt_tokens": 2817,
+      "out_tokens": 1587,
+      "tps": 51.99609298670669,
+      "done_reason": "stop",
+      "chars": 5590,
+      "citations": 9,
+      "valid_citations": 9,
+      "distinct_valid": 8,
+      "sources": 8
+     },
+     {
+      "q": "preco",
+      "thinking_chars": 0,
+      "ttft": 0.6799839000004795,
+      "ttft_text": 0.6799839000004795,
+      "wall": 45.51237399999991,
+      "load": 0.0023356,
+      "prompt_tokens": 1391,
+      "out_tokens": 2392,
+      "tps": 53.354395531167874,
+      "done_reason": "stop",
+      "chars": 7890,
+      "citations": 4,
+      "valid_citations": 4,
+      "distinct_valid": 4,
+      "sources": 8
+     },
+     {
+      "q": "persuasao",
+      "thinking_chars": 0,
+      "ttft": 1.391173600000002,
+      "ttft_text": 1.391173600000002,
+      "wall": 38.673234500000035,
+      "load": 0.0033864,
+      "prompt_tokens": 2656,
+      "out_tokens": 1937,
+      "tps": 51.95525432177458,
+      "done_reason": "stop",
+      "chars": 6114,
+      "citations": 14,
+      "valid_citations": 14,
+      "distinct_valid": 8,
+      "sources": 8
+     }
+    ],
+    "vram": {
+     "size_gb": 7.5,
+     "vram_gb": 7.5,
+     "gpu_used_mib": 8377,
+     "others": []
+    },
+    "router": [
+     {
+      "text": "faz uns flashcards de keyframes do premiere",
+      "expected": "flashcards",
+      "got": "flashcards",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 13.22624950000045,
+      "done_reason": "stop",
+      "out_tokens": 217
+     },
+     {
+      "text": "me testa sobre gatilhos mentais",
+      "expected": "quiz",
+      "got": "quiz",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 3.488043100000141,
+      "done_reason": "stop",
+      "out_tokens": 193
+     },
+     {
+      "text": "o que eu preciso estudar antes de tráfego pago?",
+      "expected": "plan",
+      "got": "explain",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": false,
+      "wall": 4.160689500000444,
+      "done_reason": "stop",
+      "out_tokens": 224
+     },
+     {
+      "text": "como as ideias de copywriting se conectam com storytelling?",
+      "expected": "map",
+      "got": "compare",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": true,
+      "wall": 3.691445299999941,
+      "done_reason": "stop",
+      "out_tokens": 203
+     },
+     {
+      "text": "o que ainda falta eu estudar de inglês?",
+      "expected": "gaps",
+      "got": "gaps",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 3.360443999999916,
+      "done_reason": "stop",
+      "out_tokens": 185
+     },
+     {
+      "text": "qual a diferença entre reels e tiktok pra alcance?",
+      "expected": "compare",
+      "got": "compare",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 3.9960514999993393,
+      "done_reason": "stop",
+      "out_tokens": 221
+     },
+     {
+      "text": "resume a aula de precificação",
+      "expected": "summary",
+      "got": "summary",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 3.4134634000001824,
+      "done_reason": "stop",
+      "out_tokens": 188
+     },
+     {
+      "text": "me explica o que é CTR de um jeito bem simples",
+      "expected": "explain",
+      "got": "explain",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": true,
+      "wall": 3.937100599999212,
+      "done_reason": "stop",
+      "out_tokens": 217
+     },
+     {
+      "text": "onde eu anotei aquela parte sobre roteiro de vídeo?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 2.8475123999996867,
+      "done_reason": "stop",
+      "out_tokens": 157
+     },
+     {
+      "text": "valeu, ajudou muito!",
+      "expected": "chat",
+      "got": "chat",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 1.049838500000078,
+      "done_reason": "stop",
+      "out_tokens": 54
+     },
+     {
+      "text": "monta um cronograma pra eu terminar o curso de premiere em 2 semanas",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 4.304568199999267,
+      "done_reason": "stop",
+      "out_tokens": 238
+     },
+     {
+      "text": "quais estudos recentes da internet falam sobre retenção em vídeos curtos?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 4.095285700000204,
+      "done_reason": "stop",
+      "out_tokens": 226
+     }
+    ],
+    "learn": [
+     {
+      "kind": "flashcards",
+      "json": true,
+      "wall": 39.22347590000027,
+      "done_reason": "stop",
+      "out_tokens": 1631,
+      "tps": 49.30178575239452,
+      "repeats": 0,
+      "items": 11,
+      "ok": true
+     },
+     {
+      "kind": "map",
+      "json": true,
+      "wall": 22.500893399999768,
+      "done_reason": "stop",
+      "out_tokens": 1118,
+      "tps": 53.0071305495455,
+      "repeats": 0,
+      "items": 13,
+      "relations": 18,
+      "relations_linked": 10,
+      "ok": true
+     }
+    ],
+    "tools": [
+     {
+      "id": "buscar",
+      "ok": false,
+      "called": [],
+      "wall": 4.809845499999938
+     },
+     {
+      "id": "ler",
+      "ok": true,
+      "called": [
+       "read_document"
+      ],
+      "wall": 1.8294417999995858
+     },
+     {
+      "id": "links",
+      "ok": true,
+      "called": [
+       "follow_links"
+      ],
+      "wall": 2.6452831999995396
+     }
+    ]
+   },
+   "on": {
+    "answers": [
+     {
+      "q": "gancho",
+      "thinking_chars": 3097,
+      "ttft": 6.052832399999716,
+      "ttft_text": 23.290921499999968,
+      "wall": 77.66710109999985,
+      "load": 2.7978023,
+      "prompt_tokens": 5615,
+      "out_tokens": 3407,
+      "tps": 47.57435112152797,
+      "done_reason": "stop",
+      "chars": 8349,
+      "citations": 18,
+      "valid_citations": 18,
+      "distinct_valid": 5,
+      "sources": 8
+     },
+     {
+      "q": "keyframes",
+      "thinking_chars": 11739,
+      "ttft": 1.5595088999998552,
+      "ttft_text": 67.0447623,
+      "wall": 125.2274510999996,
+      "load": 0.0027802,
+      "prompt_tokens": 2817,
+      "out_tokens": 6086,
+      "tps": 49.21272934872435,
+      "done_reason": "stop",
+      "chars": 9620,
+      "citations": 18,
+      "valid_citations": 18,
+      "distinct_valid": 8,
+      "sources": 8
+     },
+     {
+      "q": "preco",
+      "thinking_chars": 4186,
+      "ttft": 0.9275420999993003,
+      "ttft_text": 22.21312769999986,
+      "wall": 77.81889379999939,
+      "load": 0.0023245,
+      "prompt_tokens": 1391,
+      "out_tokens": 4016,
+      "tps": 52.229686758306094,
+      "done_reason": "stop",
+      "chars": 9491,
+      "citations": 9,
+      "valid_citations": 9,
+      "distinct_valid": 5,
+      "sources": 8
+     },
+     {
+      "q": "persuasao",
+      "thinking_chars": 20976,
+      "ttft": 1.4901701999997385,
+      "ttft_text": 129.82921429999988,
+      "wall": 161.63306720000037,
+      "load": 0.0027988,
+      "prompt_tokens": 2656,
+      "out_tokens": 7756,
+      "tps": 48.43200993178418,
+      "done_reason": "stop",
+      "chars": 4630,
+      "citations": 19,
+      "valid_citations": 19,
+      "distinct_valid": 5,
+      "sources": 8
+     }
+    ],
+    "vram": {
+     "size_gb": 7.5,
+     "vram_gb": 7.5,
+     "gpu_used_mib": 8377,
+     "others": []
+    },
+    "router": [
+     {
+      "text": "faz uns flashcards de keyframes do premiere",
+      "expected": "flashcards",
+      "got": "flashcards",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 46.465190099999745,
+      "done_reason": "stop",
+      "out_tokens": 1805
+     },
+     {
+      "text": "me testa sobre gatilhos mentais",
+      "expected": "quiz",
+      "got": "quiz",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 26.979265800000576,
+      "done_reason": "stop",
+      "out_tokens": 1484
+     },
+     {
+      "text": "o que eu preciso estudar antes de tráfego pago?",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 24.534016300000076,
+      "done_reason": "stop",
+      "out_tokens": 1352
+     },
+     {
+      "text": "como as ideias de copywriting se conectam com storytelling?",
+      "expected": "map",
+      "got": "map",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 36.314290499999515,
+      "done_reason": "stop",
+      "out_tokens": 1988
+     },
+     {
+      "text": "o que ainda falta eu estudar de inglês?",
+      "expected": "gaps",
+      "got": "gaps",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 32.72333869999966,
+      "done_reason": "stop",
+      "out_tokens": 1794
+     },
+     {
+      "text": "qual a diferença entre reels e tiktok pra alcance?",
+      "expected": "compare",
+      "got": "compare",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 38.07093379999969,
+      "done_reason": "stop",
+      "out_tokens": 2075
+     },
+     {
+      "text": "resume a aula de precificação",
+      "expected": "summary",
+      "got": "summary",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 27.295891499999925,
+      "done_reason": "stop",
+      "out_tokens": 1489
+     },
+     {
+      "text": "me explica o que é CTR de um jeito bem simples",
+      "expected": "explain",
+      "got": "explain",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 17.047193600000355,
+      "done_reason": "stop",
+      "out_tokens": 935
+     },
+     {
+      "text": "onde eu anotei aquela parte sobre roteiro de vídeo?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 20.89287239999976,
+      "done_reason": "stop",
+      "out_tokens": 1149
+     },
+     {
+      "text": "valeu, ajudou muito!",
+      "expected": "chat",
+      "got": "chat",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 39.847645799999555,
+      "done_reason": "stop",
+      "out_tokens": 2168
+     },
+     {
+      "text": "monta um cronograma pra eu terminar o curso de premiere em 2 semanas",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 30.862674400000287,
+      "done_reason": "stop",
+      "out_tokens": 1688
+     },
+     {
+      "text": "quais estudos recentes da internet falam sobre retenção em vídeos curtos?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 29.38858640000035,
+      "done_reason": "stop",
+      "out_tokens": 1609
+     }
+    ],
+    "learn": [
+     {
+      "kind": "flashcards",
+      "json": true,
+      "wall": 102.38703560000067,
+      "done_reason": "stop",
+      "out_tokens": 3783,
+      "tps": 48.46552982394214,
+      "repeats": 0,
+      "items": 8,
+      "ok": true
+     },
+     {
+      "kind": "map",
+      "json": true,
+      "wall": 159.3141914000007,
+      "done_reason": "stop",
+      "out_tokens": 7719,
+      "tps": 48.92851279322775,
+      "repeats": 0,
+      "items": 12,
+      "relations": 10,
+      "relations_linked": 6,
+      "ok": true
+     }
+    ],
+    "tools": [
+     {
+      "id": "buscar",
+      "ok": true,
+      "called": [
+       "search_knowledge"
+      ],
+      "wall": 3.6595657000007122
+     },
+     {
+      "id": "ler",
+      "ok": true,
+      "called": [
+       "read_document"
+      ],
+      "wall": 20.795495100000153
+     },
+     {
+      "id": "links",
+      "ok": true,
+      "called": [
+       "follow_links"
+      ],
+      "wall": 14.149728499999583
+     }
+    ]
+   }
+  }
+ },
+ "qwen3.5:4b|base": {
+  "model": "qwen3.5:4b",
+  "tag": "base",
+  "host": "http://127.0.0.1:11434",
+  "num_ctx": 16384,
+  "when": "2026-11-01 01:22",
+  "think": {
+   "off": {
+    "answers": [
+     {
+      "q": "gancho",
+      "thinking_chars": 0,
+      "ttft": 26.323723399999835,
+      "ttft_text": 26.323723399999835,
+      "wall": 38.160184800000025,
+      "load": 24.5526054,
+      "prompt_tokens": 4917,
+      "out_tokens": 940,
+      "tps": 79.4227352818265,
+      "done_reason": "stop",
+      "chars": 3748,
+      "citations": 4,
+      "valid_citations": 4,
+      "distinct_valid": 4,
+      "sources": 8
+     },
+     {
+      "q": "keyframes",
+      "thinking_chars": 0,
+      "ttft": 0.9558934999995472,
+      "ttft_text": 0.9558934999995472,
+      "wall": 10.799559699999918,
+      "load": 0.0041654,
+      "prompt_tokens": 2500,
+      "out_tokens": 800,
+      "tps": 81.27195485667995,
+      "done_reason": "stop",
+      "chars": 3286,
+      "citations": 7,
+      "valid_citations": 7,
+      "distinct_valid": 3,
+      "sources": 8
+     },
+     {
+      "q": "preco",
+      "thinking_chars": 0,
+      "ttft": 0.5477482999995118,
+      "ttft_text": 0.5477482999995118,
+      "wall": 16.918316299999788,
+      "load": 0.0030261,
+      "prompt_tokens": 1257,
+      "out_tokens": 1341,
+      "tps": 81.91623139887633,
+      "done_reason": "stop",
+      "chars": 4951,
+      "citations": 30,
+      "valid_citations": 30,
+      "distinct_valid": 7,
+      "sources": 8
+     },
+     {
+      "q": "persuasao",
+      "thinking_chars": 0,
+      "ttft": 0.812056499999926,
+      "ttft_text": 0.812056499999926,
+      "wall": 16.192523400000027,
+      "load": 0.0037521,
+      "prompt_tokens": 2405,
+      "out_tokens": 1243,
+      "tps": 80.81719644300307,
+      "done_reason": "stop",
+      "chars": 4811,
+      "citations": 19,
+      "valid_citations": 19,
+      "distinct_valid": 7,
+      "sources": 8
+     }
+    ],
+    "vram": {
+     "size_gb": 3.4,
+     "vram_gb": 3.4,
+     "gpu_used_mib": 4839,
+     "others": []
+    },
+    "router": [
+     {
+      "text": "faz uns flashcards de keyframes do premiere",
+      "expected": "flashcards",
+      "got": "flashcards",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 6.111840800000209,
+      "done_reason": "stop",
+      "out_tokens": 193
+     },
+     {
+      "text": "me testa sobre gatilhos mentais",
+      "expected": "quiz",
+      "got": "quiz",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 2.3205659000004744,
+      "done_reason": "stop",
+      "out_tokens": 181
+     },
+     {
+      "text": "o que eu preciso estudar antes de tráfego pago?",
+      "expected": "plan",
+      "got": "gaps",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": false,
+      "wall": 2.25603990000036,
+      "done_reason": "stop",
+      "out_tokens": 176
+     },
+     {
+      "text": "como as ideias de copywriting se conectam com storytelling?",
+      "expected": "map",
+      "got": "map",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.363458800000444,
+      "done_reason": "stop",
+      "out_tokens": 186
+     },
+     {
+      "text": "o que ainda falta eu estudar de inglês?",
+      "expected": "gaps",
+      "got": "gaps",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 1.970172100000127,
+      "done_reason": "stop",
+      "out_tokens": 153
+     },
+     {
+      "text": "qual a diferença entre reels e tiktok pra alcance?",
+      "expected": "compare",
+      "got": "compare",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.580510700000559,
+      "done_reason": "stop",
+      "out_tokens": 203
+     },
+     {
+      "text": "resume a aula de precificação",
+      "expected": "summary",
+      "got": "summary",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 1.694067399999767,
+      "done_reason": "stop",
+      "out_tokens": 130
+     },
+     {
+      "text": "me explica o que é CTR de um jeito bem simples",
+      "expected": "explain",
+      "got": "explain",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": true,
+      "wall": 2.1293585000003077,
+      "done_reason": "stop",
+      "out_tokens": 167
+     },
+     {
+      "text": "onde eu anotei aquela parte sobre roteiro de vídeo?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 1.7850785999999061,
+      "done_reason": "stop",
+      "out_tokens": 137
+     },
+     {
+      "text": "valeu, ajudou muito!",
+      "expected": "chat",
+      "got": "chat",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 1.5614039000001867,
+      "done_reason": "stop",
+      "out_tokens": 118
+     },
+     {
+      "text": "monta um cronograma pra eu terminar o curso de premiere em 2 semanas",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.1618656999999075,
+      "done_reason": "stop",
+      "out_tokens": 168
+     },
+     {
+      "text": "quais estudos recentes da internet falam sobre retenção em vídeos curtos?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 2.2999602999998388,
+      "done_reason": "stop",
+      "out_tokens": 181
+     }
+    ],
+    "learn": [
+     {
+      "kind": "flashcards",
+      "json": true,
+      "wall": 16.36560550000013,
+      "done_reason": "stop",
+      "out_tokens": 906,
+      "tps": 78.91387334636893,
+      "repeats": 0,
+      "items": 10,
+      "ok": true
+     },
+     {
+      "kind": "map",
+      "json": true,
+      "wall": 13.04071489999933,
+      "done_reason": "stop",
+      "out_tokens": 990,
+      "tps": 80.55317738346682,
+      "repeats": 0,
+      "items": 14,
+      "relations": 14,
+      "relations_linked": 13,
+      "ok": true
+     }
+    ],
+    "tools": [
+     {
+      "id": "buscar",
+      "ok": false,
+      "called": [],
+      "wall": 6.323927200000071
+     },
+     {
+      "id": "ler",
+      "ok": true,
+      "called": [
+       "read_document"
+      ],
+      "wall": 1.2457094999999754
+     },
+     {
+      "id": "links",
+      "ok": true,
+      "called": [
+       "follow_links"
+      ],
+      "wall": 0.7286115000006248
+     }
+    ]
+   },
+   "on": {
+    "answers": [
+     {
+      "q": "gancho",
+      "thinking_chars": 8300,
+      "ttft": 4.416687200000524,
+      "ttft_text": 32.11884629999986,
+      "wall": 41.47634079999989,
+      "load": 2.8275608,
+      "prompt_tokens": 4915,
+      "out_tokens": 2934,
+      "tps": 79.17055166331825,
+      "done_reason": "stop",
+      "chars": 3000,
+      "citations": 21,
+      "valid_citations": 21,
+      "distinct_valid": 7,
+      "sources": 8
+     },
+     {
+      "q": "keyframes",
+      "thinking_chars": 7069,
+      "ttft": 0.9100218000003224,
+      "ttft_text": 24.089123400000062,
+      "wall": 35.800961500000085,
+      "load": 0.003098,
+      "prompt_tokens": 2498,
+      "out_tokens": 2813,
+      "tps": 80.62350371461402,
+      "done_reason": "stop",
+      "chars": 3754,
+      "citations": 8,
+      "valid_citations": 8,
+      "distinct_valid": 4,
+      "sources": 8
+     },
+     {
+      "q": "preco",
+      "thinking_chars": 4850,
+      "ttft": 0.5241374999995969,
+      "ttft_text": 16.290534799999477,
+      "wall": 29.17120249999971,
+      "load": 0.003423,
+      "prompt_tokens": 1255,
+      "out_tokens": 2338,
+      "tps": 81.61429016651829,
+      "done_reason": "stop",
+      "chars": 3985,
+      "citations": 16,
+      "valid_citations": 16,
+      "distinct_valid": 7,
+      "sources": 8
+     },
+     {
+      "q": "persuasao",
+      "thinking_chars": 9774,
+      "ttft": 0.802169500000673,
+      "ttft_text": 32.896882000000005,
+      "wall": 43.196708400000716,
+      "load": 0.0033499,
+      "prompt_tokens": 2403,
+      "out_tokens": 3413,
+      "tps": 80.50652924935716,
+      "done_reason": "stop",
+      "chars": 3117,
+      "citations": 11,
+      "valid_citations": 11,
+      "distinct_valid": 7,
+      "sources": 8
+     }
+    ],
+    "vram": {
+     "size_gb": 3.4,
+     "vram_gb": 3.4,
+     "gpu_used_mib": 4839,
+     "others": []
+    },
+    "router": [
+     {
+      "text": "faz uns flashcards de keyframes do premiere",
+      "expected": "flashcards",
+      "got": "flashcards",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 27.751205100000334,
+      "done_reason": "stop",
+      "out_tokens": 1972
+     },
+     {
+      "text": "me testa sobre gatilhos mentais",
+      "expected": "quiz",
+      "got": "quiz",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 34.317235399999845,
+      "done_reason": "stop",
+      "out_tokens": 2806
+     },
+     {
+      "text": "o que eu preciso estudar antes de tráfego pago?",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 20.253437999999733,
+      "done_reason": "stop",
+      "out_tokens": 1654
+     },
+     {
+      "text": "como as ideias de copywriting se conectam com storytelling?",
+      "expected": "map",
+      "got": "compare",
+      "json": true,
+      "ok": false,
+      "heuristic_ok": true,
+      "wall": 47.47430219999933,
+      "done_reason": "stop",
+      "out_tokens": 3872
+     },
+     {
+      "text": "o que ainda falta eu estudar de inglês?",
+      "expected": "gaps",
+      "got": "gaps",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 23.464398099999926,
+      "done_reason": "stop",
+      "out_tokens": 1913
+     },
+     {
+      "text": "qual a diferença entre reels e tiktok pra alcance?",
+      "expected": "compare",
+      "got": "compare",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 20.814264699999512,
+      "done_reason": "stop",
+      "out_tokens": 1697
+     },
+     {
+      "text": "resume a aula de precificação",
+      "expected": "summary",
+      "got": "summary",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 20.903294699999606,
+      "done_reason": "stop",
+      "out_tokens": 1705
+     },
+     {
+      "text": "me explica o que é CTR de um jeito bem simples",
+      "expected": "explain",
+      "got": "explain",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 28.05537050000021,
+      "done_reason": "stop",
+      "out_tokens": 2290
+     },
+     {
+      "text": "onde eu anotei aquela parte sobre roteiro de vídeo?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 22.25480770000013,
+      "done_reason": "stop",
+      "out_tokens": 1820
+     },
+     {
+      "text": "valeu, ajudou muito!",
+      "expected": "chat",
+      "got": "chat",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": false,
+      "wall": 28.032221599999502,
+      "done_reason": "stop",
+      "out_tokens": 2282
+     },
+     {
+      "text": "monta um cronograma pra eu terminar o curso de premiere em 2 semanas",
+      "expected": "plan",
+      "got": "plan",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 26.42110540000067,
+      "done_reason": "stop",
+      "out_tokens": 2113
+     },
+     {
+      "text": "quais estudos recentes da internet falam sobre retenção em vídeos curtos?",
+      "expected": "find",
+      "got": "find",
+      "json": true,
+      "ok": true,
+      "heuristic_ok": true,
+      "wall": 25.653991999999562,
+      "done_reason": "stop",
+      "out_tokens": 2057
+     }
+    ],
+    "learn": [
+     {
+      "kind": "flashcards",
+      "json": true,
+      "wall": 51.31291220000003,
+      "done_reason": "stop",
+      "out_tokens": 3642,
+      "tps": 78.53851257373121,
+      "repeats": 0,
+      "items": 9,
+      "ok": true
+     },
+     {
+      "kind": "map",
+      "json": true,
+      "wall": 55.514406000000236,
+      "done_reason": "stop",
+      "out_tokens": 4370,
+      "tps": 79.81029330702845,
+      "repeats": 0,
+      "items": 12,
+      "relations": 12,
+      "relations_linked": 5,
+      "ok": true
+     }
+    ],
+    "tools": [
+     {
+      "id": "buscar",
+      "ok": true,
+      "called": [
+       "search_knowledge"
+      ],
+      "wall": 2.0143355000000156
+     },
+     {
+      "id": "ler",
+      "ok": true,
+      "called": [
+       "read_document"
+      ],
+      "wall": 2.0677715000001626
+     },
+     {
+      "id": "links",
+      "ok": true,
+      "called": [
+       "follow_links"
+      ],
+      "wall": 1.582624399999986
+     }
+    ]
+   }
+  }
+ },
+ "_ctx": {
+  "qwen3.5:4b|base": [
+   {
+    "num_ctx": 4096,
+    "size_gb": 2.92,
+    "vram_gb": 2.92,
+    "gpu_used_mib": 4298,
+    "others": [],
+    "tps": 80.4,
+    "prompt_tokens": 3172,
+    "load": 29.5,
+    "wall": 31.5
+   },
+   {
+    "num_ctx": 8192,
+    "size_gb": 3.13,
+    "vram_gb": 3.13,
+    "gpu_used_mib": 4525,
+    "others": [],
+    "tps": 80.7,
+    "prompt_tokens": 3172,
+    "load": 2.9,
+    "wall": 4.9
+   },
+   {
+    "num_ctx": 16384,
+    "size_gb": 3.4,
+    "vram_gb": 3.4,
+    "gpu_used_mib": 4808,
+    "others": [],
+    "tps": 81.2,
+    "prompt_tokens": 3172,
+    "load": 2.9,
+    "wall": 5.1
+   },
+   {
+    "num_ctx": 32768,
+    "size_gb": 3.93,
+    "vram_gb": 3.93,
+    "gpu_used_mib": 5352,
+    "others": [],
+    "tps": 81.4,
+    "prompt_tokens": 3172,
+    "load": 2.8,
+    "wall": 4.8
+   }
+  ],
+  "qwen3.5:9b|base": [
+   {
+    "num_ctx": 4096,
+    "size_gb": 5.22,
+    "vram_gb": 5.22,
+    "gpu_used_mib": 6906,
+    "others": [],
+    "tps": 52.9,
+    "prompt_tokens": 3172,
+    "load": 41.5,
+    "wall": 45.1
+   },
+   {
+    "num_ctx": 8192,
+    "size_gb": 5.46,
+    "vram_gb": 5.46,
+    "gpu_used_mib": 7156,
+    "others": [],
+    "tps": 52.8,
+    "prompt_tokens": 3172,
+    "load": 3.6,
+    "wall": 7.0
+   },
+   {
+    "num_ctx": 16384,
+    "size_gb": 5.73,
+    "vram_gb": 5.73,
+    "gpu_used_mib": 7428,
+    "others": [],
+    "tps": 52.9,
+    "prompt_tokens": 3172,
+    "load": 3.6,
+    "wall": 7.0
+   },
+   {
+    "num_ctx": 32768,
+    "size_gb": 6.12,
+    "vram_gb": 6.12,
+    "gpu_used_mib": 7830,
+    "others": [],
+    "tps": 52.9,
+    "prompt_tokens": 3172,
+    "load": 3.8,
+    "wall": 7.1
+   }
+  ],
+  "qwen3:8b|base": [
+   {
+    "num_ctx": 4096,
+    "size_gb": 5.2,
+    "vram_gb": 5.2,
+    "gpu_used_mib": 6016,
+    "others": [],
+    "tps": 53.8,
+    "prompt_tokens": 3808,
+    "load": 36.0,
+    "wall": 39.8
+   },
+   {
+    "num_ctx": 8192,
+    "size_gb": 5.88,
+    "vram_gb": 5.88,
+    "gpu_used_mib": 6713,
+    "others": [],
+    "tps": 54.2,
+    "prompt_tokens": 3808,
+    "load": 2.8,
+    "wall": 6.8
+   },
+   {
+    "num_ctx": 16384,
+    "size_gb": 7.02,
+    "vram_gb": 7.02,
+    "gpu_used_mib": 7881,
+    "others": [],
+    "tps": 54.1,
+    "prompt_tokens": 3808,
+    "load": 2.8,
+    "wall": 6.5
+   },
+   {
+    "num_ctx": 32768,
+    "size_gb": 9.17,
+    "vram_gb": 9.17,
+    "gpu_used_mib": 10075,
+    "others": [],
+    "tps": 54.1,
+    "prompt_tokens": 3808,
+    "load": 3.1,
+    "wall": 6.6
+   }
+  ],
+  "gemma4:12b|base": [
+   {
+    "num_ctx": 4096,
+    "size_gb": 1.07,
+    "vram_gb": 1.07,
+    "gpu_used_mib": 9236,
+    "others": [],
+    "tps": 53.4,
+    "prompt_tokens": 3034,
+    "load": 50.5,
+    "wall": 54.3
+   },
+   {
+    "num_ctx": 8192,
+    "size_gb": 1.35,
+    "vram_gb": 1.35,
+    "gpu_used_mib": 9680,
+    "others": [],
+    "tps": 53.1,
+    "prompt_tokens": 3034,
+    "load": 5.5,
+    "wall": 9.2
+   },
+   {
+    "num_ctx": 16384,
+    "size_gb": 1.37,
+    "vram_gb": 1.37,
+    "gpu_used_mib": 9840,
+    "others": [],
+    "tps": 55.3,
+    "prompt_tokens": 3034,
+    "load": 6.0,
+    "wall": 9.7
+   },
+   {
+    "num_ctx": 32768,
+    "size_gb": 1.09,
+    "vram_gb": 1.09,
+    "gpu_used_mib": 9740,
+    "others": [],
+    "tps": 53.9,
+    "prompt_tokens": 3034,
+    "load": 7.2,
+    "wall": 10.9
+   }
+  ]
+ },
+ "_router": {
+  "qwen3.5:4b": {
+   "ROUTER": [
+    {
+     "text": "faz uns flashcards de keyframes do premiere",
+     "want": [
+      "flashcards"
+     ],
+     "heuristic": "flashcards",
+     "got": "flashcards",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pediu flashcards",
+     "source": "ai",
+     "seconds": 27.2,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "me testa sobre gatilhos mentais",
+     "want": [
+      "quiz"
+     ],
+     "heuristic": "quiz",
+     "got": "quiz",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pediu para ser testado",
+     "source": "ai",
+     "seconds": 2.7,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "o que eu preciso estudar antes de tráfego pago?",
+     "want": [
+      "plan"
+     ],
+     "heuristic": "plan",
+     "got": "plan",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pediu um plano",
+     "source": "ai",
+     "seconds": 2.6,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "como as ideias de copywriting se conectam com storytelling?",
+     "want": [
+      "map"
+     ],
+     "heuristic": "map",
+     "got": "map",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pediu as conexões",
+     "source": "ai",
+     "seconds": 3.0,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "o que ainda falta eu estudar de inglês?",
+     "want": [
+      "gaps"
+     ],
+     "heuristic": "gaps",
+     "got": "gaps",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "perguntou o que falta",
+     "source": "ai",
+     "seconds": 2.4,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "qual a diferença entre reels e tiktok pra alcance?",
+     "want": [
+      "compare"
+     ],
+     "heuristic": "compare",
+     "got": "compare",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pediu uma comparação",
+     "source": "ai",
+     "seconds": 2.6,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "resume a aula de precificação",
+     "want": [
+      "summary"
+     ],
+     "heuristic": "summary",
+     "got": "summary",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pediu um resumo",
+     "source": "ai",
+     "seconds": 2.5,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "me explica o que é CTR de um jeito bem simples",
+     "want": [
+      "explain"
+     ],
+     "heuristic": "explain",
+     "got": "explain",
+     "effort": "equilibrado",
+     "level": "basico",
+     "reason": "pediu uma explicação",
+     "source": "ai",
+     "seconds": 2.5,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "onde eu anotei aquela parte sobre roteiro de vídeo?",
+     "want": [
+      "find"
+     ],
+     "heuristic": "find",
+     "got": "find",
+     "effort": "rapido",
+     "level": "",
+     "reason": "pediu materiais",
+     "source": "ai",
+     "seconds": 2.1,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "valeu, ajudou muito!",
+     "want": [
+      "chat"
+     ],
+     "heuristic": "chat",
+     "got": "chat",
+     "effort": "rapido",
+     "level": "",
+     "reason": "conversa",
+     "source": "ai",
+     "seconds": 2.0,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "monta um cronograma pra eu terminar o curso de premiere em 2 semanas",
+     "want": [
+      "plan"
+     ],
+     "heuristic": "plan",
+     "got": "plan",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pediu um plano",
+     "source": "ai",
+     "seconds": 2.7,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "quais estudos recentes da internet falam sobre retenção em vídeos curtos?",
+     "want": [
+      "find"
+     ],
+     "heuristic": "find",
+     "got": "find",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "Busca fontes externas sobre um tema específico.",
+     "source": "ai",
+     "seconds": 2.7,
+     "heuristic_ok": true,
+     "ok": true
+    }
+   ],
+   "HOLDOUT": [
+    {
+     "text": "cria umas perguntas pra eu treinar copywriting",
+     "want": [
+      "quiz"
+     ],
+     "heuristic": "find",
+     "got": "quiz",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pediu perguntas para treinar um conceito",
+     "source": "ai",
+     "seconds": 2.3,
+     "heuristic_ok": false,
+     "ok": true
+    },
+    {
+     "text": "quero revisar persuasão com cartões",
+     "want": [
+      "flashcards"
+     ],
+     "heuristic": "find",
+     "got": "flashcards",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "Flashcards são uma técnica de revisão ativa e eficiente.",
+     "source": "ai",
+     "seconds": 2.5,
+     "heuristic_ok": false,
+     "ok": true
+    },
+    {
+     "text": "explica de forma bem detalhada como funciona o algoritmo do instagram",
+     "want": [
+      "explain"
+     ],
+     "heuristic": "explain",
+     "got": "explain",
+     "effort": "profundo",
+     "level": "",
+     "reason": "pediu uma explicação",
+     "source": "ai",
+     "seconds": 2.7,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "oi!",
+     "want": [
+      "chat"
+     ],
+     "heuristic": "chat",
+     "got": "chat",
+     "effort": "rapido",
+     "level": "",
+     "reason": "conversa",
+     "source": "ai",
+     "seconds": 1.9,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "o que é um lead?",
+     "want": [
+      "explain"
+     ],
+     "heuristic": "explain",
+     "got": "explain",
+     "effort": "rapido",
+     "level": "",
+     "reason": "pediu uma explicação",
+     "source": "ai",
+     "seconds": 2.3,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "qual é a diferença entre persuasão e manipulação nas minhas notas?",
+     "want": [
+      "compare"
+     ],
+     "heuristic": "compare",
+     "got": "compare",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pediu uma comparação",
+     "source": "ai",
+     "seconds": 2.5,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "faz um resumo da aula de cortes no premiere",
+     "want": [
+      "summary"
+     ],
+     "heuristic": "summary",
+     "got": "summary",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pediu um resumo",
+     "source": "ai",
+     "seconds": 2.6,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "me mostra onde falei sobre funil",
+     "want": [
+      "find"
+     ],
+     "heuristic": "find",
+     "got": "find",
+     "effort": "rapido",
+     "level": "",
+     "reason": "pediu materiais",
+     "source": "ai",
+     "seconds": 2.1,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "em que ordem devo estudar os módulos do curso de tiktok shop?",
+     "want": [
+      "plan"
+     ],
+     "heuristic": "plan",
+     "got": "plan",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pediu um plano",
+     "source": "ai",
+     "seconds": 2.6,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "o que ficou faltando eu ver de precificação?",
+     "want": [
+      "gaps"
+     ],
+     "heuristic": "gaps",
+     "got": "gaps",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "perguntou o que falta",
+     "source": "ai",
+     "seconds": 2.5,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "como precificação e posicionamento se relacionam?",
+     "want": [
+      "map"
+     ],
+     "heuristic": "map",
+     "got": "map",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pediu as conexões",
+     "source": "ai",
+     "seconds": 2.7,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "me lembra o que eu disse sobre meu objetivo com o curso",
+     "want": [
+      "chat"
+     ],
+     "heuristic": "chat",
+     "got": "chat",
+     "effort": "rapido",
+     "level": "",
+     "reason": "conversa",
+     "source": "ai",
+     "seconds": 2.5,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "teste A/B: como faço no meta ads?",
+     "want": [
+      "explain",
+      "find"
+     ],
+     "heuristic": "find",
+     "got": "explain",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "Explicar passo a passo um processo técnico.",
+     "source": "ai",
+     "seconds": 2.7,
+     "heuristic_ok": true,
+     "ok": true
+    },
+    {
+     "text": "qual a trilha sonora ideal para reels?",
+     "want": [
+      "explain",
+      "find"
+     ],
+     "heuristic": "find",
+     "got": "explain",
+     "effort": "equilibrado",
+     "level": "",
+     "reason": "pede recomendação geral sem contexto específico.",
+     "source": "ai",
+     "seconds": 2.2,
+     "heuristic_ok": true,
+     "ok": true
+    }
+   ]
+  }
+ }
+}

@@ -298,11 +298,13 @@ def ask(window=None):
     return "Anote esta tela da aula." + (f"\nJanela: {window}" if window else "")
 
 
-def read(jpeg, model, check=lambda: None, keep_alive="3m", window=None, manual=False):
+def read(jpeg, model, check=lambda: None, keep_alive="3m", window=None, manual=False, num_ctx=CTX):
+    """num_ctx: os Estudos passam a janela do chat (providers.window), porque o Ollama recarrega o modelo quando ela
+    muda e o modelo de visão é o mesmo que responde no chat."""
     import base64
     raw = llm._chat(model, SYSTEM_CAPTURE if manual else SYSTEM,
                     "Transcreva esta captura de tela." if manual else ask(window), check, lambda n: None,
-                    schema=SCHEMA, num_ctx=CTX,
+                    schema=SCHEMA, num_ctx=num_ctx,
                     temperature=0, keep_alive=keep_alive, images=[base64.b64encode(jpeg).decode()], limit=3000)
     try:
         return clean(json.loads(raw), manual)
@@ -472,7 +474,7 @@ def analyze(shots, model, check, status, last=True):
                            window=shots.items[i].get("window"), manual=bool(shots.items[i].get("manual"))))
 
 
-def extract(path, shots, model, check, status):
+def extract(path, shots, model, check, status, num_ctx=CTX):
     """Vídeo de um arquivo: quadros-chave → telas novas, cada uma lida na hora (assim uma tela sem conteúdo, como o
     professor falando, não é lida de novo a cada quadro parecido)."""
     import av
@@ -484,7 +486,7 @@ def extract(path, shots, model, check, status):
             if i is None:
                 return False
             check()
-            note = read(jpeg, model, check)
+            note = read(jpeg, model, check, num_ctx=num_ctx)
             shots.done(i, note)
             if note["tipo"] == "pessoa":
                 picker.skip.append(small)
@@ -644,6 +646,26 @@ class Screen:
         img = buf[max(box[1] - wr.top, 0):box[3] - wr.top, max(box[0] - wr.left, 0):box[2] - wr.left]
         return img if img.size and img[::8, ::8, :3].max() > 16 else None
 
+    def _cloaked(self, hwnd):
+        v = self.w.DWORD()  # 14 = DWMWA_CLOAKED: janela "visível" que o Windows esconde (apps suspensos)
+        return bool(self.dwm) and self.dwm.DwmGetWindowAttribute(hwnd, 14, self.c.byref(v), 4) == 0 and v.value != 0
+
+    def previous(self):
+        """A janela que o estudante usava antes do Lumen (/tela dos Estudos): a primeira de nível superior abaixo dele
+        na ordem das janelas, visível, com título, fora a área de trabalho e de tamanho útil. None se não houver."""
+        h = self.u.GetForegroundWindow()
+        for _ in range(500):
+            if not h:
+                return None
+            title = self._title(h)
+            box = self.rect(h) if title and not title.startswith("Lumen") else None
+            if (box and box[2] - box[0] >= 320 and box[3] - box[1] >= 180 and self.u.IsWindowVisible(h)
+                    and not self.u.IsIconic(h) and self._class(h) not in self.SHELL
+                    and not self.u.GetWindowLongW(h, -20) & 0x80 and not self._cloaked(h)):  # -20/0x80: janela de ferramenta
+                return h
+            h = self.u.GetWindow(h, 2)  # 2 = GW_HWNDNEXT
+        return None
+
     def grab(self):
         """(BGRA h×w×4 do monitor, barra do Lumen nele ou None, canto (x, y) do monitor na tela), ou None se a
         cópia falhar.
@@ -677,6 +699,23 @@ class Screen:
         if hwnd and u.IsWindowVisible(hwnd) and not u.IsIconic(hwnd) and u.GetWindowRect(hwnd, c.byref(rect)):
             bar = (rect.left - x, rect.top - y, rect.right - x, rect.bottom - y)
         return buf, bar, (x, y)
+
+
+def window_jpeg():
+    """(JPEG, "título — programa.exe") da janela que o estudante usava antes do Lumen, só na memória (/tela dos
+    Estudos: o próprio estudante pede, então os programas dele também valem)."""
+    import av
+    try:
+        screen = Screen()
+    except (OSError, AttributeError):
+        raise AppError("Este PC não deixou o Lúmen ver a tela.") from None
+    hwnd = screen.previous()
+    if not hwnd:
+        raise AppError("Não achei outra janela aberta para ver.", "Deixe aberta a janela que quer mostrar e tente de novo.")
+    img = screen.window_image(hwnd)
+    if img is None:
+        raise AppError("Esse programa não deixou o Lúmen ver a janela dele.", "Tente com outra janela.")
+    return _encode(av.VideoFrame.from_ndarray(_trim(np.ascontiguousarray(img)), format="bgra")), screen.label(hwnd)
 
 
 class Watch:

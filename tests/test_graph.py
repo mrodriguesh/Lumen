@@ -25,6 +25,14 @@ REAL = {  # o graph.json do cofre do usuário em 26/10/2026, com grupos dele a m
 
 
 class Graph(unittest.TestCase):
+    def test_process_check_ignores_localized_output_and_waits_on_command_failure(self):
+        from subprocess import CompletedProcess
+        with mock.patch.object(graph.sys, "platform", "win32"), mock.patch.object(graph.subprocess, "run") as run:
+            for code, output, expected in ((0, b"INFORMA\x80\xe5ES: nenhuma tarefa", False), (0, b"Obsidian.exe 123", True), (1, b"", True)):
+                run.return_value = CompletedProcess([], code, stdout=output)
+                self.assertEqual(graph._obsidian_running(), expected)
+                self.assertNotIn("text", run.call_args.kwargs)
+
     def setUp(self):
         (store.DATA / "catalog.json").unlink(missing_ok=True)
         self.tmp = Path(tempfile.mkdtemp(prefix="lumen-graph-"))

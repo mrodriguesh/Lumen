@@ -3,3 +3,7 @@ av==16.1.0              # BSD — decodifica áudio; 17+ removeu um parâmetro u
 soundcard==0.4.6       # BSD — grava o som que sai do PC (opção “Gravar ao assistir”)
 onnx-asr==0.12.0        # MIT — roda o Parakeet (NVIDIA, CC-BY-4.0) na CPU, sem PyTorch
 keyring==25.7.0         # MIT — guarda o token do Notion no Gerenciador de Credenciais do Windows
+pillow==12.3.0          # MIT-CMU — desenha a visualização 3D e os textos dela (lumen/visual3d.py)
+pypdf==6.21.4           # BSD-3 — lê PDFs de pastas autorizadas e da internet (Lúmen Study AI)
+websocket-client==1.9.2 # Apache-2.0 — fala com o Edge sem janela pelo DevTools Protocol (PNG e PDF de lumen/cdp.py) e com o /ws/tts do Voice Studio (lumen/voicestudio.py)
+pyaec==1.0.1            # MIT — cancela o eco acústico da caixa de som na conversa por voz (SpeexDSP BSD-3)

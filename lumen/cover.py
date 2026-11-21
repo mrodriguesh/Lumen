@@ -1,24 +1,14 @@
 """Capa desenhada para o tema da página (paleta e emojis escolhidos pela IA), renderizada localmente.
 
-Usa o Microsoft Edge em modo headless (já vem no Windows) para transformar um HTML em PNG 1500×600.
-Sem Edge, devolve None e o app usa uma capa do próprio Notion.
+Usa o Microsoft Edge sem janela (já vem no Windows), pelo DevTools Protocol (lumen/cdp.py), para transformar um HTML
+em PNG 1500×600. Sem Edge, devolve None e o app usa uma capa do próprio Notion.
 """
-import os
 import random
-import shutil
-import subprocess
-import tempfile
-from pathlib import Path
+
+from . import cdp
+from .cdp import edge  # noqa: F401 - mindmap, charts e os testes procuram o Edge por aqui
 
 W, H = 1500, 600
-
-
-def edge():
-    for base in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles")):
-        exe = Path(base or "") / "Microsoft" / "Edge" / "Application" / "msedge.exe"
-        if base and exe.is_file():
-            return exe
-    return shutil.which("msedge") or shutil.which("microsoft-edge")
 
 
 def _mix(hex_a, hex_b, t):
@@ -64,18 +54,5 @@ svg{{position:absolute;inset:0;opacity:.06;mix-blend-mode:overlay}}
 
 def render(decor, seed=0):
     """PNG da capa (bytes) ou None se não houver Edge disponível / falhar."""
-    exe = edge()
-    if not exe:
-        return None
-    with tempfile.TemporaryDirectory(prefix="lumen-capa-", ignore_cleanup_errors=True) as tmp:
-        page, out = Path(tmp) / "capa.html", Path(tmp) / "capa.png"
-        page.write_text(html(decor, seed), "utf-8")
-        try:
-            subprocess.run([str(exe), "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
-                            f"--user-data-dir={Path(tmp) / 'perfil'}", f"--window-size={W},{H}",
-                            "--default-background-color=00000000", f"--screenshot={out}", page.as_uri()],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        except (OSError, subprocess.SubprocessError):
-            return None
-        return out.read_bytes() if out.exists() and out.stat().st_size > 1000 else None
+    out = cdp.png(html(decor, seed), W, H, transparent=True, timeout=30)
+    return out if out and len(out) > 1000 else None

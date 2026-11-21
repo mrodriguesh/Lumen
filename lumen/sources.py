@@ -7,8 +7,6 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-import av
-
 from . import AppError
 
 # Somente formatos testados (ver tests/ e docs/DECISOES.md).
@@ -37,6 +35,7 @@ def probe(path):
     if p.suffix.lower() not in MEDIA:
         raise AppError(f"O formato “{p.suffix or 'sem extensão'}” não é suportado.",
                        "Use um destes formatos: " + ", ".join(MEDIA) + ".")
+    import av  # PyAV (FFmpeg) só quando há um arquivo para ler
     try:
         with av.open(str(p)) as c:
             audio = next((s for s in c.streams if s.type == "audio"), None)

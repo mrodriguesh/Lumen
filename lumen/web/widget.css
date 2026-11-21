@@ -1,10 +1,11 @@
-﻿/* Barra flutuante (launcher/WidgetForm.cs). Os tamanhos são o contrato com a janela nativa: .notch 304×252 (painel da
-   nota 360×440), alça 12×84 (84×12 em cima/embaixo), cantos de 18 px e fundo = BackColor. A janela é opaca: o vidro é
+/* Barra flutuante (launcher/WidgetForm.cs). Os tamanhos são o contrato com a janela nativa: .notch 304×252 (painel da
+   nota 360×440, da proteção 360×540, da Conversa rápida 304×252 ou, ampliada, 360×540), alça 12×84 (84×12 em cima/embaixo), cantos de 18 px e fundo = BackColor. A janela é opaca: o vidro é
    simulado (gradiente + luz na borda), sem backdrop-filter. Cores e componentes vêm de ui.css. */
 html, body { height: 100%; overflow: hidden; background: var(--bg-base); color: var(--text-primary); font-size: var(--fs-caption); line-height: 1.4; user-select: none; }
 button { color: inherit; }
 button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 button:disabled { cursor: wait; opacity: .5; }
+button[aria-disabled=true] { cursor: progress; }
 
 /* Alça recolhida: a barra fica só com ela; vermelha gravando, âmbar pausada, ponto azul vendo a tela */
 #peek { position: fixed; top: 50%; left: 0; transform: translateY(-50%); width: 12px; height: 84px; padding: 0; display: grid; place-items: center;
@@ -29,9 +30,12 @@ body:not([data-expanded=true]) .notch { visibility: hidden; opacity: 0; pointer-
 
 /* A barra aberta: moldura de vidro simulado com luz na borda de cima e um halo azul discreto */
 .notch {
-  width: 304px; height: 252px; display: flex; overflow: hidden; border-radius: 18px; border: 1px solid var(--border-medium);
-  background: radial-gradient(240px 150px at 0% 0%, rgba(77, 105, 234, .16), transparent 70%), linear-gradient(180deg, rgba(255, 255, 255, .04), transparent 46%), var(--bg-elevated);
+  position: relative; width: 304px; height: 252px; display: flex; overflow: hidden; border-radius: 18px; border: 1px solid var(--border-medium);
+  background: radial-gradient(240px 150px at 0% 0%, var(--halo-widget), transparent 70%), linear-gradient(180deg, rgba(255, 255, 255, .04), transparent 46%), var(--bg-elevated);
   box-shadow: var(--rim-strong); transition: opacity var(--dur-normal);
+}
+.notch::before { content: ""; position: absolute; inset: 0; background: url("/lumen-meteor-widget.png") no-repeat bottom center / cover; opacity: calc(.5 * var(--deco-opacity)); pointer-events: none; z-index: 0; }
+.notch > * { position: relative; z-index: 1;
 }
 .rail { position: relative; width: 52px; flex: none; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; border-right: 1px solid var(--border-subtle); }
 body[data-side=right] .rail { border-right: 0; border-left: 1px solid var(--border-subtle); }
@@ -44,10 +48,21 @@ body[data-side=right] .rail { border-right: 0; border-left: 1px solid var(--bord
 .orb:active { transform: scale(.95); }
 .orb .i { width: 18px; height: 18px; }
 .brand { color: var(--text-primary); }
-.brand .i { width: 20px; height: 20px; }
+.brand .i { width: 24px; height: 24px; object-fit: contain; }
 .settings { border-color: transparent; background: none; box-shadow: none; }
 .settings[aria-expanded=true], .note-orb[aria-expanded=true] { border-color: var(--border-medium); background: var(--surface-active); color: var(--text-primary); }
-.note-orb[aria-expanded=true] { color: var(--accent-text); }
+.note-orb[aria-expanded=true], .chat-orb[aria-expanded=true] { color: var(--accent-text); }
+.chat-orb[aria-expanded=true] { border-color: var(--border-medium); background: var(--surface-active); }
+/* Conversa rápida: ponto de novidade no ícone (azul = resposta nova; pulsa só enquanto responde; sempre também no aria-label) */
+.chat-orb::after { content: ""; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-strong); box-shadow: 0 0 0 2px var(--bg-elevated); opacity: 0; transition: opacity var(--dur-normal); }
+.chat-orb { position: relative; }
+.chat-orb[data-attn=done]::after { opacity: 1; }
+.chat-orb[data-attn=busy]::after { opacity: 1; animation: breathe 1.4s ease-in-out infinite; }
+/* Com “Minha compreensão” na barra são cinco controles: a trilha fica um pouco mais compacta para não encostar na alça */
+body[data-note=true] .rail { gap: 8px; }
+body[data-note=true] .orb { width: 32px; height: 32px; border-radius: 11px; }
+body[data-note=true] .action { width: 38px; height: 38px; }
+body[data-note=true] .record-symbol { width: 24px; height: 24px; }
 
 /* Gravar/Parar: o botão principal da barra. Parado, em repouso; gravando, o halo acompanha o som */
 .action { position: relative; flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border-radius: 50%;
@@ -96,11 +111,6 @@ body[data-state=live] .wave { opacity: .95; }
 body[data-state=live] .wave i { background: var(--rec-text); }
 body[data-paused=true] .wave { opacity: .35; }
 body[data-paused=true] .wave i { background: var(--warning); }
-.pause-pill { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 26px; padding: 0 11px 0 9px; border-radius: var(--r-pill);
-  border: 1px solid var(--border-medium); background: var(--surface-2); color: var(--text-primary); font-size: var(--fs-micro); font-weight: 500; transition: background var(--dur-fast), border-color var(--dur-fast); }
-.pause-pill:hover { background: var(--surface-3); border-color: var(--border-strong); }
-.pause-pill .i { width: 12px; height: 12px; stroke-width: 2.2; }
-body[data-paused=true] .pause-pill { color: var(--warning-text); border-color: var(--warning-line); background: var(--warning-soft); }
 .detail { display: none; margin: 8px 0; color: var(--text-secondary); font-size: var(--fs-compact); line-height: 1.5; user-select: text; }
 body[data-state=live][data-heard=false] .detail, body[data-state=error] .detail, body[data-paused=true] .detail { display: block; text-align: center; margin: 4px 0 0; }
 body[data-state=error] .timer { display: none; }
@@ -132,12 +142,14 @@ body[data-edge=top] .notch, body[data-edge=bottom] .notch { flex-direction: colu
 body[data-edge=bottom] .notch { flex-direction: column-reverse; }
 body[data-edge=top] .rail, body[data-edge=bottom] .rail { width: 100%; height: 52px; display: grid; grid-template-columns: 36px 40px 36px; align-items: center; justify-items: center; border-right: 0; border-left: 0; border-bottom: 1px solid var(--border-subtle); }
 body[data-edge=bottom] .rail { border-bottom: 0; border-top: 1px solid var(--border-subtle); }
-body[data-note=true][data-edge=top] .rail, body[data-note=true][data-edge=bottom] .rail { grid-template-columns: 36px 40px 36px 36px; }
-body[data-edge=top] .note-orb, body[data-edge=bottom] .note-orb { grid-column: 4; grid-row: 1; }
+body[data-edge=top] .rail, body[data-edge=bottom] .rail { grid-template-columns: 36px 40px 36px 36px; }
+body[data-note=true][data-edge=top] .rail, body[data-note=true][data-edge=bottom] .rail { grid-template-columns: 32px 38px 32px 32px 32px; }
+body[data-edge=top] .chat-orb, body[data-edge=bottom] .chat-orb { grid-column: 3; grid-row: 1; }
+body[data-edge=top] .note-orb, body[data-edge=bottom] .note-orb { grid-column: 5; grid-row: 1; }
 body[data-edge=top] .brand, body[data-edge=bottom] .brand { grid-column: 1; grid-row: 1; }
-body[data-edge=top] .action, body[data-edge=bottom] .action { grid-column: 2; grid-row: 1; }
+body[data-edge=top] .rec-group, body[data-edge=bottom] .rec-group { grid-column: 2; grid-row: 1; }
 body[data-edge=top] .grip, body[data-edge=bottom] .grip { top: 50%; left: 14px; transform: translateY(-50%); width: 32px; }
-body[data-edge=top] .settings, body[data-edge=bottom] .settings { grid-column: 3; grid-row: 1; margin: 0; }
+body[data-edge=top] .settings, body[data-edge=bottom] .settings { grid-column: 4; grid-row: 1; margin: 0; }
 body[data-edge=top] .panel, body[data-edge=bottom] .panel { height: 198px; padding: 10px 16px 10px; transform: none; }
 body[data-edge=bottom] .panel { padding: 12px 16px 6px; }
 body[data-edge=top] .timer, body[data-edge=bottom] .timer { gap: 8px; }
@@ -173,7 +185,7 @@ body[data-edge=top][data-paused=true] .wave, body[data-edge=bottom][data-paused=
 .prefs-button:hover { background: var(--surface-3); border-color: var(--border-strong); }
 .prefs-input-row .prefs-button { flex: none; margin: 0; }
 .preferences .danger { color: var(--danger-text); }
-.preferences .danger.solid { color: var(--on-accent); background: var(--danger); border-color: var(--danger-line); }
+.preferences .danger.solid { color: var(--on-danger); background: var(--danger); border-color: var(--danger-line); }
 .quality-picker { min-width: 0; padding: 0; margin: 8px 0 12px; border: 0; }
 .quality-picker legend { padding: 0; margin-bottom: 7px; color: var(--text-secondary); font-size: var(--fs-compact); font-weight: 500; }
 #prefs-quality-options { display: grid; gap: 2px; padding: 3px; border: 1px solid var(--border-subtle); border-radius: 11px; background: var(--bg-elevated); }
@@ -218,11 +230,47 @@ body:is([data-edge=top], [data-edge=bottom]) .prefs-menu button { white-space: n
 body:is([data-edge=top], [data-edge=bottom]) .prefs-watch { padding: 4px 10px; }
 body:is([data-edge=top], [data-edge=bottom]) .prefs-watch-text small { display: none; }
 
+/* ---------- Lúmen Glass 2026 (Ajustes → Aparência → Estilo da interface): só com <html data-ui="glass">; no Clássico a barra fica como sempre ---------- */
+/* Ajustes da barra deitada (referência R35): cada categoria num ladrilho de vidro, com o nome inteiro (10 px) e resposta ao toque */
+:root[data-ui="glass"] body:is([data-edge=top], [data-edge=bottom]) .prefs-menu { gap: 4px 6px; padding-top: 2px; }
+:root[data-ui="glass"] body:is([data-edge=top], [data-edge=bottom]) .prefs-menu button {
+  min-height: 23px; gap: 6px; padding: 0 3px 0 7px; border: 1px solid var(--border-subtle); border-radius: 9px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .012)); box-shadow: var(--rim);
+  font-size: var(--fs-tiny); font-weight: 500;
+  transition: background var(--dur-fast), border-color var(--dur-fast), transform 120ms cubic-bezier(.23, 1, .32, 1); }
+:root[data-ui="glass"] body:is([data-edge=top], [data-edge=bottom]) .prefs-menu button:hover { border-color: var(--border-medium); background: var(--surface-hover); }
+:root[data-ui="glass"] body:is([data-edge=top], [data-edge=bottom]) .prefs-menu button:active { transform: scale(.97); }
+:root[data-ui="glass"] body:is([data-edge=top], [data-edge=bottom]) .prefs-menu button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+:root[data-ui="glass"] body:is([data-edge=top], [data-edge=bottom]) .prefs-menu .i { width: 13px; height: 13px; flex: none; color: var(--text-secondary); }
+:root[data-ui="glass"] body:is([data-edge=top], [data-edge=bottom]) .prefs-watch { margin-bottom: 3px; border-radius: 11px; }
+:root[data-ui="glass"] .prefs-watch[data-on=true] { box-shadow: var(--rim), 0 0 0 1px var(--accent-line); }
+/* Barra deitada (referência R37): bandeja contínua atrás dos controles, filete entre o estado e o Pomodoro e o botão de sair num círculo.
+   Só desenho: nenhum tamanho, posição ou área de clique muda (a geometria é contrato com launcher/WidgetForm.cs). */
+:root[data-ui="glass"] body:is([data-edge=top], [data-edge=bottom]) .rail { isolation: isolate; }
+:root[data-ui="glass"] body:is([data-edge=top], [data-edge=bottom]) .rail::before { content: ""; position: absolute; z-index: -1; inset: 5px 8px; border-radius: 21px; pointer-events: none;
+  border: 1px solid var(--border-subtle); background: linear-gradient(180deg, color-mix(in srgb, var(--text-primary) 5%, transparent), color-mix(in srgb, var(--text-primary) 1.5%, transparent));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 7%, transparent); }
+:root[data-ui="glass"] body[data-state=idle]:is([data-edge=top], [data-edge=bottom]) #recording-panel header {
+  background: linear-gradient(var(--border-medium), var(--border-medium)) 44% 50% / 1px 16px no-repeat; }
+:root[data-ui="glass"] #exit { border: 1px solid var(--border-subtle); border-radius: 50%; background: var(--surface-1); box-shadow: var(--rim); }
+:root[data-ui="glass"] #exit:hover { border-color: var(--danger-line); background: var(--danger-soft); }
+
 /* Minha compreensão na barra lateral: o mesmo documento da janela principal e da flutuante (understanding-editor.js) */
 body[data-panel=note] .notch { width: 360px; height: 440px; }
+body[data-panel=protection] .notch { width: 360px; height: 540px; max-width:100vw; max-height:100vh; }
+body[data-side=right][data-panel=protection] .notch { margin-left: max(0px, calc(100vw - 360px)); }
+body[data-edge=top][data-panel=protection] .notch, body[data-edge=bottom][data-panel=protection] .notch { margin-left: 0; }
+body[data-edge=top][data-panel=protection] .panel, body[data-edge=bottom][data-panel=protection] .panel { height: 486px; }
 body[data-side=right][data-panel=note] .notch { margin-left: calc(100vw - 360px); }
 body[data-edge=top][data-panel=note] .notch, body[data-edge=bottom][data-panel=note] .notch { margin-left: 0; }
 body[data-edge=top][data-panel=note] .panel, body[data-edge=bottom][data-panel=note] .panel { height: 386px; }
+/* Conversa rápida (chat.css): a janela compacta de sempre (304×252, o mesmo painel da gravação) ou, ampliada sob pedido, 360×540
+   (WidgetForm.ChatWide). Ao contrário dos outros painéis, o .notch da conversa ocupa SEMPRE o que a janela entrega (100vw × 100vh): não
+   existe tamanho próprio do painel, então uma janela de outro tamanho (ampliação em curso, área útil menor, executável sem a mensagem de
+   tamanho) nunca corta o conteúdo, e nada depende de screen.availWidth nem de margens negativas para ancorar à direita. */
+body[data-panel=chat] .notch { width: 100vw; height: 100vh; margin: 0; }
+body[data-panel=chat] .notch::before { opacity: .14; }
+body[data-panel=chat] .panel.chat-panel { height: auto; }
 .note-panel { gap: 8px; }
 .note-head { justify-content: space-between; gap: 6px; }
 .note-tool { display: grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--text-secondary); transition: background var(--dur-fast), color var(--dur-fast); }
@@ -262,4 +310,144 @@ body[data-edge=top][data-panel=note] .panel, body[data-edge=bottom][data-panel=n
 @keyframes breathe { 50% { opacity: .35; } }
 @keyframes eye-scan { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
 @keyframes live-halo { 0% { opacity: .35; transform: scale(1); } 100% { opacity: 0; transform: scale(1.6); } }
-@media (prefers-reduced-motion: reduce) { body[data-state=live] .action::before { transform: scale(1.1); } }
+/* ---------- Cápsula de gravação ----------
+   O botão de Gravar vive num grupo (.rec-group) do MESMO tamanho dele: parado, a barra é exatamente a de antes. Gravando (body[data-rec=on], que vem do
+   estado do servidor), uma pílula cresce atrás dele e o botão de Pausa sai de trás do Gravar para o espaço livre da barra: abaixo dele na barra lateral,
+   à direita dele em cima/embaixo. Conversa, Minha compreensão e Ajustes dão a vez deslizando pela propriedade `translate` (sem refazer a grade nem a
+   janela); o Gravar/Parar NÃO se mexe. Tudo é transform/opacity (a pílula só muda de tamanho, um elemento solto); parar desfaz o caminho de volta.
+   A parte decorativa (pílula, anel de espera) nunca recebe clique, e a Pausa só é focável e clicável quando está visível. */
+.rail { --cap-r: 40px; --cap-p: 30px; --cap-gap: 4px; --cap-tuck: 4px; --cap-pad: 4px; --cap-ext: calc(var(--cap-p) + var(--cap-gap)); --cap-d: calc(var(--cap-r) / 2 + var(--cap-gap) + var(--cap-p) / 2); }
+body[data-note=true] .rail { --cap-r: 38px; --cap-p: 28px; --cap-pad: 2px; }  /* com 5 controles a pílula é mais justa: a altura da barra lateral não dá folga */
+.rec-group { position: relative; z-index: 2; flex: none; width: var(--cap-r); height: var(--cap-r); display: grid; place-items: center; }
+.rec-group .action { z-index: 2; width: var(--cap-r); height: var(--cap-r); }
+.rec-pill { position: absolute; z-index: 0; left: calc(var(--cap-pad) * -1); top: calc(var(--cap-pad) * -1); width: calc(var(--cap-r) + 2 * var(--cap-pad)); height: calc(var(--cap-r) + 2 * var(--cap-pad)); border: 1px solid var(--border-subtle); border-radius: 999px;
+  background: var(--surface-1); box-shadow: var(--rim); opacity: 0; pointer-events: none;
+  transition: width var(--dur-slow) var(--ease-emphasized), height var(--dur-slow) var(--ease-emphasized), opacity var(--dur-normal) var(--ease-standard), background var(--dur-normal), border-color var(--dur-normal); }
+.rec-pause { position: absolute; z-index: 1; left: calc((var(--cap-r) - var(--cap-p)) / 2); top: calc(var(--cap-r) + var(--cap-gap)); width: var(--cap-p); height: var(--cap-p);
+  display: grid; place-items: center; padding: 0; border: 1px solid var(--border-medium); border-radius: 50%; background: var(--surface-2); color: var(--text-primary); box-shadow: var(--rim);
+  opacity: 0; visibility: hidden; pointer-events: none; translate: 0 calc(var(--cap-d) * -1); scale: .55;
+  transition: translate var(--dur-slow) var(--ease-emphasized), scale var(--dur-slow) var(--ease-emphasized), opacity var(--dur-normal) var(--ease-standard), visibility 0s linear var(--dur-slow), background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast); }
+.rec-pause:hover { background: var(--surface-3); border-color: var(--border-strong); }
+.rec-pause:active { transform: scale(.94); }
+.rec-pause .i { width: 14px; height: 14px; stroke-width: 2.2; }
+.rec-pause[data-swap] .i { animation: icon-swap var(--dur-normal) var(--ease-standard); }
+/* barra deitada: a pausa sai para a direita */
+body[data-edge=top] .rec-pause, body[data-edge=bottom] .rec-pause { left: calc(var(--cap-r) + var(--cap-gap)); top: calc((var(--cap-r) - var(--cap-p)) / 2); translate: calc(var(--cap-d) * -1) 0; }
+/* gravando */
+body[data-rec=on] .rec-pill { opacity: 1; height: calc(var(--cap-r) + var(--cap-ext) + 2 * var(--cap-pad)); }
+body[data-edge=top][data-rec=on] .rec-pill, body[data-edge=bottom][data-rec=on] .rec-pill { height: calc(var(--cap-r) + 2 * var(--cap-pad)); width: calc(var(--cap-r) + var(--cap-ext) + 2 * var(--cap-pad)); }
+body[data-rec=on] .rec-pause { opacity: 1; visibility: visible; pointer-events: auto; translate: 0 0; scale: 1; transition-delay: 0s; }
+.rec-group[data-paused=true] .rec-pill { border-color: var(--warning-line); background: var(--warning-soft); }
+.rec-group[data-paused=true] .rec-pause { color: var(--warning-text); border-color: var(--warning-line); background: var(--warning-soft); }
+.rec-group[data-paused=true] .rec-pause:hover { background: rgba(240, 177, 69, .2); }
+/* quem dá a vez: ganha o espaço da pausa (na barra lateral a pausa ocupa ext e cada controle seguinte devolve `tuck`, para tudo caber na altura da barra) */
+.rail > :is(.chat-orb, .note-orb, .settings) { transition: translate var(--dur-slow) var(--ease-emphasized), background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast); }
+body[data-rec=on] .rail > .chat-orb { translate: 0 calc(var(--cap-ext) - var(--cap-tuck)); }
+body[data-rec=on] .rail > .note-orb, body[data-rec=on] .rail > .settings { translate: 0 calc(var(--cap-ext) - 2 * var(--cap-tuck)); }
+body[data-note=true][data-rec=on] .rail > .settings { translate: 0 calc(var(--cap-ext) - 3 * var(--cap-tuck)); }
+body[data-edge=top][data-rec=on] .rail > :is(.chat-orb, .note-orb, .settings), body[data-edge=bottom][data-rec=on] .rail > :is(.chat-orb, .note-orb, .settings) { translate: var(--cap-ext) 0; }
+/* espera real de um comando (iniciar, encerrar, pausar, retomar): um anel gira em volta do botão; sem comando, nada anima */
+.busy-ring { position: absolute; inset: -3px; border: 2px solid transparent; border-radius: 50%; opacity: 0; pointer-events: none; transition: opacity var(--dur-fast); }
+[aria-busy=true] > .busy-ring { opacity: 1; border-top-color: var(--rec-text); animation: spin .8s linear infinite; }
+.rec-pause[aria-busy=true] > .busy-ring { inset: -2px; border-top-color: var(--text-primary); }
+.rec-group[data-paused=true] .action[aria-busy=true] > .busy-ring { border-top-color: var(--warning-text); }
+.action[aria-busy=true] .record-symbol { transform: scale(.82); }
+body[data-state=live] .action[aria-busy=true] .record-symbol { transform: scale(.52); }
+/* sem resposta do servidor: o estado mostrado pode estar velho, então a cápsula fica esmaecida até a conexão voltar */
+body[data-conn=lost] .rec-group { opacity: .55; }
+/* página recém-carregada já gravando: aparece pronta, sem fingir que acabou de sair */
+body[data-capsule=init] :is(.rec-pill, .rec-pause, .rail > .chat-orb, .rail > .note-orb, .rail > .settings) { transition: none !important; }
+@keyframes icon-swap { from { opacity: 0; scale: .7; } }
+/* movimento reduzido: a pausa aparece no lugar, só com um esmaecer curto; ninguém desliza nem a pílula cresce animada */
+@media (prefers-reduced-motion: reduce) {
+  body[data-state=live] .action::before { transform: scale(1.1); }
+  .rec-pause { translate: 0 0 !important; scale: 1 !important; transition: opacity var(--dur-fast), visibility 0s linear var(--dur-fast), background var(--dur-fast), color var(--dur-fast) !important; }
+  body[data-rec=on] .rec-pause { transition-delay: 0s !important; }
+  .rec-pill { transition: opacity var(--dur-fast) !important; }
+  .rail > :is(.chat-orb, .note-orb, .settings) { transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast) !important; }
+  .rec-pause[data-swap] .i { animation: none; }
+  [aria-busy=true] > .busy-ring { animation-duration: 1.6s; }
+}
+
+/* Modo escuta (lumen/listening.py): a chamada transcrita ao vivo no Notion e no Obsidian.
+   Entra pelo rodapé (um botão redondo; ligado, vira a pílula vermelha com o tempo) e abre no tamanho da nota (360×440). Movimento só onde
+   informa: o texto novo entra com um esmaecer curto e os medidores seguem o som; trocar de estado não anima (é clicado muitas vezes). */
+.listen-chip { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 5px; min-width: 22px; height: 22px; padding: 0 5px; border: 1px solid var(--border-subtle); border-radius: var(--r-pill);
+  background: var(--surface-1); color: var(--text-tertiary); font-size: var(--fs-2xs); font-weight: 600; font-variant-numeric: tabular-nums;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, transform 160ms cubic-bezier(.23, 1, .32, 1); }
+.listen-chip .i { width: 12px; height: 12px; }
+.listen-chip-time:empty { display: none; }
+.listen-chip:active { transform: scale(.95); }
+@media (hover: hover) and (pointer: fine) { .listen-chip:hover { color: var(--text-primary); border-color: var(--border-medium); background: var(--surface-hover); } }
+.listen-chip[aria-expanded=true] { color: var(--accent-text); border-color: var(--accent-line); background: var(--accent-softer); }
+body[data-listening=live] .listen-chip { padding: 0 8px 0 7px; color: var(--rec-text); border-color: var(--rec-line); background: var(--rec-soft); }
+body[data-listening=finishing] .listen-chip { padding: 0 8px 0 7px; color: var(--warning-text); border-color: var(--warning-line); background: var(--warning-soft); }
+
+body[data-panel=listen] .notch { width: 360px; height: 440px; }
+body[data-side=right][data-panel=listen] .notch { margin-left: calc(100vw - 360px); }
+body[data-edge=top][data-panel=listen] .notch, body[data-edge=bottom][data-panel=listen] .notch { margin-left: 0; }
+body[data-edge=top][data-panel=listen] .panel, body[data-edge=bottom][data-panel=listen] .panel { height: 386px; }
+.listen-panel { gap: 10px; }
+.listen-panel h1 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-input); font-weight: 600; letter-spacing: -.01em; }
+.listen-time { flex: none; color: var(--text-tertiary); font-size: var(--fs-compact); font-weight: 600; font-variant-numeric: tabular-nums; }
+.listen-panel[data-phase=live] .listen-time { color: var(--rec-text); }
+
+.listen-sources { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex: none; }
+.listen-src { display: flex; align-items: center; gap: 7px; min-width: 0; height: 30px; padding: 0 10px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-1);
+  color: var(--text-secondary); font-size: var(--fs-micro); font-weight: 500; transition: opacity 150ms ease, border-color 150ms ease; }
+.listen-src .i { width: 14px; height: 14px; flex: none; }
+.listen-src > span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.listen-src[data-state=on] { color: var(--text-primary); border-color: var(--border-medium); }
+.listen-src[data-state=off] { opacity: .5; }
+.listen-meter { display: flex; align-items: center; gap: 2px; height: 14px; flex: none; }
+.listen-meter b { width: 3px; height: 14px; border-radius: 2px; background: currentColor; opacity: .55; transform-origin: center; transform: scaleY(.18); transition: transform 120ms ease-out; }
+.listen-src[data-state=on] .listen-meter b { background: var(--success); opacity: 1; }
+.listen-src[data-state=on] .listen-meter b:nth-child(1) { transform: scaleY(calc(.18 + var(--lvl, 0) * .45)); }
+.listen-src[data-state=on] .listen-meter b:nth-child(2) { transform: scaleY(calc(.18 + var(--lvl, 0) * .82)); }
+.listen-src[data-state=on] .listen-meter b:nth-child(3) { transform: scaleY(calc(.18 + var(--lvl, 0) * .7)); }
+.listen-src[data-state=on] .listen-meter b:nth-child(4) { transform: scaleY(calc(.18 + var(--lvl, 0) * .35)); }
+
+.listen-lines { flex: 1; min-height: 0; margin: 0; padding: 4px 2px 4px 0; list-style: none; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; user-select: text; display: flex; flex-direction: column; gap: 10px;
+  mask-image: linear-gradient(to bottom, transparent, black 18px); }  /* a fala mais antiga some num esmaecer, não num corte */
+.listen-lines[data-empty=true]::before { content: attr(data-hint); margin: auto; max-width: 30ch; color: var(--text-tertiary); font-size: var(--fs-compact); line-height: 1.5; text-align: center; text-wrap: balance; }
+.listen-lines li { display: grid; gap: 2px; opacity: 1; transform: none; transition: opacity 180ms ease-out, transform 180ms cubic-bezier(.23, 1, .32, 1); }
+@starting-style { .listen-lines li { opacity: 0; transform: translateY(4px); } }
+.listen-meta { color: var(--text-tertiary); font-size: var(--fs-2xs); font-weight: 600; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.listen-lines li[data-who=me] .listen-meta { color: var(--accent-text); }
+.listen-lines p { margin: 0; color: var(--text-primary); font-size: var(--fs-compact); line-height: 1.5; }
+
+.listen-dests { display: grid; flex: none; margin: 0; padding: 0; list-style: none; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-1); }
+.listen-dests li { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 6px 0 10px; color: var(--text-secondary); font-size: var(--fs-micro); }
+.listen-dests li + li { border-top: 1px solid var(--border-subtle); }
+.listen-dests li > .i { width: 14px; height: 14px; flex: none; }
+.listen-dest-name { color: var(--text-primary); font-weight: 500; }
+.listen-dest-state { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 6px; overflow: hidden; white-space: nowrap; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+.listen-dest-state::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--text-tertiary); }
+.listen-dests li[data-tone=""] .listen-dest-state::before, .listen-dests li:not([data-tone]) .listen-dest-state::before { display: none; }
+.listen-dests li[data-tone=ok] .listen-dest-state { color: var(--success-text); }
+.listen-dests li[data-tone=ok] .listen-dest-state::before { background: var(--success); }
+.listen-dests li[data-tone=busy] .listen-dest-state { color: var(--accent-text); }
+.listen-dests li[data-tone=busy] .listen-dest-state::before { background: var(--accent-strong); }
+.listen-dests li[data-tone=warn] .listen-dest-state { color: var(--warning-text); }
+.listen-dests li[data-tone=warn] .listen-dest-state::before { background: var(--warning); }
+.listen-dests .note-tool { width: 24px; height: 24px; }
+.listen-dests .note-tool[hidden] { display: none; }
+
+.listen-error { margin: 0; color: var(--danger-text); font-size: var(--fs-tiny); line-height: 1.4; }
+.listen-error:empty { display: none; }
+.listen-toggle { display: flex; align-items: center; justify-content: center; gap: 9px; flex: none; height: 38px; padding: 0 16px; border: 1px solid var(--accent-border); border-radius: var(--r-pill);
+  background: var(--accent-grad); color: var(--on-accent); font-size: var(--fs-compact); font-weight: 600;
+  transition: border-color 150ms ease, color 150ms ease, opacity 150ms ease, transform 160ms cubic-bezier(.23, 1, .32, 1); }
+.listen-toggle:active { transform: scale(.97); }
+.listen-toggle[aria-disabled=true] { opacity: .6; cursor: default; }
+.listen-toggle[aria-disabled=true]:active { transform: none; }
+.listen-glyph { width: 9px; height: 9px; flex: none; border-radius: 50%; background: currentColor; }
+.listen-panel[data-phase=live] .listen-toggle { border-color: var(--rec-line); background: var(--rec-soft); color: var(--rec-text); }
+.listen-panel[data-phase=live] .listen-glyph { border-radius: 2px; }
+.listen-note { flex: none; margin: -4px 0 0; color: var(--text-tertiary); font-size: var(--fs-2xs); text-align: center; }
+@media (prefers-reduced-motion: reduce) {
+  .listen-lines li { transition: opacity 180ms ease-out; }
+  @starting-style { .listen-lines li { transform: none; } }
+  .listen-chip:active, .listen-toggle:active { transform: none; }
+  .listen-meter b { transition: none; }
+}

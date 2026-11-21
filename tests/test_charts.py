@@ -338,7 +338,8 @@ class Flow(unittest.TestCase):
         spec = {**SPEC, "captions": self.CAPTIONS, "course_id": self.root}
         j = full(spec)
         self.assertEqual(j["status"], "done", j.get("error"))
-        gifs = [u for u in self.fake.uploads.values() if u["content_type"] == "image/gif"]
+        gifs = [u for u in self.fake.uploads.values() if u["content_type"] == "image/gif"
+                and b'filename="grafico-' in u.get("body", b"")]  # a visualização 3D também é GIF: fica de fora
         self.assertEqual(len(gifs), 1)
         page = json.dumps(self.fake.pages[self.root]["blocks"], ensure_ascii=False)
         self.assertIn("Gráficos da aula", page)

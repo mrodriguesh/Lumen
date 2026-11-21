@@ -27,7 +27,7 @@ from pathlib import Path
 from . import AppError, board, canvas, catalog, graph, store, vault
 from .canvas import md
 from .llm import fmt_time
-from .package import QUESTION_KINDS, norm
+from .package import norm
 from .sources import youtube_url
 
 log = logging.getLogger("lumen")
@@ -47,6 +47,7 @@ _BAD = re.compile(r'[\\/:*?"<>|#^\[\]\x00-\x1f]')
 _RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(10)), *(f"LPT{i}" for i in range(10))}
 _LINK = re.compile(r"(?<!\\)\[\[([^\]\n]+?)\]\]")
 _FM_LINE = re.compile(r"^([\w-]+:( .*)?|\s+- .*|\s+\S.*|\s*)$")  # o mesmo do vault-check.mjs do cofre
+_KEEP = object()  # deliver sem a visualização 3D nos assets (migração): a que já está no cofre fica
 
 
 # --- Nomes e caminhos ----------------------------------------------------------------------------------------
@@ -273,7 +274,9 @@ def render(pkg, ctx):
     s += _understanding(pkg["understanding"])
 
     summary = [p.strip() for p in re.split(r"\n\s*\n", lesson["summary"]) if p.strip()]
+    vis = ctx.get("visual")  # a visualização 3D, junto do assunto, com a legenda dizendo de quem é e o que mostra
     s.append("## Visão geral\n" + _callout("abstract", "Ideia central", md(summary[0]), fold="")
+             + (f"\n\n![[{vis['file']}]]\n*{md(vis['caption'])}*" if vis else "")
              + ("\n\n" + _paras("\n\n".join(summary[1:])) if summary[1:] else ""))
     maps = ([f"![[{ctx['canvas']}]]"] if ctx.get("canvas") else []) + (
         [f"[[{ctx['board']}|Abrir o painel visual]] · as imagens da aula, organizadas para reconhecer e lembrar."]
@@ -364,6 +367,8 @@ def render(pkg, ctx):
             f"IA: {md(src.get('model') or '')}" + (f" · visão: {md(src['vision_model'])}" if src.get("vision_model") else "")]
     if src.get("uncertain"):
         meta.append(f"{src['uncertain']} trecho(s) da transcrição com baixa confiança")
+    if vis and vis.get("ref"):
+        meta.append(f"Visualização 3D: `{vis['ref']}`")
     s.append(_callout("note", "Metadados Lumen", "\n".join("- " + x for x in meta)))
     return "\n\n".join(s)
 
@@ -373,6 +378,9 @@ INFO = """> [!info]- Como usar esta nota
 
 > [!warning] Conteúdo gerado por IA
 > Este material foi produzido pela IA local do Lumen e ainda não representa necessariamente minhas conclusões. Deve ser revisado antes de entrar no meu conhecimento permanente. A seção "Minha compreensão" é o texto que eu escrevi, sem alteração."""
+# revisões desligadas: a mesma nota sem a instrução de marcar revisões (ao atualizar, só o texto exato do Lumen é trocado)
+INFO_OFF = INFO.replace(" Marque cada revisão feita em Revisões; o Lumen atualiza a próxima data.", "")
+REVIEW_KEYS = {"review-stage", "next-review"}
 USER = "## Minhas anotações\n%% Área sua: o Lumen nunca altera nada daqui para baixo. %%\n"
 
 
@@ -396,12 +404,13 @@ def compose(fm, before, block, after):
         f"%% lumen:end {block_hash(block)} %%" + after
 
 
-def new_file(fm, block):
-    return compose(fm, "\n" + INFO + "\n\n" + BEGIN, block, "\n\n" + USER)
+def new_file(fm, block, info=INFO):
+    return compose(fm, "\n" + info + "\n\n" + BEGIN, block, "\n\n" + USER)
 
 
-def update(text, fm_new, block, force=False, owned=OWNED):
-    """Nota existente + material novo → texto novo (ou AppError de conflito). Fora do bloco, nada muda."""
+def update(text, fm_new, block, force=False, owned=OWNED, info=INFO):
+    """Nota existente + material novo → texto novo (ou AppError de conflito). Fora do bloco, só o callout “Como usar
+    esta nota” muda, e só se ainda for o texto exato do Lumen (info: com ou sem a instrução das revisões)."""
     p = parts(text)
     gone = [k for k in (*CLASS, *(owned - OWNED)) if k in fm_new and fm_new[k] in (None, "")]  # ex.: saiu do curso
     if not p:
@@ -409,7 +418,7 @@ def update(text, fm_new, block, force=False, owned=OWNED):
             raise AppError("A nota do Obsidian foi editada e perdeu as marcas do bloco do Lumen.",
                            "Use “Substituir mesmo assim” (uma cópia da nota atual é guardada) ou restaure as marcas.")
         fm, body = vault.split(text.replace("\r\n", "\n"))
-        return new_file(merge_fields(fm, fm_new, owned=owned, remove=gone), block) + "\n" + _callout(
+        return new_file(merge_fields(fm, fm_new, owned=owned, remove=gone), block, info) + "\n" + _callout(
             "note", "Texto anterior da nota (guardado pelo Lumen ao substituir)", md(body))
     fm, before, old, saved, after = p
     if saved != block_hash(old) and not force:
@@ -418,6 +427,7 @@ def update(text, fm_new, block, force=False, owned=OWNED):
                        "para “Minhas anotações”.")
     done = {norm(x) for x in re.findall(r"(?m)^\s*[-*] \[[xX]\] (.+)$", old)}
     block = re.sub(r"(?m)^(\s*[-*] )\[ \] (.+)$", lambda m: m[1] + ("[x] " if norm(m[2]) in done else "[ ] ") + m[2], block)
+    before = before.replace(INFO_OFF if info == INFO else INFO, info)
     return compose(merge_fields(fm, fm_new, owned=owned, remove=gone), before, block, after)
 
 
@@ -554,6 +564,8 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
     # Tudo é calculado antes de gravar: uma nota em conflito não deixa canvas nem anexos pela metade.
     # Anexos: só as telas escolhidas e os gráficos desenhados; o vídeo nunca entra no cofre.
     images, charts, writes, own, pics, rels = {}, {}, [], {}, [], {}  # own: anexo → tamanho; pics: o que o painel usa
+    visual, out_visual, visual_path = None, None, None
+    hashes = {}  # provas dos bytes gravados; manifestos antigos sem hash nunca autorizam exclusão
     if cfg["obsidian_attachments"]:
         attach, slug, short = folder / "Anexos", clean(lesson["title"], 40).casefold(), clean(title, 28).casefold()
         shots, gifs, named = assets.get("screens") or {}, assets.get("charts") or [], []
@@ -586,14 +598,48 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
             into[k] = f.name
             rel = f.relative_to(root).as_posix()
             own[rel] = len(data)
+            if any(p == f for p, _ in writes) or (prev.get("file_hashes") or {}).get(rel) == hashlib.sha256(data).hexdigest():
+                hashes[rel] = hashlib.sha256(data).hexdigest()
             if source == "tela":
                 rels[str(k)] = rel
             pics.append({"key": f"{source}:{k}", "source": source, "ref": k, "file": rel, "data": data})
-        known |= {n.casefold() for n in [*images.values(), *charts.values()]}
+        v, old_v = assets.get("visual", _KEEP), prev.get("visual") or {}
+        if v is _KEEP:  # migração (sem o desenho em mãos): a visualização que já está no cofre continua na nota
+            f = root / old_v["file"] if old_v.get("file") else None
+            if f and f.is_file() and home in f.resolve().parents:
+                own[old_v["file"]] = f.stat().st_size
+                if old_v.get("sha256") == hashlib.sha256(f.read_bytes()).hexdigest():
+                    hashes[old_v["file"]] = old_v["sha256"]
+                visual, out_visual = {"file": f.name, "caption": old_v.get("caption") or "", "ref": old_v.get("ref")}, old_v
+        elif v:
+            digest = hashlib.sha256(v["data"]).hexdigest()
+            name = f"visualização 3d · {short}.{v['kind']}"
+            if old_v.get("file") and old_v.get("sha256") == digest:
+                name = Path(old_v["file"]).name
+            f = _within(area._short(_attachment(attach, [name], taken, lid), lid), home)
+            count = 0
+            while f.exists():
+                rel = f.relative_to(root).as_posix()
+                if (prev.get("file_hashes") or {}).get(rel) == digest and f.read_bytes() == v["data"]:
+                    break
+                count += 1
+                # Não sobrescreve nem adota arquivos alheios; a mesma regra vale para cada nome alternativo.
+                f = _within(area._short(attach / f"visualização 3d · {short} {lid[3:9]} {count}.{v['kind']}", lid), home)
+            if not (f.exists() and f.read_bytes() == v["data"]):
+                writes.append((f, v["data"]))
+            rel = f.relative_to(root).as_posix()
+            own[rel] = len(v["data"])
+            hashes[rel], visual_path = digest, f
+            from .visual3d import RENDERER, caption
+            ref = f"{RENDERER} · {v['spec_hash']}"
+            visual = {"file": f.name, "caption": caption(v), "ref": ref}
+            out_visual = {"file": rel, "kind": v["kind"], "bytes": len(v["data"]), "spec_hash": v["spec_hash"],
+                          "caption": visual["caption"], "ref": ref, "sha256": digest}
+        known |= {n.casefold() for n in [*images.values(), *charts.values(), *([visual["file"]] if visual else [])]}
 
     out = {"status": "ok", "vault": str(root), "connections": len([c for c in pkg["connections"] if c["note"] in files]),
            "questions": len(lesson.get("review_questions") or []), "attachments": len(images) + len(charts),
-           "images": rels, "placed": catalog.signature(cls)}
+           "images": rels, "placed": catalog.signature(cls), "visual": out_visual}
     plan = None  # (caminho do canvas, JSON)
     if cfg["obsidian_canvas"]:
         try:
@@ -670,18 +716,21 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
     def note(canvas_name, board_name=None):
         ctx = {"name": name, "canvas": canvas_name, "board": board_name, "files": files, "images": images, "charts": charts,
                "template": template, "review_dates": dates, "created": created, "notion": notion,
-               "transcript": transcript, "cover": cover}
+               "transcript": transcript, "cover": cover, "visual": visual}
         fm, block = fields(pkg, ctx), render(pkg, ctx)
+        info = INFO if dates else INFO_OFF
         if text is None:
-            return new_file(merge_fields([], fm), block), "created"
-        # as chaves de revisão já são da nota (sync_reviews): reprocessar não volta o estudo ao início
+            return new_file(merge_fields([], fm), block, info), "created"
+        # revisões ligadas: as chaves de revisão já são da nota (sync_reviews; fora de OWNED, só entram se faltarem),
+        # e reprocessar não volta o estudo ao início. Desligadas: saem junto com a seção, sem agenda órfã
+        off = set() if dates else REVIEW_KEYS
         p = parts(text)
         same = p and p[3] == block_hash(block)  # mesmo material: nem a data de atualização muda (idempotente)
         # a capa é do usuário, a não ser que aponte para uma imagem que não existe mais (aí o Lumen põe a dele)
         old_cover = str(vault.fields(vault.split(text)[0]).get("cover") or "")
         lost = old_cover and _LINK.sub(lambda m: m[1], old_cover).split("|")[0].strip().casefold() not in known
-        r = update(text, {k: v for k, v in fm.items() if k not in ("review-stage", "next-review")
-                          and not (same and k == "updated")}, block, force, OWNED | ({"cover"} if lost else set()))
+        r = update(text, {k: v for k, v in fm.items() if (k in off or k not in REVIEW_KEYS) and not (same and k == "updated")},
+                   block, force, OWNED | off | ({"cover"} if lost else set()), info)
         return r, "unchanged" if r == text.replace("\r\n", "\n") else "updated"
 
     cname, bname = (plan[0].name if plan else None), (bplan[0].name if bplan else None)
@@ -691,7 +740,16 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
         log.warning("obsidian: nota recusada na validação: %s", probs[0].split(":")[0])  # sem nomes de notas
         raise AppError(f"O material para o Obsidian não passou na validação ({probs[0]}).", "Tente de novo.")
     for f, data in writes:
-        _write(f, data, binary=True)
+        try:
+            _write(f, data, binary=True)
+        except OSError:
+            if f != visual_path:
+                raise
+            visual, out["visual"] = None, None
+            out["visual_error"] = "Não foi possível gravar a visualização 3D nos anexos; o texto foi preservado."
+            own.pop(f.relative_to(root).as_posix(), None)
+            hashes.pop(f.relative_to(root).as_posix(), None)
+            result, state = note(cname, bname)
     if plan:
         cpath, data, pure = plan
         try:
@@ -727,8 +785,9 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
             _backup(path, lid)
         _write(path, result)
     if cfg["obsidian_attachments"]:  # com os anexos desligados nada é apagado: só deixam de entrar
-        _tidy(root, home, prev.get("files"), set(own) | shown)
+        _tidy(root, home, prev.get("files"), set(own) | shown, prev.get("file_hashes"))
         out["files"] = own
+        out["file_hashes"] = hashes
     canvas_name = out.get("canvas")
     out.update(note=path.relative_to(root).as_posix(), state=state)
     log.info("obsidian: nota %s; canvas %s; %d conexões; %d anexos", state, "ok" if canvas_name else "não",
@@ -741,22 +800,58 @@ def deliver(pkg, cfg, assets=None, prev=None, force=False, notion=None, transcri
     return out
 
 
-def _tidy(root, folder, before, used):
-    """Anexos que o próprio Lumen gravou para esta aula e que nada usa mais (a tela saiu, o nome mudou): saem do
-    cofre. Só os da lista dele (o manifesto), do mesmo tamanho de quando gravou e dentro da área de estudos: uma
-    imagem que o usuário pôs ou trocou nunca é tocada."""
+def _tidy(root, folder, before, used, hashes=None):
+    """Anexos que o próprio Lumen gravou para esta aula e que nada usa mais (a tela saiu, o nome mudou, a
+    visualização 3D foi desligada): saem do cofre. Só os da lista dele (o manifesto), com os mesmos bytes de quando
+    gravou e dentro da área de estudos: uma imagem que o usuário pôs ou trocou nunca é tocada. E um anexo que ainda é
+    citado numa nota ou Canvas do cofre (o usuário embutiu em outra nota) fica."""
     if not isinstance(before, dict):
         return
+    gone = []
     for rel, size in before.items():
         if rel in used or not isinstance(rel, str):
             continue
         try:
             f = _within(root / rel, folder)
-            if f.is_file() and f.stat().st_size == size:
-                f.unlink()
-                log.info("obsidian: anexo antigo removido")
+            if f.is_file() and f.stat().st_size == size and (hashes or {}).get(rel) == hashlib.sha256(f.read_bytes()).hexdigest():
+                gone.append(f)
         except (AppError, OSError):
             continue
+    cited = _cited(root, {f.name for f in gone}) if gone else set()
+    for f in gone:
+        if f.name in cited:
+            log.info("obsidian: anexo antigo mantido (ainda citado no cofre)")
+            continue
+        try:
+            f.unlink()
+            log.info("obsidian: anexo antigo removido")
+        except OSError:
+            continue
+
+
+def _cited(root, names):
+    """Quais destes nomes de arquivo aparecem em alguma nota, Canvas ou Base do cofre (pastas ocultas fora)."""
+    found = set()
+    from urllib.parse import unquote
+    failed = []
+    for r, dirs, files in os.walk(root, onerror=failed.append):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        for fn in files:
+            if fn.rsplit(".", 1)[-1].lower() in ("md", "canvas", "base"):
+                try:
+                    text = (Path(r) / fn).read_text("utf-8", errors="ignore")
+                except OSError:
+                    return names  # não foi possível provar que o arquivo deixou de ser usado
+                if fn.rsplit(".", 1)[-1].lower() == "canvas":
+                    try:
+                        text = json.dumps(json.loads(text), ensure_ascii=False)
+                    except ValueError:
+                        return names
+                text = unicodedata.normalize("NFC", unquote(text)).casefold()
+                found |= {n for n in names - found if unicodedata.normalize("NFC", n).casefold() in text}
+                if found == names:
+                    return found
+    return names if failed else found
 
 
 def _board_of(root, maps, lid, prev):

@@ -1,6 +1,7 @@
 """Geração do material de estudo com um modelo local via Ollama (http://127.0.0.1:11434)."""
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 
@@ -189,13 +190,25 @@ def chunks(text, size=CHUNK_CHARS):
 
 # --- Ollama ----------------------------------------------------------------
 
+DOWN_FOR = 4.0   # segundos em que uma falha ao falar com o Ollama vale para as consultas seguintes (mesmo endereço)
+_down = {}       # endereço do Ollama → instante (time.monotonic) da última falha
+
+
 def models():
-    """Modelos instalados, ou None se o Ollama não estiver rodando."""
-    try:
-        with urllib.request.urlopen(OLLAMA + "/api/tags", timeout=3) as r:
-            return [m["name"] for m in json.load(r).get("models", [])]
-    except (OSError, ValueError):
+    """Modelos instalados, ou None se o Ollama não estiver rodando. Com o Ollama parado, cada tentativa custa ~2 s no
+    Windows e a tela de Estudos pergunta várias vezes por abertura (modelo principal, rápido, Máximo, perfil adulto, estado):
+    uma falha recente vale por DOWN_FOR segundos, para a tela abrir em ~2 s e não em ~14 s. Uma resposta boa limpa a falha."""
+    base = OLLAMA
+    if time.monotonic() - _down.get(base, -DOWN_FOR) < DOWN_FOR:
         return None
+    try:
+        with urllib.request.urlopen(base + "/api/tags", timeout=3) as r:
+            out = [m["name"] for m in json.load(r).get("models", [])]
+    except (OSError, ValueError):
+        _down[base] = time.monotonic()
+        return None
+    _down.pop(base, None)
+    return out
 
 
 def _stream(path, body, check, timeout=900):
@@ -214,7 +227,11 @@ def _stream(path, body, check, timeout=900):
         if e.code == 404:
             raise AppError(f"O modelo “{body.get('model')}” não está instalado no Ollama.",
                            "Abra Ajustes → IA local e baixe o modelo.") from None
-        raise AppError(f"O Ollama recusou o pedido (HTTP {e.code}).", "Tente de novo.") from None
+        try:  # o motivo vem no corpo (ex.: "does not support tools/thinking"); quem chama decide pelo texto
+            detail = str(json.loads(e.read() or b"{}").get("error") or "")[:200]
+        except (OSError, ValueError, AttributeError):
+            detail = ""
+        raise AppError(f"O Ollama recusou o pedido (HTTP {e.code})" + (f": {detail}" if detail else "."), "Tente de novo.") from None
     except (urllib.error.URLError, ConnectionError):
         raise AppError("O Ollama não está rodando.", "Abra o aplicativo Ollama e tente de novo.") from None
     except TimeoutError:
@@ -605,7 +622,7 @@ DECOR_SCHEMA = {
     "type": "object",
     "properties": {
         "emoji": {"type": "string"},
-        "motifs": {"type": "array", "items": {"type": "string"}},
+        "motifs": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
         "palette": {"type": "string", "enum": list(PALETTES)},
         "cover": {"type": "string", "enum": list(COVERS)},
         "color": {"type": "string", "enum": CALLOUT_COLORS},

@@ -3,9 +3,14 @@ import json
 import os
 import re
 import time
+import threading
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor
+import urllib.parse
 import urllib.request
 from datetime import date
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
 from . import AppError
 from .llm import fmt_time
@@ -14,6 +19,39 @@ from .sources import youtube_id, youtube_url
 API = "https://api.notion.com/v1"
 VERSION = "2026-03-11"
 NO_COURSE = "Sem curso"
+backup_rate_enabled = False
+_rate_lock = threading.Lock()
+_rate_next = 0.0
+_rate_blocked = 0.0
+
+
+def rate_wait(delay=0):
+    global _rate_next, _rate_blocked
+    if not backup_rate_enabled:
+        if delay:
+            time.sleep(delay)
+        return
+    with _rate_lock:
+        _rate_blocked = max(_rate_blocked, time.monotonic() + delay)
+    while True:
+        with _rate_lock:
+            moment = time.monotonic()
+            wait = max(_rate_next, _rate_blocked) - moment
+            if wait <= 0:
+                _rate_next = moment + .4  # one shared budget for lessons, covers and backup.
+                return
+        time.sleep(wait)
+
+
+def retry_after(headers, attempt):
+    raw = (headers or {}).get("Retry-After", "")
+    try:
+        return max(0, float(raw)) if raw else 2 ** attempt
+    except ValueError:
+        try:
+            return max(0, (parsedate_to_datetime(raw) - datetime.now(timezone.utc)).total_seconds())
+        except (ValueError, TypeError):
+            return 2 ** attempt
 
 
 def _error(status, code):
@@ -29,10 +67,16 @@ def _error(status, code):
     return AppError(f"O Notion está indisponível (HTTP {status}).", "Tente de novo em alguns minutos.")
 
 
-def request(method, path, token, body=None):
+class Unconfirmed(AppError):
+    """O pedido saiu e a resposta não voltou: o Notion pode ter feito ou não (não repetir às cegas)."""
+
+
+def request(method, path, token, body=None, once=False):
+    """`once`: um pedido que cria algo (ex.: a página do curso) não é repetido sem resposta; vira Unconfirmed."""
     data = json.dumps(body).encode() if body is not None else None
-    append = method == "PATCH" and path.endswith("/children")
+    append = (method == "PATCH" and path.endswith("/children")) or once
     for attempt in range(4):
+        rate_wait()
         req = urllib.request.Request(API + path, data, method=method, headers={
             "Authorization": f"Bearer {token}", "Notion-Version": VERSION, "Content-Type": "application/json"})
         try:
@@ -41,9 +85,9 @@ def request(method, path, token, body=None):
         except urllib.error.HTTPError as e:
             retry = e.code == 429 or (e.code >= 500 and not append)
             if retry and attempt < 3:
-                delay = min(float(e.headers.get("Retry-After") or 2 ** attempt), 30)
+                delay = retry_after(e.headers, attempt)
                 e.close()
-                time.sleep(delay)
+                rate_wait(delay)
                 continue
             try:
                 code = json.load(e).get("code", "")
@@ -52,12 +96,14 @@ def request(method, path, token, body=None):
             finally:
                 e.close()
             if append and e.code >= 500:
-                raise AppError("Não foi possível confirmar o envio ao Notion.",
+                raise Unconfirmed("Não foi possível confirmar o envio ao Notion.",
                                "Confira a página antes de tentar novamente; o último lote pode ter sido salvo.") from None
-            raise _error(e.code, code) from None
+            err = _error(e.code, code)
+            err.status = e.code  # quem chama separa “sem acesso” (404), “sem permissão” (403) e “não é página” (400)
+            raise err from None
         except (urllib.error.URLError, TimeoutError, ConnectionError):
             if append:  # Repetir um append sem resposta pode duplicar o conteúdo já recebido pelo Notion.
-                raise AppError("Não foi possível confirmar o envio ao Notion.",
+                raise Unconfirmed("Não foi possível confirmar o envio ao Notion.",
                                "Confira a página antes de tentar novamente; o último lote pode ter sido salvo.") from None
             if attempt < 3:
                 time.sleep(2 ** attempt)
@@ -66,8 +112,12 @@ def request(method, path, token, body=None):
 
 
 def page_id(value):
-    """Aceita link ou ID de página e devolve o ID com hífens."""
-    m = re.search(r"([0-9a-f]{32})(?:[?#]|$)", (value or "").replace("-", "").strip().lower())
+    """Aceita link ou ID de página e devolve o ID com hífens. Só o ID sai do link (ele nunca é acessado). No registro
+    aberto por cima do banco (…/<banco>?v=<visualização>&p=<página>) vale o `p`; `?v=`, `?pvs=` e a âncora de bloco
+    (#…) nunca são a página."""
+    parts = urllib.parse.urlsplit((value or "").strip())
+    raw = (urllib.parse.parse_qs(parts.query).get("p") or [""])[0] or parts.path.rstrip("/").rsplit("/", 1)[-1]
+    m = re.search(r"([0-9a-f]{32})$", raw.replace("-", "").lower())
     if not m:
         raise AppError("Não reconheci o link da página do Notion.", "Copie o link pelo menu ••• → Copiar link.")
     h = m[1]
@@ -81,9 +131,169 @@ def _title(page):
     return "Sem título"
 
 
-def search_pages(token):
-    d = request("POST", "/search", token, {"filter": {"property": "object", "value": "page"}, "page_size": 50})
-    return [{"id": p["id"], "title": _title(p)} for p in d.get("results", []) if not p.get("in_trash")]
+ROW = ("data_source_id", "database_id")
+
+
+def _parent_title(token, par):
+    """Nome da página-mãe ou do banco do registro; None se a integração não o enxerga."""
+    kind = par.get("type")
+    try:
+        if kind == "page_id":
+            return _title(request("GET", f"/pages/{par['page_id']}", token))
+        if kind in ROW:
+            d = request("GET", f"/{'data_sources' if kind == 'data_source_id' else 'databases'}/{par[kind]}", token)
+            return "".join(t.get("plain_text", "") for t in d.get("title") or []).strip() or "Sem título"
+    except AppError:
+        pass
+    return None
+
+
+def cover_ref(cov):
+    """A capa atual sem a assinatura da URL temporária do arquivo (ela muda a cada leitura da página)."""
+    if not cov:
+        return None
+    kind = cov.get("type")
+    url = (cov.get(kind) or {}).get("url") or ""
+    if kind == "file":
+        s = urllib.parse.urlsplit(url)
+        url = s.netloc + s.path
+    return f"{kind}:{url}"
+
+
+def _parent_key(p):
+    par = p.get("parent") or {}
+    return par.get(par.get("type")) if par.get("type") in ("page_id", *ROW) else None
+
+
+def _summary(p, name=None):
+    """A página como as Capas do Notion a mostram; `name`: o da mãe ou do banco, quando conhecido."""
+    kind = (p.get("parent") or {}).get("type")
+    where = ("No topo do workspace" if kind == "workspace" else
+             (f"Subpágina de “{name}”" if name else "Subpágina") if kind == "page_id" else
+             (f"Registro em “{name}”" if name else "Registro de banco de dados") if kind in ROW else
+             "Dentro de outra página")
+    return {"id": p["id"], "title": _title(p), "url": p.get("url"), "icon": (p.get("icon") or {}).get("emoji"),
+            "where": where, "edited": p.get("last_edited_time"), "cover": cover_ref(p.get("cover"))}
+
+
+def search_pages(token, query="", cursor=None):
+    """Busca por título da API (só o que foi compartilhado com a integração), 20 por vez, com registros de banco
+    (list_pages, dos destinos das aulas, os tira). Títulos repetidos na mesma leva levam o nome da mãe."""
+    d = request("POST", "/search", token, {
+        "filter": {"property": "object", "value": "page"}, "page_size": 20,
+        **({"query": query} if query else {"sort": {"timestamp": "last_edited_time", "direction": "descending"}}),
+        **({"start_cursor": cursor} if cursor else {})})
+    found = [p for p in d.get("results", []) if not p.get("in_trash")]
+    names = {p["id"]: _title(p) for p in found}  # a mãe que veio na mesma leva já tem nome: nenhum pedido a mais
+    seen = [names[p["id"]].casefold() for p in found]
+    dup = {p["id"] for p, t in zip(found, seen) if seen.count(t) > 1}
+    need = {_parent_key(p): p["parent"] for p in found if p["id"] in dup and _parent_key(p) not in (None, *names)}
+    with ThreadPoolExecutor(4) as pool:  # cada mãe uma vez, 4 pedidos por vez (dentro do limite do Notion)
+        names.update(zip(need, pool.map(lambda par: _parent_title(token, par), need.values())))
+    return {"pages": [_summary(p, names.get(_parent_key(p)) if p["id"] in dup else None) for p in found],
+            "next_cursor": d.get("next_cursor") if d.get("has_more") else None}
+
+
+def page_info(token, ref):
+    """A página do link ou ID, lida pela API oficial (não precisa ter aparecido na busca)."""
+    pid = page_id(ref)
+    try:
+        p = request("GET", f"/pages/{pid}", token)
+    except AppError as e:
+        if getattr(e, "status", None) in (403, 404):
+            raise AppError("O Lumen não tem acesso a esta página (ou ela foi apagada).",
+                           "No Notion, abra a página → ••• → Conexões → adicione a integração do Lumen.") from None
+        if getattr(e, "status", None) == 400:
+            raise AppError("Este link não é de uma página: pode ser de um banco de dados ou de uma visualização.",
+                           "Abra a página (ou o registro) e copie o link dela: ••• → Copiar link.") from None
+        raise
+    if p.get("in_trash") or p.get("is_archived") or p.get("archived"):
+        raise AppError("Esta página está na lixeira do Notion.", "Restaure a página no Notion ou escolha outra.")
+    return _summary(p, _parent_title(token, p.get("parent") or {}))
+
+
+def cover_is(token, pid, png):
+    """A capa atual da página é esta imagem? True/False, ou None se não deu para conferir. A URL do arquivo é
+    temporária e não traz um identificador documentado do envio: confere os bytes, baixados sem o token."""
+    try:
+        cov = request("GET", f"/pages/{pid}", token).get("cover") or {}
+    except AppError:
+        return None
+    return _file_is((cov.get("file") or {}).get("url") if cov.get("type") == "file" else None, png)
+
+
+def _file_is(url, data):
+    """O arquivo da URL temporária do Notion tem estes bytes? True/False, ou None se não deu para baixar."""
+    if not url:
+        return False
+    if urllib.parse.urlsplit(url).scheme not in ("https", urllib.parse.urlsplit(API).scheme):
+        return None
+    try:
+        with urllib.request.urlopen(url, timeout=60) as r:  # URL do próprio Notion: nenhum cabeçalho de autorização
+            return r.read(len(data) + 1) == data
+    except (urllib.error.URLError, TimeoutError, ConnectionError, ValueError):
+        return None
+
+
+def media_is(token, block_id, data):
+    """O bloco publicado é uma imagem do Notion com exatamente estes bytes? True/False, ou None se não deu para
+    conferir (sem resposta): o mesmo critério da capa."""
+    try:
+        b = request("GET", f"/blocks/{block_id}", token)
+    except AppError:
+        return None
+    img = b.get(b.get("type")) or {}
+    if b.get("type") not in ("image", "pdf", "file") or b.get("in_trash"):
+        return False
+    return _file_is((img.get("file") or {}).get("url") if img.get("type") == "file" else None, data)
+
+
+def visual_marker(lumen_id):
+    """Identificação legível da aula; não é prova de propriedade de um bloco."""
+    return f"ref. {str(lumen_id)[3:11]}"
+
+
+def visual_block(upload_id, caption, marker):
+    """Bloco nativo de imagem (só os campos da API: tipo, envio e legenda)."""
+    return {"object": "block", "type": "image", "image": {
+        "type": "file_upload", "file_upload": {"id": upload_id}, "caption": _rt(f"{caption} · {marker}", color="gray")}}
+
+
+def all_children(token, parent):
+    """Todos os filhos, incluindo páginas compartilhadas com mais de 100 blocos."""
+    out, cursor = [], None
+    while True:
+        q = "?page_size=100" + (f"&start_cursor={cursor}" if cursor else "")
+        d = request("GET", f"/blocks/{page_id(parent)}/children{q}", token)
+        out.extend(d.get("results", []))
+        if not d.get("has_more"):
+            return out
+        cursor = d["next_cursor"]
+
+
+def apply_cover(token, pid, png, upload=None, filename="capa.png"):
+    """Troca só a capa da página (PATCH com o campo cover e nada mais) e confere lendo a página de novo. `upload`: o
+    envio de uma tentativa anterior, reaproveitado se o Notion ainda o aceitar. Devolve (upload, estado):
+    "confirmed" (a capa é esta imagem), "mismatch" (a página mostra outra capa) ou "unconfirmed"."""
+    try:
+        reuse = bool(upload) and request("GET", f"/file_uploads/{upload}", token).get("status") == "uploaded"
+    except AppError:
+        reuse = False
+    if not reuse:
+        upload = upload_image(token, png, filename)
+    lost = False
+    try:
+        request("PATCH", f"/pages/{pid}", token, {"cover": {"type": "file_upload", "file_upload": {"id": upload}}},
+                once=True)
+    except Unconfirmed:
+        lost = True  # a troca pode ter acontecido ou não: quem decide é a leitura abaixo, nunca uma repetição às cegas
+    except AppError as e:
+        if getattr(e, "status", None) == 403:
+            raise AppError("O Lumen pode ler esta página, mas não tem permissão para alterá-la.",
+                           "Em notion.so/profile/integrations, ative “Atualizar conteúdo” na integração do Lumen.") from None
+        raise
+    ok = cover_is(token, pid, png)
+    return upload, "confirmed" if ok else "mismatch" if ok is False and not lost else "unconfirmed"
 
 
 def list_pages(token):
@@ -121,12 +331,14 @@ def list_pages(token):
 
 
 def list_courses(token, root):
+    from . import listening
+    hidden = listening.container_id()  # a página “Chamadas” do modo escuta não é um curso
     out, cursor = [], None
     while True:
         q = "?page_size=100" + (f"&start_cursor={cursor}" if cursor else "")
         d = request("GET", f"/blocks/{root}/children{q}", token)
         out += [{"id": b["id"], "title": b["child_page"]["title"] or "Sem título"}
-                for b in d.get("results", []) if b.get("type") == "child_page"]
+                for b in d.get("results", []) if b.get("type") == "child_page" and b["id"] != hidden]
         if not d.get("has_more"):
             return out
         cursor = d["next_cursor"]
@@ -142,13 +354,17 @@ def upload_image(token, data, filename="capa.png", content_type="image/png"):
         "Authorization": f"Bearer {token}", "Notion-Version": VERSION,
         "Content-Type": f"multipart/form-data; boundary={boundary}"})
     try:
+        rate_wait()
         with urllib.request.urlopen(req, timeout=60) as r:
-            json.load(r)
+            sent = json.load(r)
     except urllib.error.HTTPError as e:
         e.close()
         raise _error(e.code, "upload") from None
     except (urllib.error.URLError, TimeoutError, ConnectionError):
         raise AppError("Sem conexão com o Notion.", "Verifique a internet e tente de novo.") from None
+    if sent.get("status") != "uploaded":  # pending/expired/archived: não dá para anexar à página
+        raise AppError(f"O Notion não terminou de receber a imagem (estado: {sent.get('status') or 'desconhecido'}).",
+                       "Tente de novo.")
     return up["id"]
 
 
@@ -176,8 +392,23 @@ def create_course(token, root, title, decor=None, cover_png=None):
         children += [{"object": "block", "type": "divider", "divider": {}}, _h2("Aulas")]
         body["children"] = children  # as aulas criadas depois entram logo abaixo de “Aulas”
     aviso = body.pop("_aviso", None)
-    p = request("POST", "/pages", token, body)
-    return {"id": p["id"], "title": title, **({"cover_note": aviso} if aviso else {})}
+    uploaded = body.get("cover", {}).get("type") == "file_upload"
+    before = {c["id"] for c in list_courses(token, root)}  # para reconciliar se a criação ficar sem resposta
+    try:
+        p = request("POST", "/pages", token, body, once=True)
+    except Unconfirmed:  # nunca repete às cegas: procura a página nova com este título
+        new = [c for c in list_courses(token, root) if c["id"] not in before and c["title"] == title]
+        if len(new) != 1:
+            raise AppError("O Notion não confirmou a criação da página.",
+                           "Confira a página no Notion antes de tentar de novo, para não criar duas.") from None
+        p = new[0]
+    out = {"id": p["id"], "title": title, **({"cover_note": aviso} if aviso else {})}
+    if uploaded:  # a capa enviada está mesmo na página? (uma resposta 200 sozinha não prova)
+        cov = (request("GET", f"/pages/{p['id']}", token).get("cover") or {})
+        out["cover_confirmed"] = cov.get("type") in ("file", "file_upload")
+        if not out["cover_confirmed"]:
+            out["cover_note"] = "A página foi criada, mas o Notion não mostrou a capa enviada. Confira a capa no Notion."
+    return out
 
 
 def course_for(token, root, course_id):
@@ -452,6 +683,7 @@ def build_page(lesson, meta):
     blocks += [{"object": "block", "type": "table_of_contents", "table_of_contents": {"color": "gray"}},
                _h2("📝 Resumo"),
                _callout(_rt("Ideia central", bold=True) + _rt("\n") + _marked(summary[0], terms), "💡", "yellow_background"),
+               *([meta["visual_block"]] if meta.get("visual_block") else []),  # a visualização 3D, junto do assunto
                *_paras("\n\n".join(summary[1:]), terms),
                *_mind_map(lesson, meta.get("mind_map_upload")),
                _h2("🌱 Explicação simples"),
@@ -500,6 +732,9 @@ def build_page(lesson, meta):
     if meta.get("charts"):
         notes.append(f"{len(meta['charts'])} gráfico(s) feitos só com dados da aula: cada valor foi conferido na "
                      "transcrição ou nas telas; curvas, tempos e contagens foram calculados pelo Lumen.")
+    if meta.get("visual_block"):
+        notes.append("A visualização 3D logo abaixo da ideia central é um esquema gerado pelo Lumen com elementos do "
+                     "material (não é uma imagem da aula nem parte da sua compreensão).")
     if meta.get("screens"):
         notes.append(f"{len(meta['screens'])} tela(s) da aula lidas por um modelo de visão local ({meta['vision_model']}); "
                      "confira números e fórmulas nas imagens.")
@@ -590,7 +825,57 @@ def batches(blocks):
     return out + ([cur] if cur else [])
 
 
-def publish(token, parent, title, blocks, check, transcript=None, subpage=None):
+def _matches(sent, actual):
+    """Compara os campos enviados; a API acrescenta defaults e troca file_upload por file."""
+    if isinstance(sent, dict):
+        return isinstance(actual, dict) and all(
+            k in ("object", "children", "file_upload") or
+            (k == "type" and value == "file_upload" and actual.get(k) == "file") or
+            _matches(value, actual.get(k)) for k, value in sent.items())
+    if isinstance(sent, list):
+        return isinstance(actual, list) and len(sent) == len(actual) and all(_matches(a, b) for a, b in zip(sent, actual))
+    return sent == actual
+
+
+def _recover_call(token, op, bot):
+    """Reconcilia um envio incerto, sem remover nada. Só adota uma sequência única criada pela integração,
+    ausente no snapshot anterior e compatível com o pedido persistido; ambiguidade exige conferência humana."""
+    kids = all_children(token, op["parent"])
+    fresh = [b for b in kids if b["id"] not in op["before"] and (b.get("created_by") or {}).get("id") == bot]
+    body = op["body"]
+
+    def match_tree(wanted, actual):
+        if len(wanted) != len(actual):
+            return False
+        for a, b in zip(wanted, actual):
+            if not _matches(a, b) or (b.get("last_edited_by") or {}).get("id", bot) != bot:
+                return False
+            children_ = a[a["type"]].get("children")
+            if children_ is not None:
+                current = b[b["type"]].get("children")
+                if current is None:
+                    current = all_children(token, b["id"])
+                if not match_tree(children_, current):
+                    return False
+        return True
+    if op["method"] == "POST":
+        title = "".join(t["text"]["content"] for t in body["properties"]["title"]["title"])
+        candidates = [b for b in fresh if b.get("type") == "child_page" and b["child_page"]["title"] == title]
+        if len(candidates) == 1:
+            children_ = all_children(token, candidates[0]["id"])
+            if match_tree(body.get("children", []), children_):
+                return {"id": candidates[0]["id"]}
+    else:
+        wanted = body["children"]
+        candidates = [fresh[i:i + len(wanted)] for i in range(len(fresh) - len(wanted) + 1)
+                      if match_tree(wanted, fresh[i:i + len(wanted)])]
+        if len(candidates) == 1:
+            return {"results": [{"id": b["id"]} for b in candidates[0]]}
+    raise Unconfirmed("O envio anterior ao Notion ainda não pôde ser reconciliado com segurança.",
+                      "Confira a página; nenhum bloco foi apagado e nenhum lote incerto foi reenviado. Tente conferir novamente.")
+
+
+def publish(token, parent, title, blocks, check, transcript=None, subpage=None, journal=None, save=None):
     """Acrescenta a aula à página escolhida, preservando seus enfeites e conteúdo.
 
     `transcript` (opcional): linhas “[mm:ss] texto”; vão dentro de um título recolhível, em lotes de 100
@@ -602,35 +887,79 @@ def publish(token, parent, title, blocks, check, transcript=None, subpage=None):
     if page.get("in_trash") or page.get("archived"):
         raise AppError("A página escolhida está na lixeira do Notion.", "Restaure a página ou escolha outra.")
     added = []
+    step = 0
+    if journal is not None:
+        bot = request("GET", "/users/me", token)["id"]
+        if journal.get("bot", bot) != bot:
+            raise AppError("A integração do Notion mudou durante o envio.", "Reconecte a integração original para retomar.")
+        journal["bot"] = bot
+
+    def call(method, path, body):
+        nonlocal step
+        if journal is None:
+            return request(method, path, token, body, once=method == "POST")
+        ops = journal.setdefault("ops", [])
+        if step < len(ops):
+            op = ops[step]
+            if (op["method"], op["path"], op["body"]) != (method, path, body):
+                raise AppError("O envio pendente mudou de destino ou conteúdo.", "Retome o envio original antes de reorganizar.")
+        else:
+            pid = body["parent"]["page_id"] if method == "POST" else path.split("/")[2]
+            op = {"method": method, "path": path, "parent": pid, "body": body,
+                  "before": [b["id"] for b in all_children(token, pid)], "state": "new"}
+            ops.append(op)
+        step += 1
+        if op["state"] == "pending":
+            op["response"] = _recover_call(token, op, journal["bot"])
+            op["state"] = "done"
+            save(journal)
+        if op["state"] == "done":
+            return op["response"]
+        op["state"] = "pending"
+        save(journal)  # antes de enviar: uma queda do processo também deixa a intenção registrada
+        try:
+            response = request(method, path, token, op["body"], once=method == "POST")
+        except Unconfirmed:
+            raise
+        except AppError:
+            op["state"] = "failed"  # rejeição explícita: não foi gravado, pode tentar de novo
+            save(journal)
+            raise
+        op.update(state="done", response={k: response[k] for k in ("id", "results") if k in response})
+        save(journal)
+        return op["response"]
+
     blocks = [_b("heading_1", _rt(title)), *blocks]
     try:
         for batch in batches(blocks):
             check()
-            res = request("PATCH", f"/blocks/{parent}/children", token, {"children": batch})
+            res = call("PATCH", f"/blocks/{parent}/children", {"children": batch})
             added.extend(b["id"] for b in res["results"])
         if transcript:
             head, paras = transcript_section(transcript)
             first, *more = batches(paras) or [[]]  # o 1º lote vai junto do título, também dentro dos limites
             check()
-            res = request("PATCH", f"/blocks/{parent}/children", token,
+            res = call("PATCH", f"/blocks/{parent}/children",
                           {"children": [{**head, "heading_3": {**head["heading_3"], "children": first}}]})
             added.extend(b["id"] for b in res["results"])
             toggle_id = res["results"][-1]["id"]
             for batch in more:
                 check()
-                request("PATCH", f"/blocks/{toggle_id}/children", token, {"children": batch})
+                call("PATCH", f"/blocks/{toggle_id}/children", {"children": batch})
         if subpage:
             check()
             first, *more = batches(subpage)
-            sub = request("POST", "/pages", token, {"parent": {"page_id": parent}, "icon": {"type": "emoji", "emoji": "🧠"},
+            sub = call("POST", "/pages", {"parent": {"page_id": parent}, "icon": {"type": "emoji", "emoji": "🧠"},
                                                     "properties": {"title": {"title": _rt(UNDERSTANDING)}},
                                                     "children": first})
             added.append(sub["id"])  # a subpágina é um bloco child_page da página: removida como os outros
             for batch in more:
                 check()
-                request("PATCH", f"/blocks/{sub['id']}/children", token, {"children": batch})
+                call("PATCH", f"/blocks/{sub['id']}/children", {"children": batch})
         check()
     except BaseException:
+        if journal is not None:
+            raise  # IDs e pedido incerto persistidos: a próxima tentativa retoma, sem apagar conteúdo por inferência
         incomplete = False
         for bid in added:
             try:

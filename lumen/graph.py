@@ -51,11 +51,12 @@ def _obsidian_running():
     if sys.platform != "win32":
         return False
     try:
-        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Obsidian.exe", "/NH"], capture_output=True, text=True,
-                             timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
+        result = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Obsidian.exe", "/NH"], capture_output=True,
+                                timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except (OSError, subprocess.SubprocessError):
         return True  # na dúvida, espera
-    return "obsidian.exe" in out.casefold()
+    # tasklist usa a página OEM do Windows; só o nome ASCII do processo importa aqui.
+    return result.returncode != 0 or b"obsidian.exe" in result.stdout.lower()
 
 
 def ensure(vault, area, running=None):

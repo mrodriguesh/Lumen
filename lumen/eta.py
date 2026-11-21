@@ -27,6 +27,7 @@ PRIOR = {
     "music_rtf": 0.1,          # filtro de música, por segundo de áudio (separar na CPU: ≈ 0,15 s/s onde há música)
     "scan_rtf": 0.31,          # assistir o vídeo e ler as telas, por segundo de vídeo
     "mindmap_s": 4.9, "chart_s": 5.9, "upload_s": 1.3, "request_s": 1.0,
+    "visual_s": 5.5,           # visualização 3D animada (visual3d; medido: 5,4 s na CPU do i5-11400F)
 }
 
 

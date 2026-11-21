@@ -40,6 +40,10 @@ try:
         code = 200
         if settings_error[0] == ("load" if r.request.method == "GET" else "save") and (compact or path in ("/api/state","/api/notion/pages","/api/download","/api/clear")):
             r.fulfill(status=400,content_type="application/json",body=json.dumps({"error":{"message":"Não foi possível salvar os ajustes.","action":"Tente novamente."}})); return
+        if path == "/api/protection":
+            # o painel de proteção (protection.js) não faz parte deste roteiro: a API simulada diz que ela não está disponível
+            # (antes devolvia {} e o painel quebrava com "reading 'operation'" ao desenhar um estado vazio)
+            r.fulfill(status=503,content_type="application/json",body=json.dumps({"error":{"message":"Proteção indisponível neste teste."}})); return
         if path == "/api/widget" and compact:
             data = {"config": cfg,"has_token":has_token[0]}
         elif path == "/api/state":
@@ -119,6 +123,10 @@ try:
         widget.wait_for_function("() => document.body.dataset.state === 'live'")
         assert widget.locator("#time").inner_text() == "00:12"
         widget.screenshot(path=str(ART / "widget-recording.png"), animations="disabled")
+        widget.locator("#action").click()  # um clique logo depois de iniciar é ignorado de propósito (não encerra sem querer)
+        widget.wait_for_timeout(300)
+        assert counters == {"start": 1, "stop": 0}
+        widget.wait_for_timeout(600)
         widget.locator("#action").click()
         widget.wait_for_function("() => messages.some(m => m.startsWith('record:ready:'))")
         payload = widget.evaluate("JSON.parse(messages.find(m=>m.startsWith('record:ready:')).slice(13))")
@@ -129,7 +137,7 @@ try:
         widget.wait_for_function("() => document.body.dataset.state === 'error'")
         widget.wait_for_timeout(1200)
         assert "Conecte um fone" in widget.locator("#detail").inner_text()
-        assert widget.locator("#action").is_enabled()
+        assert widget.locator("#action").is_enabled() and widget.locator("#action").get_attribute("aria-busy") is None
         reject[0] = False
         widget.evaluate("hostListeners.forEach(fn=>fn({data:'side:right'}))")
         widget.evaluate("document.querySelector('#action').focus(); document.documentElement.dispatchEvent(new PointerEvent('pointerleave'))")
@@ -157,7 +165,7 @@ try:
             widget.mouse.move(42,6)
             widget.set_viewport_size({"width":304,"height":252})
             widget.wait_for_function("() => document.body.dataset.expanded === 'true'")
-            for selector in ("#settings", "#open", "#action", "#exit", "#drag"):
+            for selector in ("#settings", "#chat-btn", "#open", "#action", "#exit", "#drag"):
                 b=widget.locator(selector).bounding_box()
                 assert b and b["x"]>=0 and b["y"]>=0 and b["x"]+b["width"]<=304 and b["y"]+b["height"]<=252, (edge,selector,b)
             widget.screenshot(path=str(ART / f"widget-{edge}-expanded.png"), animations="disabled")
@@ -171,27 +179,45 @@ try:
             ]
             for index, rec in enumerate(scenarios):
                 widget.evaluate("rec=>render({recording:rec,job:{status:'idle',review:false}})", rec)
+                widget.wait_for_function("() => document.getAnimations().filter(a => a instanceof CSSTransition).length === 0")  # a cápsula de gravação assenta antes de medir
                 assert widget.locator("[title]").count()==0, "Barra flutuante sem tooltips em todos os estados"
                 pulse = widget.locator("#action").evaluate("n=>['::before','::after'].map(p=>getComputedStyle(n,p).animationName)")
                 assert pulse == (["none","live-halo"] if rec["active"] else ["none","none"])
                 assert widget.locator(".record-symbol").evaluate("n=>getComputedStyle(n).animationName") == "none"
-                for selector in ("#action", "#settings", "#open", "#exit", "#drag"):
+                for selector in ("#action", "#chat-btn", "#settings", "#open", "#exit", "#drag"):
                     b=widget.locator(selector).bounding_box()
                     assert b and b["x"]>=0 and b["y"]>=0 and b["x"]+b["width"]<=304 and b["y"]+b["height"]<=252, (edge,index,selector,b)
                 action = widget.locator("#action").bounding_box()
                 rail = widget.locator(".rail").bounding_box()
-                # Gravar fica no centro da barra de ícones, nas quatro orientações.
+                # Gravar continua o maior controle e o grupo de controles (Lumen, Gravar, Conversa, Ajustes) fica centralizado na
+                # barra de ícones, nas quatro orientações. Com a Conversa rápida são quatro controles: Gravar deixou de ser o do meio.
                 assert action["width"] == action["height"]
-                for axis, size in (("x", "width"), ("y", "height")):
-                    assert abs(action[axis] + action[size]/2 - (rail[axis] + rail[size]/2)) < 1
                 axis, size = ("x", "width") if edge in ("top", "bottom") else ("y", "height")
                 brand = widget.locator("#open").bounding_box()
+                chat = widget.locator("#chat-btn").bounding_box()
                 settings = widget.locator("#settings").bounding_box()
-                centers = [b[axis]+b[size]/2 for b in (brand,action,settings)]
-                assert abs((centers[1]-centers[0])-(centers[2]-centers[1])) < 1, "Espaçamento simétrico entre os três controles"
-                assert 44 <= centers[1]-centers[0] <= 60, "Grupo compacto sem sobreposição"
-                assert widget.locator("#action").get_attribute("aria-label") == ("Parar e usar gravação" if rec["active"] else "Iniciar gravação")
-                for selector in ("#open", "#settings", "#drag"):
+                assert action["width"] > brand["width"] and action["width"] > chat["width"], "Gravar segue o controle principal"
+                first, last = brand[axis], settings[axis]+settings[size]
+                capsule_on = rec["active"] and not rec.get("error")
+                centers = [b[axis]+b[size]/2 for b in (brand,action,chat,settings)]
+                if not capsule_on:
+                    assert abs((first+last)/2 - (rail[axis]+rail[size]/2)) < 1, "Grupo de controles centralizado na barra"
+                    assert abs((centers[1]-centers[0])-(centers[2]-centers[1])) < 1, "Espaçamento simétrico entre Lumen, Gravar e Conversa"
+                    assert 44 <= centers[1]-centers[0] <= 60 and 44 <= centers[3]-centers[2] <= 60, "Grupo compacto sem sobreposição"
+                    assert widget.locator("#pause").is_hidden(), "Sem gravação não há pausa"
+                else:
+                    # Cápsula de gravação: Lumen e Gravar/Encerrar ficam onde estavam; a pausa sai de trás do Gravar para o espaço livre da barra
+                    # e Conversa/Ajustes dão a vez (tests/capsule_ui.py prova os detalhes). Aqui: tudo dentro da barra e sem sobreposição.
+                    pause = widget.locator("#pause").bounding_box()
+                    assert widget.locator("#pause").is_visible() and pause and pause["x"]>=0 and pause["y"]>=0 and pause["x"]+pause["width"]<=304 and pause["y"]+pause["height"]<=252, (edge,index,"pausa",pause)
+                    assert 44 <= centers[1]-centers[0] <= 60, "Lumen e Gravar seguem no mesmo lugar"
+                    assert last <= rail[axis]+rail[size], (edge,index,"Ajustes fora da barra")
+                    for selector in ("#open", "#chat-btn", "#settings", "#drag"):
+                        other = widget.locator(selector).bounding_box()
+                        assert pause["x"]+pause["width"] <= other["x"] or other["x"]+other["width"] <= pause["x"] or pause["y"]+pause["height"] <= other["y"] or other["y"]+other["height"] <= pause["y"], (edge, selector, "pausa sobreposta")
+                assert widget.locator("#chat-btn").get_attribute("aria-label") == "Conversa rápida" and widget.locator("#chat-btn svg use").get_attribute("href").endswith("#chat")
+                assert widget.locator("#action").get_attribute("aria-label") == ("Encerrar gravação" if rec["active"] else "Iniciar gravação")
+                for selector in ("#open", "#chat-btn", "#settings", "#drag"):
                     other = widget.locator(selector).bounding_box()
                     assert action["x"]+action["width"] <= other["x"] or other["x"]+other["width"] <= action["x"] or action["y"]+action["height"] <= other["y"] or other["y"]+other["height"] <= action["y"], (edge, selector, "controles sobrepostos")
                 if index in (1,3): assert widget.locator("#detail").is_visible()
@@ -248,8 +274,10 @@ try:
             assert widget.locator("#settings").get_attribute("aria-expanded")=="true"
             assert widget.evaluate("messages.includes('window:settings')")==False
             for selector in ("[data-category=desktop]","[data-category=privacy]"):
+                # com a 7ª categoria (Proteção do cérebro) o menu passou da altura do painel e rola: a entrada tem de ser alcançável
+                widget.locator(selector).scroll_into_view_if_needed()
                 b=widget.locator(selector).bounding_box()
-                assert b and b["y"]+b["height"]<=252, (edge,selector,b)
+                assert b and b["y"]>=0 and b["y"]+b["height"]<=252, (edge,selector,b)
             widget.screenshot(path=str(ART/f"preferences-menu-{edge}.png"),animations="disabled")
             widget.locator("[data-category=desktop]").click()
             assert widget.locator(f'[data-position="{edge}"]').get_attribute("aria-pressed")=="true"

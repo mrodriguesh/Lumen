@@ -21,10 +21,19 @@ try:  # DLLs CUDA opcionais instaladas via pip (requirements-gpu.txt)
 except ImportError:
     pass
 
-import ctranslate2  # noqa: E402
-from faster_whisper import BatchedInferencePipeline, WhisperModel, download_model  # noqa: E402
-
 from . import AppError, audio  # noqa: E402
+
+
+# O faster-whisper (com CTranslate2, PyAV e tokenizers: ~25 MB de RAM e segundos de disco na partida) só carrega quando
+# um modelo é usado. Os nomes ficam aqui para quem chama e para os testes, que os trocam.
+def WhisperModel(*args, **kwargs):  # noqa: N802
+    from faster_whisper import WhisperModel as model
+    return model(*args, **kwargs)
+
+
+def BatchedInferencePipeline(*args, **kwargs):  # noqa: N802
+    from faster_whisper import BatchedInferencePipeline as pipeline
+    return pipeline(*args, **kwargs)
 
 PARAKEET = "parakeet-tdt-0.6b-v3"
 ONNX_REPOS = {PARAKEET: "istupakov/parakeet-tdt-0.6b-v3-onnx", "silero": "istupakov/silero-vad-onnx"}
@@ -43,10 +52,14 @@ def has_gpu():
     global _gpu
     if _gpu is None:
         try:
+            import ctranslate2
             _gpu = ctranslate2.get_cuda_device_count() > 0
             if _gpu and os.name == "nt":
-                ctypes.WinDLL("cublas64_12.dll")
-                ctypes.WinDLL("cudnn64_9.dll")
+                import _ctypes
+                # Confere que as DLLs do CUDA carregam e as solta: presas, o cuBLAS ocupava ~90 MB de RAM (e ~240 MB
+                # reservados) sem transcrição nenhuma. O CTranslate2 as carrega de novo quando um modelo vai para a GPU.
+                for dll in ("cublas64_12.dll", "cudnn64_9.dll"):
+                    _ctypes.FreeLibrary(ctypes.WinDLL(dll)._handle)
         except Exception:
             _gpu = False
     return _gpu
@@ -158,13 +171,21 @@ def _onnx_dir(key, local=True):
     return snapshot_download(ONNX_REPOS[key], local_files_only=local, allow_patterns=patterns)
 
 
+# Os repositórios e arquivos do faster_whisper.utils.download_model (1.2.1; tests/test_transcribe confere): saber se o
+# modelo já está no disco (a cada /api/state) não precisa carregar o faster-whisper inteiro.
+WHISPER_REPOS = {"small": "Systran/faster-whisper-small", "large-v3": "Systran/faster-whisper-large-v3",
+                 "large-v3-turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo"}
+WHISPER_FILES = ["config.json", "preprocessor_config.json", "model.bin", "tokenizer.json", "vocabulary.*"]
+
+
 def downloaded(name):
     try:
         if name in ONNX_REPOS:
             _onnx_dir(name)
             _onnx_dir("silero")
         else:
-            download_model(name, local_files_only=True)
+            from huggingface_hub import snapshot_download
+            snapshot_download(WHISPER_REPOS[name], local_files_only=True, allow_patterns=WHISPER_FILES)
         return True
     except Exception:
         return False
@@ -176,6 +197,7 @@ def download(name):
             _onnx_dir(name, local=False)
             _onnx_dir("silero", local=False)
         else:
+            from faster_whisper import download_model
             download_model(name)
     except Exception as e:
         raise AppError("Não foi possível baixar o modelo de transcrição.",
@@ -194,7 +216,22 @@ def _loaded_compute(name, device):
     return getattr(getattr(m, "model", None), "compute_type", None) or COMPUTE.get((name, device)) or _compute(name, device)
 
 
+_used = 0.0   # último uso de um modelo de _loaded (time.monotonic)
+_running = []  # uma marca por transcrição em andamento, de qualquer thread (append/pop são atômicos)
+IDLE_S = 900  # 15 min sem uso (o mesmo padrão do Voice Studio): o modelo sai da RAM e da VRAM; o próximo uso recarrega
+
+
+def release_idle():
+    """Chamada a cada segundo pelo laço de lumen/__main__.py: solta os modelos parados há IDLE_S."""
+    if _loaded and not _running and time.monotonic() - _used > IDLE_S:
+        _loaded.clear()
+        import gc
+        gc.collect()
+
+
 def _model(name, device):
+    global _used
+    _used = time.monotonic()
     if (name, device) not in _loaded:
         _loaded.clear()
         if name == PARAKEET:
@@ -390,12 +427,13 @@ def rate(segments, seconds=120):
     return sum(len(s["text"].split()) for s in first) / speech if speech >= 5 else None
 
 
-def transcribe(path, name, progress, check, speed=1.0, second=True, release=None):
+def transcribe(path, name, progress, check, speed=1.0, second=True, release=None, language=None):
     """Devolve {segments, language, duration, device, prep}; tempos sempre na linha do tempo do arquivo.
 
     speed (1, 2 ou 4) é a velocidade real do conteúdo do arquivo, não a do player. Se PREP pedir, o áudio é
     desacelerado pelo fator f (atempo, sem mudar o tom) e cada tempo volta ao arquivo como t × f.
-    `check()` levanta Cancelled. `release()` libera VRAM de outros programas (Ollama) se a GPU encher no meio."""
+    `check()` levanta Cancelled. `release()` libera VRAM de outros programas (Ollama) se a GPU encher no meio.
+    `language` fixa o idioma no Whisper (o "apertar para falar" dos Estudos: uma frase curta detecta mal o idioma)."""
     if not downloaded(name):
         raise AppError("O modelo de transcrição ainda não foi baixado.", "Abra Ajustes → Transcrição e baixe o modelo.")
     samples = audio.load(path)
@@ -404,10 +442,17 @@ def transcribe(path, name, progress, check, speed=1.0, second=True, release=None
     if factor != 1.0:
         samples = audio.tempo(samples, factor)
     scale = 1.0 / factor  # t_arquivo = t_processado / scale
-    with _background_priority():
-        # 4x: o small erra ~100% (bench/ultra); a conferência só marcaria tudo, então não roda
-        return _run(samples, name, progress, check, duration, factor, scale, second and int(speed) != 4,
-                    SPEED_OPTIONS.get(int(speed)), release)
+    global _used
+    _running.append(1)
+    try:
+        with _background_priority():
+            # 4x: o small erra ~100% (bench/ultra); a conferência só marcaria tudo, então não roda
+            opts = {**(SPEED_OPTIONS.get(int(speed)) or {}), **({"language": language} if language else {})}
+            return _run(samples, name, progress, check, duration, factor, scale, second and int(speed) != 4,
+                        opts or None, release)
+    finally:
+        _used = time.monotonic()  # os 15 min contam do fim da transcrição, não do início
+        _running.pop()
 
 
 def _run(samples, name, progress, check, duration, factor, scale, second, opts=None, release=None):

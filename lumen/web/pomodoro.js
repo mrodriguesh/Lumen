@@ -16,11 +16,13 @@
     play: '<path d="M8 5.5v13l10.5-6.5Z" class="fill"/>',
     pause: '<path d="M8.5 5.5v13M15.5 5.5v13"/>',
     reset: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v3.8h3.8"/>',
+    stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="2" class="fill"/>',
+    more: '<path d="m7 10 5 5 5-5"/>',
   };
   const svg = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[name]}</svg>`;
   const ring = (size, r) => `<svg class="pomo-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="trk" cx="${size / 2}" cy="${size / 2}" r="${r}"/>`
     + `<circle class="arc" cx="${size / 2}" cy="${size / 2}" r="${r}" pathLength="100"/></svg>`;
-  let st = null, skew = 0, polling = null, autoPoll = false, context = "";
+  let st = null, skew = 0, polling = null, autoPoll = false, context = "", studyEvent = 0;
   const views = [];
 
   async function call(body) {
@@ -49,6 +51,7 @@
     if (!d || typeof d.now !== "number") return;
     st = d; skew = d.now - Date.now() / 1000;
     const e = d.event;
+    if (e?.id > studyEvent) { studyEvent = e.id; window.dispatchEvent(new CustomEvent("lumen-pomodoro", { detail: e })); }
     if (e && d.now - e.at < 90) {
       let seen = 0;
       try { seen = Number(localStorage.getItem("lumen.pomodoroEvent")) || 0; } catch {}
@@ -96,6 +99,10 @@
         const said = `Pomodoro · ${label}${idle ? "" : ` · ${time}${st.running ? " restantes" : ""}`}`;
         v.time.setAttribute("aria-label", said + (v.sheet ? ". Abrir o Pomodoro" : ""));
         v.time.dataset.tip = said;
+        if (v.total) {  // cartão (estilo Glass): “13:54 / 25:00” e o Parar, que é o “reiniciar a etapa” do painel
+          put(v.total, "/ " + clock(st.total));
+          v.stop.hidden = k === "ready" || idle;  // no começo da etapa, reiniciar recomeçaria a sequência: aí o Parar some
+        }
       }
       if (v.sheet && !v.sheet.hidden) {
         put(v.q(".pomo-big"), time); put(v.q(".pomo-state"), label);
@@ -170,7 +177,8 @@
 
   // Liga um Pomodoro a um elemento. sheet: o painel completo abre ao clicar no chip. beforeOpen: a janela precisa
   // crescer antes (janela flutuante minimizada). panel: só as durações e o som, sempre à vista (Ajustes).
-  function mount(el, { sheet = false, beforeOpen, panel = false } = {}) {
+  // card: também o tempo total, o Parar e a seta do painel (o estilo Glass os mostra; o clássico os esconde no CSS).
+  function mount(el, { sheet = false, beforeOpen, panel = false, card = false } = {}) {
     const n = views.length;
     const root = document.createElement("div");
     const v = { root, custom: false };
@@ -181,11 +189,19 @@
       bindSettings(v);
     } else {
       root.className = "pomo";
-      root.innerHTML = `<button type="button" class="pomo-time">${ring(20, 7.5)}<span class="pomo-name">Pomodoro</span>`
-        + `<span class="pomo-label"></span><span class="pomo-short"></span><span class="pomo-clock"></span></button><button type="button" class="pomo-play"></button>`;
-      Object.assign(v, { time: root.firstChild, play: root.lastChild, sheet: null });
+      root.innerHTML = `<button type="button" class="pomo-time">${ring(20, 7.5)}`
+        + (card ? '<svg class="pomo-ico" aria-hidden="true"><use href="/icons.svg#timer"/></svg>' : "") + `<span class="pomo-name">Pomodoro</span>`
+        + `<span class="pomo-label"></span><span class="pomo-short"></span><span class="pomo-clock"></span>${card ? '<span class="pomo-total"></span>' : ""}</button>`
+        + '<button type="button" class="pomo-play"></button>'
+        + (card ? `<button type="button" class="pomo-stop" hidden aria-label="Parar e voltar ao início da etapa" data-tip="Parar (volta ao início da etapa; não afeta a gravação)">${svg("stop")}</button>`
+          + `<button type="button" class="pomo-expand" aria-label="Abrir o Pomodoro" aria-haspopup="dialog" data-tip="Durações, sessões e som">${svg("more")}</button>` : "");
+      Object.assign(v, { time: root.firstChild, play: root.querySelector(".pomo-play"), sheet: null });
       for (const k of ["clock", "label", "short"]) v[k] = root.querySelector(".pomo-" + k);
       v.play.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
+      if (card) {
+        Object.assign(v, { total: root.querySelector(".pomo-total"), stop: root.querySelector(".pomo-stop"), expand: root.querySelector(".pomo-expand") });
+        v.stop.addEventListener("click", (e) => { e.stopPropagation(); act("reset"); });
+      }
     }
     v.q = (s) => v.sheet.querySelector(s);
     if (sheet) {
@@ -201,10 +217,12 @@
         if (on && beforeOpen) await beforeOpen();
         v.sheet.hidden = !on; v.custom = false;
         v.time.setAttribute("aria-expanded", String(on));
+        v.expand?.setAttribute("aria-expanded", String(on));
         root.classList.toggle("open", on);
         if (on) { draw(); v.q("[data-act=toggle]").focus(); }
       };
       v.time.addEventListener("click", (e) => { e.stopPropagation(); v.open(v.sheet.hidden); });
+      v.expand?.addEventListener("click", (e) => { e.stopPropagation(); v.open(v.sheet.hidden); });
       document.addEventListener("pointerdown", (e) => { if (!v.sheet.hidden && !root.contains(e.target)) v.open(false); });
       root.addEventListener("keydown", (e) => { if (e.key === "Escape" && !v.sheet.hidden) { e.stopPropagation(); v.open(false); v.time.focus(); } });
       v.sheet.addEventListener("click", (e) => {

@@ -92,6 +92,7 @@ async function pollRec() {
   if (document.hidden || recBusy) return;
   try {
     const d = await Notes.call("/api/widget");
+    if (d.ui === "glass" || d.ui === "classic") document.documentElement.dataset.ui = d.ui;  // idem para o estilo da interface
     renderRec(d.recording);
     (d.notes || []).forEach((n) => Notes.merge(n.key, n));  // preparação pronta, gravação, outra tarefa, análise
   } catch {}

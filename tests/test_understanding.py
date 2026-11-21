@@ -272,9 +272,14 @@ class Flow(unittest.TestCase):
         with mock.patch.object(self.fake, "route", side_effect=no_subpage):
             jobs.start("process", jobs.finish, {**SPEC, "course_id": self.root})
             self.assertEqual(wait()["status"], "error")
-        self.assertEqual(self.fake.pages[self.root]["blocks"], [])  # o material da aula foi desfeito junto
+        written = [b["id"] for b in self.fake.pages[self.root]["blocks"]]
+        self.assertTrue(written)  # o journal preserva os blocos confirmados para retomar, sem outro append
+        self.assertTrue(store.history()[KEY]["notion_publish"])
         self.assertEqual(understanding.get(KEY)["state"], "completed")  # tudo guardado para tentar de novo
-        self.publish()
+        with mock.patch.object(llm, "generate", side_effect=AssertionError("regenerou durante a retomada")):
+            self.publish()
+        self.assertEqual([b["id"] for b in self.fake.pages[self.root]["blocks"] if b["type"] != "child_page"], written)
+        self.assertIsNone(store.history()[KEY]["notion_publish"])
         self.assertEqual(len(self.subpages()), 1)
 
 

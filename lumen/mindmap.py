@@ -1,16 +1,14 @@
 """Mapa mental da aula: estrutura vinda da IA (llm.generate) desenhada localmente como PNG em alta resolução.
 
-Mesmo caminho da capa (cover.py): HTML → Microsoft Edge headless → screenshot. O navegador faz a quebra de texto
-e um script mede as caixas, liga tudo com curvas e encolhe o mapa para caber na imagem. Sem Edge → None, e a
+Mesmo caminho da capa (cover.py): HTML → Microsoft Edge sem janela (lumen/cdp.py) → PNG. O navegador faz a quebra de
+texto e um script mede as caixas, liga tudo com curvas e encolhe o mapa para caber na imagem. Sem Edge → None, e a
 página recebe o mapa em tópicos aninhados.
 """
 import html as _html
 import json
-import subprocess
-import tempfile
 from pathlib import Path
 
-from .cover import edge
+from . import cdp
 
 COLORS = ["#f97316", "#3b82f6", "#22c55e", "#a855f7", "#ec4899", "#eab308", "#06b6d4", "#ef4444"]
 W = 1800  # largura da página; a altura acompanha o tamanho do mapa
@@ -107,21 +105,10 @@ def height(m):
 
 def render(m):
     """PNG (2× para ficar nítido ao ampliar no Notion) ou None sem Edge / em caso de falha."""
-    exe = edge()
-    if not exe or not m["branches"]:
+    if not m["branches"]:
         return None
-    with tempfile.TemporaryDirectory(prefix="lumen-mapa-", ignore_cleanup_errors=True) as tmp:
-        page, out = Path(tmp) / "mapa.html", Path(tmp) / "mapa.png"
-        page.write_text(html(m), "utf-8")
-        try:
-            subprocess.run([str(exe), "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
-                            "--force-device-scale-factor=2", f"--user-data-dir={Path(tmp) / 'perfil'}",
-                            f"--window-size={W},{height(m)}", f"--screenshot={out}", page.as_uri()],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           timeout=40, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        except (OSError, subprocess.SubprocessError):
-            return None
-        return out.read_bytes() if out.exists() and out.stat().st_size > 5000 else None
+    out = cdp.png(html(m), W, height(m), scale=2, timeout=40)
+    return out if out and len(out) > 5000 else None
 
 
 if __name__ == "__main__":  # python -m lumen.mindmap aula.json saida.png — prévia rápida

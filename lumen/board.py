@@ -10,7 +10,6 @@ plan() escolhe as imagens (tipo, ligação com os conceitos, o que o estudante e
 captura feita por ele, horário, qualidade; quase iguais saem). build() compõe a prancha conforme o tipo da aula
 (editorial, sequência ou comparação). merge() refaz o painel sem perder o que o usuário moveu ou criou."""
 import io
-import math
 import re
 import struct
 from collections import Counter

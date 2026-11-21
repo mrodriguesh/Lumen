@@ -1,8 +1,28 @@
+# Ambiente Python e caches
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# Dados de benchmark, saídas de teste e pacotes gerados (installer/publish-release.ps1)
 bench/.data/
 tests/desktop-artifacts/
-Lumen.DesktopCheck.exe
+dist/
+
+# Executáveis de verificação e cópias antigas do launcher (o oficial é o Lumen.exe)
+Lumen.*.exe
 launcher/Lumen.next.exe
-Lumen.old.exe
+
+# Rascunhos locais, depuração e configuração do editor/agente
+scratch/
+.claude/
+.vscode/
+tests/*_debug.png
+opt_original.png
+
+# Segredos e dados pessoais nunca entram no repositório (o Lumen guarda tokens no Cofre do Windows)
+.env
+.env.*
+*.pem
+*.key
+*.log

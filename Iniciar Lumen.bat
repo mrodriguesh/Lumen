@@ -27,4 +27,7 @@ if not exist ".venv\.instalado" (
   echo ok> ".venv\.instalado"
 )
 
+rem Dependencias que entraram depois da primeira instalacao (Pillow: visualizacao 3D). So instala o que falta.
+".venv\Scripts\python.exe" -c "import PIL" 2>nul || ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q pillow==12.3.0
+
 if exist "Lumen.exe" (start "" "Lumen.exe") else (start "" ".venv\Scripts\pythonw.exe" -m lumen)

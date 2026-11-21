@@ -13,15 +13,14 @@ import json
 import logging
 import math
 import re
-import subprocess
-import tempfile
 import unicodedata
 from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
 
-from .cover import edge
+from . import cdp
+from .cdp import edge  # noqa: F401 - os testes procuram o Edge por aqui
 
 log = logging.getLogger("lumen")
 
@@ -774,25 +773,27 @@ def _view(c):
     return v
 
 
-def html(c):
+def html(c, static=False):
     spec = json.dumps(_view(c), ensure_ascii=False).replace("</", "<\\/")
-    return (_PAGE.replace("__SPEC__", spec).replace("__FRAMES__", str(FRAMES)).replace("__COLS__", str(COLS))
+    return (_PAGE.replace("__SPEC__", spec).replace("__FRAMES__", str(1 if static else FRAMES)).replace("__COLS__", str(1 if static else COLS))
             .replace("__W__", str(W)).replace("__H__", str(H)))
 
 
-def _gif(frames):
-    """Quadros RGB → GIF com uma paleta de 256 cores feita para este gráfico (palettegen) e só a parte que muda
-    em cada quadro (diff_mode=rectangle)."""
+def _gif(frames, fps=FPS, hold=HOLD_CS, colors=256):
+    """Quadros RGB → GIF com uma paleta feita para esta animação (palettegen) e só a parte que muda em cada quadro
+    (diff_mode=rectangle). hold: centésimos de segundo no último quadro (-1 = o mesmo dos outros, para um laço
+    contínuo). Também usado pela visualização 3D (visual3d.py)."""
     import av
     import av.filter
+    h, w = frames[0].shape[:2]
     buf = io.BytesIO()
-    with av.open(buf, "w", format="gif", options={"loop": "0", "final_delay": str(HOLD_CS)}) as out:
-        st = out.add_stream("gif", rate=FPS)
-        st.width, st.height, st.pix_fmt = W, H, "pal8"
+    with av.open(buf, "w", format="gif", options={"loop": "0", "final_delay": str(hold)}) as out:
+        st = out.add_stream("gif", rate=fps)
+        st.width, st.height, st.pix_fmt = w, h, "pal8"
         g = av.filter.Graph()
-        src = g.add_buffer(width=W, height=H, format="rgb24", time_base=Fraction(1, FPS))
+        src = g.add_buffer(width=w, height=h, format="rgb24", time_base=Fraction(1, fps))
         split, sink = g.add("split"), g.add("buffersink")
-        gen = g.add("palettegen", "stats_mode=full:max_colors=256")
+        gen = g.add("palettegen", f"stats_mode=full:max_colors={colors}")
         use = g.add("paletteuse", "dither=none:diff_mode=rectangle")
         src.link_to(split)
         split.link_to(gen, 0, 0)
@@ -802,7 +803,7 @@ def _gif(frames):
         g.configure()
         for k, f in enumerate(frames):
             vf = av.VideoFrame.from_ndarray(np.ascontiguousarray(f), format="rgb24")
-            vf.pts, vf.time_base = k, Fraction(1, FPS)
+            vf.pts, vf.time_base = k, Fraction(1, fps)
             g.push(vf)
         g.push(None)
         n = 0
@@ -822,23 +823,15 @@ def _gif(frames):
 def render(c):
     """GIF animado do gráfico, ou None (sem Edge, falha ou arquivo grande demais)."""
     import av
-    exe = edge()
-    if not exe:
-        return None
     rows = -(-FRAMES // COLS)
-    with tempfile.TemporaryDirectory(prefix="lumen-grafico-", ignore_cleanup_errors=True) as tmp:
-        page, shot = Path(tmp) / "grafico.html", Path(tmp) / "quadros.png"
-        page.write_text(html(c), "utf-8")
-        try:
-            subprocess.run([str(exe), "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
-                            f"--user-data-dir={Path(tmp) / 'perfil'}", f"--window-size={W * COLS},{H * rows}",
-                            f"--screenshot={shot}", page.as_uri()],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            with av.open(str(shot)) as f:
-                sheet = next(f.decode(video=0)).to_ndarray(format="rgb24")
-        except (OSError, subprocess.SubprocessError, av.error.FFmpegError, StopIteration):
-            return None
+    shot = cdp.png(html(c), W * COLS, H * rows, timeout=60)
+    if not shot:
+        return None
+    try:
+        with av.open(io.BytesIO(shot), format="png_pipe") as f:
+            sheet = next(f.decode(video=0)).to_ndarray(format="rgb24")
+    except (av.error.FFmpegError, StopIteration):
+        return None
     if sheet.shape[:2] != (H * rows, W * COLS):
         return None
     frames = [sheet[(k // COLS) * H:(k // COLS + 1) * H, (k % COLS) * W:(k % COLS + 1) * W] for k in range(FRAMES)]
@@ -988,7 +981,7 @@ function tempo(g,top,p){
     E(gi,"text",{x,y:yy,fill:col,"font-size":24,"font-weight":700,"text-anchor":"middle"},v.data);
     lines.forEach((l,j)=>E(gi,"text",{x,y:yy+26+j*22,fill:INK,"font-size":17,"text-anchor":"middle"},l))})}
 for(let k=0;k<N;k++){
-  const p=k/(N-1),svg=E(document.body,"svg",{width:W,height:H,viewBox:`0 0 ${W} ${H}`});
+  const p=N===1?1:k/(N-1),svg=E(document.body,"svg",{width:W,height:H,viewBox:`0 0 ${W} ${H}`});
   svg.style.left=(k%COLS)*W+"px";svg.style.top=Math.floor(k/COLS)*H+"px";
   const g=E(svg,"g",{}),top=header(g);
   if(S.tipo==="barras")barras(g,top,p);else if(S.tipo==="linha")linha(svg,g,top,p);

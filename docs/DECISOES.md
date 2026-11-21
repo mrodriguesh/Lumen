@@ -1,5 +1,11 @@
 # Decisões e limitações
 
+## 04/11/2026 — Direção do produto e documentos dos Estudos
+
+O Lúmen deve ser a base local do segundo cérebro do usuário e de tecnologias futuras. O aprendizado é uma aplicação dessa base. Preservar contexto, autoria e fontes faz parte dessa direção; não foi adicionada nesta sessão uma API pública ou integração de fase futura.
+
+PDFs usam A4 e fundo claro por padrão, com opção escura. É uma exceção à interface sempre escura, pois o documento também é impresso. A renderização continua em `lumen/cdp.py`. Decisões da fase 7: D66–D73 em `docs/implementation/LUMEN_STUDY_AI_DECISIONS.md`.
+
 Pesquisado em outubro de 2026, nas documentações oficiais citadas.
 
 ## Arquitetura
@@ -20,6 +26,8 @@ lumen/
   obsidian.py    destino Obsidian: nota (renderer + writer sem destruir o que é do usuário), revisões, painel
   canvas.py      mapa mental como JSON Canvas: layout determinístico, merge com o que o usuário moveu
   vault.py       cofres do Obsidian: descoberta, estrutura (pelo type das notas) e busca de conexões
+  gdrive.py      Google Drive pela API oficial (OAuth de app para computador): a conta da cópia de segurança da Proteção
+                 (o antigo notebook.py, do Gemini Notebook, foi retirado em 09/11/2026)
   store.py       config.json, history.json, token no cofre do sistema
   web/           HTML/CSS/JS sem framework
 ```
@@ -116,8 +124,11 @@ lumen/
   da duração descartados. Se vier malformada, tenta mais uma vez. Na segunda falha, gera um erro recuperável e nada
   é publicado.
 - O prompt exige usar só a transcrição. A explicação simples e as analogias são rotuladas como didáticas na página.
-- Não há opção em nuvem. Nenhum serviço gratuito encontrado tinha custo e limites estáveis o bastante para cumprir
+- Não há opção em nuvem para gerar as aulas. Nenhum serviço gratuito encontrado tinha custo e limites estáveis o bastante para cumprir
   o requisito de transparência.
+- Revisto em 31/10/2026 só para a aba Estudos (Lúmen Study AI): o Claude entra como provedor **opcional**. Ele só funciona com a chave de API do
+  próprio usuário e com “Permitir envio a provedores externos” ligado (desligado por padrão e restringível por projeto), e cada envio vai para
+  o registro de atividades. A IA local continua sendo o padrão. Detalhes em `docs/implementation/LUMEN_STUDY_AI_DECISIONS.md`.
 
 ## Notion
 
@@ -156,6 +167,49 @@ lumen/
   remove palavras que viram texto falso ou moldura (interface, tela, código, documento, banner…).
 - **Sem o gerador**, a capa é desenhada com emojis e paleta do tema (Edge sem janela) e, se até isso falhar, um
   gradiente do Notion. A capa sobe pela File Upload API oficial.
+
+## Capas do Notion: capa em qualquer página (27/10/2026; `lumen/notion.py`, `lumen/server.py`)
+
+- **Independente de curso:** a capa vai na própria página escolhida (comum, subpágina, raiz, registro de banco),
+  com o token do Notion e nada mais: sem página raiz, sem curso, com qualquer destino das aulas. A busca usa
+  `POST /v1/search` paginado (20 por vez) e inclui registros de banco; `list_pages`, dos destinos das aulas, continua
+  sem eles. Títulos repetidos na mesma leva ganham o nome da mãe: o da mãe que veio na mesma leva sai dela, as
+  outras são consultadas uma vez cada, 4 por vez. No workspace real (uma “Minha compreensão” por aula) a lista inicial
+  caiu de 4,9 s (um GET por repetido, em fila) para 0,4 s. A busca da API só vê o que foi compartilhado com a
+  integração, e a interface diz isso.
+- **Link colado:** só o ID sai dele (`page_id`: `?p=` do registro aberto sobre o banco, senão o fim do caminho;
+  `?v=` e `#bloco` nunca são a página). O link nunca é aberto; toda requisição autenticada vai para `api.notion.com`.
+  Um ID de banco dá 400 no `GET /pages` e vira “Este link não é de uma página”.
+- **Só o campo `cover`:** `PATCH /v1/pages/{id}` com `{"cover": {"type": "file_upload", ...}}` e nada mais (nada
+  de propriedades, template, bloqueio ou conteúdo). 403 no PATCH = falta “Atualizar conteúdo” na integração.
+- **Prévia presa ao contexto (no servidor):** página, tema, conexão (hash do token) e a mais nova da página. Fora
+  disso, “gere de novo”, sem tocar no Notion. Uma aplicação por vez (clique duplo recusado).
+- **Confirmação por bytes:** a capa enviada volta como `type: "file"` com URL temporária, e a documentação não traz
+  um identificador do envio nela. `type == "file"` não prova nada (a página pode já ter uma capa assim), e a URL
+  assinada muda a cada leitura. Por isso o Lumen relê a página, baixa a URL temporária **sem o token** e compara com
+  o PNG aprovado. Diferente = “a página continua com outra capa”; sem download = “Não foi possível confirmar”. Para
+  saber se a capa mudou desde a seleção, compara `cover_ref` (host + caminho, sem a assinatura).
+- **Sem resposta do PATCH:** não repete às cegas (`once=True`). A tentativa seguinte confere a página primeiro e só
+  reenvia se a capa não for a aprovada, reaproveitando o mesmo envio (`GET /v1/file_uploads/{id}` = `uploaded`; um
+  envio anexado pode ser reusado, segundo o guia oficial). O log guarda página, envio, capa anterior e estado, para
+  diagnóstico; restaurar a capa anterior não é prometido (a URL dela é temporária).
+- **Gerador:** o mesmo das capas de curso (`_draw`: `llm.decorate` + Z-Image, ou emojis). Da decoração, só a
+  imagem é usada: ícone e destaque da página não mudam. A capa de cor do Notion não serve de alternativa aqui (não
+  há o que mostrar na prévia), então sem nenhum desenho é erro com “Tentar de novo”.
+- **Botão Capa na Nova aula (cartão do Notion):** abre um diálogo com o mesmo bloco de Ajustes (`#cov-box` muda de
+  lugar enquanto o diálogo está aberto): um estado, os mesmos IDs, as mesmas rotas e proteções. A página vem só de IDs
+  reais (`covTarget`): curso ou módulo do catálogo com `notion_page_id`; a página onde a aula já foi publicada
+  (histórico: “A organizar”, ou o material gratuito criado para ela). Módulo sem página não cai na página do curso;
+  material gratuito novo, aula avulsa e “Sem curso” pedem a página (a de “Sem curso” só se conhece criando ou
+  procurando pelo título, e nenhum dos dois cabe aqui). A página é validada pela API ao abrir; nada é criado. Reabrir
+  para o mesmo destino mantém a escolha e a prévia; com uma geração ou aplicação em andamento, nada muda de página.
+- **Curso novo:** `create_course` continua conferindo só o tipo da capa: a página acabou de ser criada com ela, não
+  havia capa anterior para confundir.
+- **Validado no Notion real (27/10/2026,** página de teste criada e depois enviada para a lixeira): busca e link
+  acharam a página; a capa gerada (Z-Image, 1536×640, 79 s e 82 s na RTX 3060, com o texto da IA) foi aplicada e
+  conferida; a URL assinada mudou entre duas leituras, o host + caminho não; os bytes baixados eram os enviados;
+  título, ícone e blocos ficaram iguais; substituir uma capa `file` por outra foi confirmado, e a capa vista
+  desatualizada gerou o aviso antes da troca.
 
 ## Gravar ao assistir
 
@@ -1152,3 +1206,538 @@ Incremental sobre a v1: mesmos detector, separador, emenda, cache, recuo e integ
   - aulas novas de curso com módulo, curso sem módulo, gratuito, avulsa e A organizar;
   - uma aula movida de A organizar para curso e módulo (`area.relocate`) e uma renomeada dentro do Obsidian;
   - a cor trocada para `#C084FC` no Obsidian sobreviveu a 50 execuções do Lumen (graph.json idêntico byte a byte).
+
+## Gemini Notebook (26/10/2026; `lumen/notebook.py`, `lumen/gdrive.py`)
+
+> **Histórico — superado em 09/11/2026.** A integração com o Gemini foi retirada do Lúmen (relatório: `docs/implementation/LUMEN_REMOCAO_GEMINI_20261109.md`). O texto abaixo registra o que foi decidido e medido na época; não descreve o código de hoje.
+
+Pedido do usuário: levar as fontes de uma aula ao Gemini Notebook (antigo NotebookLM), vincular aulas, cursos e módulos a
+cadernos, oferecer pedidos de estudo e trazer de volta o que ele exportar de lá, sem tirar do Lumen o funcionamento
+local. Documentação revalidada nesta data: o anúncio do nome (blog.google, 16/07/2026), fontes e limites
+(support.google.com/gemininotebook/answer/16215270), API Enterprise de cadernos, fontes e Audio Overview
+(docs.cloud.google.com/gemini/enterprise/notebooklm-enterprise), OAuth de app para computador
+(developers.google.com/identity/protocols/oauth2/native-app), escopos do Drive, envio e conversão
+(developers.google.com/workspace/drive/api), sincronização de Docs no NotebookLM (Workspace Updates, 26/05/2026),
+segurança do WebView2 (learn.microsoft.com) e os termos da Gemini API (ai.google.dev/gemini-api/terms).
+
+- **O que existe para a conta pessoal:** nenhuma API de cadernos. Fontes aceitas incluem `.md` e `.txt` (e Google Docs
+  do Drive), até 500 mil palavras ou 200 MB por fonte e 50 fontes por caderno no plano gratuito. Por isso o caminho é
+  arquivo preparado pelo Lumen + importação pelo usuário, com a confirmação registrada como **manual**. Não há endpoint
+  privado, cookie, biblioteca de engenharia reversa nem automação de cliques.
+- **Host:** `notebooklm.google.com/notebook/<id>` responde **301** para `notebook.google.com/notebook/<id>` com o mesmo
+  caminho e o `authuser` (conferido com `curl`, sem login, com um id inexistente). Os dois hosts são aceitos por
+  igualdade exata do hostname (`urlsplit`), só `https`, sem porta e sem usuário/senha, só o caminho `/notebook/<id>`; da
+  consulta fica só `authuser`. O endereço guardado é o novo. O caderno é identificado pelo id do endereço, nunca pelo
+  título: vincular de novo o mesmo caderno só troca o nome.
+- **Destinos sem mudança:** o contrato `notion|obsidian|both` tem ~40 consumidores, e `jobs._destinations` trata
+  qualquer valor desconhecido como “both”. O Notebook virou uma ação da aula (não um destino), que nunca chama
+  `_destinations`: funciona sem Notion e sem cofre. Consequência aceita: o material de estudo só existe para levar
+  depois de a aula ser salva num destino (é lá que a IA o escreve); a transcrição, a nota e a análise vão antes.
+- **Trava (no servidor, em toda rota da aula):** `notebook._gate` exige nota enviada e analisada (a mesma regra de
+  salvar), recusa durante uma análise e depois de “Estudar de novo”. Da nota só saem `original_understanding` e
+  `analyzed_text`, literais; um rascunho editado depois da análise nunca sai (testado).
+- **Transcrição:** lida de `work/<h>/transcript.json` (o pacote não a tem), com os parágrafos de `llm.transcript_text`:
+  `[mm:ss]` é o início real do 1º trecho de cada parágrafo de ~30 s, e trechos sem tempo (legenda colada, capturas)
+  ficam sem marcador. Quando a pasta foi apagada (`jobs.finish` guarda só a da última aula publicada), o item fica
+  indisponível com o motivo; nenhuma persistência nova foi criada para ela.
+- **Versões:** `sel` = sha256 dos nomes + conteúdos (sem número de versão nem data). A mesma seleção com o mesmo
+  conteúdo devolve a versão que já existe (clique duplo, repetição, reinício); outra cria `vN+1` numa pasta nova, com
+  escrita atômica e nomes de `obsidian.clean` conferidos dentro da pasta. O manifesto (nomes, itens, tamanhos, hashes)
+  fica em `DATA/notebook/state.json`; os vínculos, em `DATA/notebook.json` (como o catálogo, “Limpar” não os apaga).
+- **Google Drive (o “API gratuita” do usuário é um projeto Google Cloud comum):** a sincronização automática de Google
+  Docs do Drive no NotebookLM (maio/2026) torna o Drive o único caminho oficial e verificável para a conta pessoal.
+  - Escopo só `drive.file` (não sensível; o app vê apenas os arquivos que criou). OAuth de app para computador:
+    navegador do sistema, loopback `127.0.0.1` em porta livre que aceita só o pedido com o `state` certo, PKCE S256,
+    `access_type=offline`. O JSON do cliente é lido no servidor (o caminho nunca vem da interface); os endereços dele
+    são ignorados. `client_id`, `client_secret` (não é segredo num app para computador, mas fica junto) e o refresh
+    token vão para o keyring (“Lumen”/“google-drive”); `config.json` não muda.
+  - Um Doc por item e aula, marcado com `appProperties lumen=<lumen_id>.<item>[.<parte>]`. A marca não muda entre
+    versões: versão nova = `PATCH` no mesmo Doc (o caderno sincroniza). Conteúdo igual não é reenviado.
+  - **Sem repetição cega:** antes de criar, procura pela marca; uma criação sem resposta (timeout, 5xx, queda do app
+    com `sending` gravado) é procurada de novo e, se não aparecer, fica **resultado não confirmado** até um novo clique
+    ou **Conferir no Drive**. Só `GET`/`list`/`PATCH` repetem em 5xx; 429 e 403 de limite esperam o `Retry-After`
+    (teto de 30 s, 3 tentativas). 401 renova o token uma vez; `invalid_grant` apaga o refresh token e pede novo login
+    (em modo *Testing* o Google o expira em 7 dias).
+  - O estado “verificado” é o do Drive (id e data devolvidos pela API). Que o caderno recebeu, só o usuário confirma.
+  - Testado com um Google falso (`tests/fake_google.py`: PKCE, token, multipart, falhas injetadas e uma criação que grava
+    e responde depois do timeout). **Não foi validado com o Google real**: depende do cliente OAuth e do login do
+    usuário.
+- **Navegador incorporado: não.** Prova isolada (WebView2 155, perfil próprio em pasta temporária, host objects e
+  mensagens desligados, permissões negadas, downloads cancelados): `notebooklm.google.com` → `notebook.google.com/trynow`
+  (página pública “Gemini Notebook”), 6 processos e 359 MB com `--disable-gpu` (384 MB sem), 2–2,5 s de CPU na carga,
+  todos encerrados 4 s depois de fechar. O login não foi tentado: o Google bloqueia login de conta em frameworks
+  incorporados desde 2021 (`disallowed_useragent`, “este navegador ou app pode não ser seguro”) e a sessão do navegador
+  do usuário não passa para o WebView2. Abrir no navegador padrão já leva à conta logada, sem 360 MB a mais nem uma
+  superfície nova a proteger. Nada mudou no `launcher/`.
+- **Enterprise (não implementado, sem acesso):** Discovery Engine `v1alpha` (prévia): `notebooks` create/get,
+  `notebooks:listRecentlyViewed` (até os 500 vistos recentemente pelo usuário, não a lista completa),
+  `notebooks:batchDelete`, `:share`; fontes `sources:batchCreate` (texto, web, vídeo, Drive) e `sources:uploadFile`;
+  `audioOverviews.create` (um por caderno, assíncrono, sem endpoint de status nem de download: conferir no Studio).
+  Autenticação Bearer; a documentação não lista os papéis do chamador. Fica para quando houver licença e projeto.
+- **Gemini API: não usada.** Não acessa cadernos nem o Drive; a exportação e os pedidos saem do que a aula já tem; e o
+  nível gratuito permite usar o conteúdo enviado para melhorar produtos, com revisão humana (os termos pedem para não
+  enviar dados pessoais), o que contraria a IA local do Lumen.
+- **Interface:** cartão em Integrações (selo “Pelo navegador” ou “Drive conectado”, nunca “conectado ao caderno”) e o
+  diálogo da aula (Fontes, Pedidos de estudo, Do caderno), com uma ação principal por estado. A barra flutuante não mudou:
+  o rail já está cheio em 252 px, a ação acontece depois da análise (não durante a gravação ou a escrita) e não há
+  ajuste essencial do Notebook para levar a ela. As abas da fonte usavam `$$("[role=tab]")` global; agora o seletor é
+  `.src-tabs [role=tab]`, para não pegarem as abas do diálogo.
+- **Achado fora do escopo (não alterado):** `jobs.finish` escreve o material com `current_understanding`, que pode ser
+  uma edição feita depois da análise e ainda não analisada. A interface leva a “Analisar de novo”, mas o servidor não
+  exige. A exportação do Notebook não depende disso (usa a original e a analisada).
+- **Limites:** o envio ao Notion/Obsidian do que voltou do caderno não foi feito (próxima etapa, pedida como ação
+  explícita); áudio importado abre no player do Windows (o app não tem player); imagens só vão pelos arquivos (não pelo
+  Drive); a confirmação de que o caderno recebeu é sempre do usuário.
+
+### Capa no Notion recuperada (26/10/2026; `lumen/server.py`, `lumen/notion.py`, `web/app.js`, `tests/test_covers.py`)
+
+- **Causa da perda:** o commit `6c7bdfa` (Estudos: organização) removeu o seletor livre de páginas, e com ele a
+  prévia da capa (`/api/decor/preview`, “Gerar capa”/“Gerar outra”). Ficou só “Enfeitar a página no Notion” no novo
+  curso, que gerava a capa na hora de criar, sem mostrar nada, por `_notion_course` — que também jogava fora o
+  `cover_note` (falha do upload sumia) e não aceitava `preview_id`.
+- **Agora:** “Capa no Notion” no formulário Novo curso: Gerar prévia (local), Gerar outra, título e destino visíveis, e
+  “Criar curso com a capa” manda o `preview_id`. O servidor confere a prévia antes de criar qualquer coisa (expirada
+  em 1 h, desconhecida ou de outro nome: recusa, nunca troca por outra imagem) e publica os mesmos bytes. Uma prévia
+  por vez (`_preview_busy`, além do lock do gerador). Página de mesmo nome já existente: adotada como está, sem capa.
+- **Notion:** o upload só é anexado com `status: uploaded`; depois de criar, `GET /pages/{id}` confere que a capa é
+  um arquivo (`file`/`file_upload`), não só a resposta 200. `POST /pages` sem resposta não é repetido às cegas
+  (`notion.Unconfirmed`, `request(once=True)`): procura a página nova de mesmo título e adota, ou avisa para conferir.
+  Vale também para as páginas criadas pelas aulas (`jobs`), que usam `create_course`.
+- **Rótulos honestos:** `ia` (ilustração com IA local), `emojis` (alternativa) e `notion` (nenhum desenho saiu: capa
+  de cor do Notion). Neste PC o desenho com emojis (`cover.render`, `--screenshot` do Edge) não funciona no Edge 155
+  (a mesma causa das 3 falhas antigas de gráficos e mapa mental); por isso o terceiro estado existe e é dito.
+- **Medido de verdade:** geração real pela rota da prévia, RTX 3060, PNG 1536 × 640: 76 s (fria) e 73 s no WebView2
+  real (`Lumen.CoverCheck`, instância isolada), sem nenhum pedido ao Notion. A interface mostra o tempo medido da prévia,
+  não um número de benchmark. A publicação real ficou pendente (sem página de teste autorizada).
+
+### Integrações em abas e o diálogo refinado (26/10/2026; `lumen/web/index.html`, `app.js`, `app.css`)
+
+- **Por que a tela mudou:** `.integ-grid` punha Notion e Obsidian lado a lado com `align-items: start`; a linha tinha a
+  altura do Obsidian (o cartão maior), o Notion deixava um vão embaixo e o Gemini Notebook caía sozinho na linha de
+  baixo. Agora a página é uma coluna (até 920 px): destinos do material, uma faixa com as três integrações (abas com
+  nome, ícone e estado) e o painel da escolhida. Cada formulário continua existindo uma vez só; a aba só mostra ou
+  oculta o painel. Nada de altura fixa, margem negativa ou posição absoluta.
+- **Destinos x Notebook:** o cartão dos destinos diz que o Gemini Notebook não é um destino (o contrato
+  `notion|obsidian|both` não mudou). Integração fora dos destinos não fica mais apagada (opacidade baixava o contraste):
+  um aviso em palavras com “Usar Notion e Obsidian”.
+- **Defeitos corrigidos:** o “Vincular um caderno” reabria a cada 2 s durante o login do Google (o redesenho forçava
+  `open`); o formulário “Vincular outro caderno” do diálogo era apagado ao marcar uma fonte; o texto colado em “Do
+  caderno” se perdia num redesenho; avisos ficavam atrás do fundo escurecido de um diálogo modal (inerte); a resposta
+  atrasada de uma aula podia preencher o diálogo de outra; os botões do rodapé eram trocados com o foco neles (o foco
+  ia para a página); fechar o diálogo na Biblioteca redesenhava a lista e o foco se perdia; o diálogo travado ocupava a
+  altura toda (`height: auto` num `<dialog>` fixo estica; o padrão dele é `fit-content`).
+- **Única mudança de contrato (backend):** `gdrive.status()` ganhou `expired` (o Google recusou a renovação:
+  `invalid_grant`, 7 dias em modo Testing ou acesso removido). Fica no keyring junto das credenciais e sai ao entrar de
+  novo ou trocar o cliente; sem ele a interface não distinguia “acesso expirado ou revogado” de “falta entrar”. Campo
+  novo, os outros iguais (testado em `tests/test_notebook.py`).
+- **Ícones:** “Abrir no Obsidian” usa a gema do Obsidian em todo lugar (como na Nova aula); o livro é só do Gemini
+  Notebook. Na Biblioteca, Notion, Obsidian e Notebook têm o mesmo formato (ícone + nome); o mapa e o painel ficam só
+  com o ícone (com dica e rótulo para leitor de tela).
+
+## Revisões espaçadas opcionais (27/10/2026; `lumen/obsidian.py`, `lumen/area.py`, `lumen/store.py`)
+
+- **Uma preferência só:** `obsidian_review` (já existia) decide tudo o que é da agenda: a seção “Revisões” e as caixas
+  `Revisão N · data`, `review-stage`/`next-review`, a frase de revisões em “Como usar esta nota”, o `sync_reviews` da
+  abertura e de cada entrega, `due_reviews` (Início), a vista “Para revisar” e o filtro “Revisão” da Biblioteca (o
+  `/api/history` não manda `next`/`stage` com ela desligada) e, no cofre, “Para revisar hoje”/“Continuar estudando” da
+  Home, “Para revisar” e “· N para revisar hoje” da nota do curso e as colunas e visões de revisão de `Estudos.base`.
+  Status `review-required` (conferir o material da IA), perguntas, flashcards e “Possíveis notas permanentes” não são
+  revisão espaçada e não dependem dela.
+- **Padrão desligado.** `store.DEFAULTS` passou a `False`: instalação nova e config sem a chave começam sem revisões.
+  Um valor salvo vale como está (`{**DEFAULTS, **salvo}`; nenhum `or True`); como `save_config` grava todas as chaves,
+  quem já usava o Lumen continua com o que tinha.
+- **Desligar não mexe no cofre.** Nenhuma alteração em massa: vale para notas novas e para as que forem salvas de novo.
+  Numa atualização com revisões desligadas, só o que é do Lumen sai: a seção (dentro do bloco gerenciado), as duas
+  chaves de agenda (entram em `owned` com valor vazio → `merge_fields` as remove) e a frase em “Como usar” (troca do
+  callout inteiro só se for o texto exato do Lumen; editado pelo usuário, fica). Revisões escritas fora do bloco,
+  propriedades e anotações ficam; a versão anterior vai para `obsidian-backups`. Bloco editado à mão continua sendo
+  conflito.
+- **Ligar de novo** dá um checklist novo, uma vez, sem caixas marcadas (nada de histórico inventado), com as datas
+  contadas da data do estudo como sempre. Com revisões ligadas, a proteção antiga fica: `review-stage`/`next-review`
+  já existentes não são sobrescritos ao reprocessar (o `sync_reviews` é o dono deles).
+- **Pacote em cache:** `review_dates` do StudyPackage não é usado na entrega; as datas saem de `cfg` na hora
+  (`obsidian.deliver`). Um pacote preparado com revisões e salvo com elas desligadas sai sem a seção.
+- **Ligadas, nada muda:** `base_text`, a Home, a nota do curso e os callouts saem byte a byte iguais aos de antes
+  (conferido), então nenhum cofre é regravado por causa desta mudança.
+- **Validação real:** instância isolada + cofre temporário + dois pacotes reais (com `review_dates`) pelo “Salvar no
+  Obsidian”: desligada, nota sem seção, datas, chaves nem instrução e material completo; ligada, checklist, marcar a
+  Revisão 1 → `review-stage: 1`, próxima data certa, atualizar duas vezes sem duplicar nem desmarcar; desligar e
+  atualizar → o diff da nota é só as duas chaves, a frase do “Como usar”, a seção e o hash. Conferido também no
+  Obsidian real (perfil isolado, modo leitura, sem links quebrados) e na interface real (headless Edge pelo CDP).
+
+## Visualização 3D (27/10/2026; `lumen/visual3d.py`, `jobs.py`, `notion.py`, `obsidian.py`)
+
+- **Renderer escolhido pela menor complexidade que atingiu a qualidade, com prova.** Ambiente conferido antes: i5-11400F,
+  RTX 3060 (10,8 GB livres), NumPy 2.5 e PyAV 16.1 no `.venv`, Blender ausente (procurado em `Program Files`, `D:\`,
+  `%LOCALAPPDATA%`, `%APPDATA%`, Downloads e no registro), Edge 155 com `--screenshot` quebrado (ver a nota dos
+  gráficos). Por isso nem o caminho do Edge (o dos gráficos) nem um motor completo: um renderizador próprio, pequeno, em
+  NumPy + **Pillow** (desenho e texto), na CPU, dentro do processo. O Blender ficou para “necessidade demonstrada”, que
+  não apareceu: a cena tem perspectiva real, órbita de câmera com paralaxe, oclusão (ordem de profundidade por objeto
+  convexo; faces translúcidas escurecem o que fica atrás), faces de trás e arestas escondidas apagadas, borda mais clara
+  quando a face é vista de lado, brilho por desfoque, chão em grade que some na distância e varredura. Não há processo
+  externo para encerrar (o limite de tempo é cooperativo, quadro a quadro).
+- **Pillow 12.3.0** (MIT-CMU), instalado só no `.venv` a partir do wheel oficial do PyPI
+  (`pillow-12.3.0-cp314-cp314-win_amd64.whl`, 7.237.707 bytes, SHA-256 `fdafc9cc…14048d` conferido com o do PyPI;
+  ≈ 16 MB em `.venv\Lib\site-packages\PIL`). A 13.0.0 tinha 11 dias: ficou a última da linha anterior, de 01/07/2026.
+  Ele lê a Inter do projeto (`web/fonts/*.woff2`, OFL, variável no peso); para caracteres que ela não tem (→, Ω, ≤),
+  a Segoe UI do Windows. `Iniciar Lumen.bat` instala o Pillow numa instalação antiga que não o tenha; sem ele, a aula
+  sai sem a visualização e o resultado diz o motivo.
+- **Fluxo e limites.** `spec(pkg)` monta, sem IA, um objeto pequeno (família, conceito, título, até 7 elementos com
+  rótulos de até 52 caracteres, até 12 ligações por índice, as origens no material como `steps[2]`,
+  `mind_map.branches[1]`, `relations[0]`) e `validate` recusa qualquer campo a mais, tipo errado (bool não vale como
+  número, NaN não passa), índice fora, relação fora da lista do pacote, rótulo com controle ou longo e origem que não
+  seja um destes caminhos. A cena só lê rótulos e índices: nada da aula ou da IA vira código, caminho ou shader.
+  Família: `contrasta com` entre ideias principais → comparação; `map_kind` tutorial com 3+ passos → processo; sistema →
+  sistema; livro (ou 2+ “parte de”) → estrutura; 3+ passos → processo; o resto → conceitos. Relações que a aula não
+  afirma não viram seta: a ligação de cada ramo ao centro vem do próprio mapa (tracejada, sem pulso, sem rótulo).
+- **Arquivo e orçamento.** 960 × 540, 48 quadros a 12 fps (4,0 s), laço contínuo (todo movimento é periódico no laço:
+  giros por múltiplos da simetria de cada forma, pulsos e anel tracejado), paleta de **128 cores** (comparada a 256 num
+  recorte ampliado: igual a olho nu e ≈ 22% menor; a 96 cores é o segundo passo). Acima de 4,5 MB: 36 quadros, depois
+  800 × 450, depois PNG. Orçamento de tempo de 45 s (medido nos 4 primeiros quadros: se o ritmo passar, vai o PNG) e
+  limite de 120 s. Antes de entregar, `inspect` confere assinatura, decodificação (PyAV), tamanho, quadros, atrasos,
+  repetição (NETSCAPE 0), movimento (quadros vizinhos diferentes e o do meio longe do primeiro), imagem não vazia e
+  peso; o PNG, assinatura, IHDR, decodificação e peso (até 1,5 MB; estático típico ≈ 200 KB).
+- **Medido (RAG, sistema, 5 componentes e 3 relações):** 5,4 s de CPU de ponta a ponta (sem GPU: uso e memória da RTX
+  iguais durante o desenho), pico do processo 312 MB (59 MB antes), GIF 2,91 MB, PNG 216 KB; as sete amostras de
+  bancada (processo, sistema, conceitos, estrutura, comparação, um conceito só, rótulos com Ω e →) ficaram entre 2,9 e
+  4,1 MB a 256 cores e 7–9 s com medição de memória ligada. Uma renderização por vez (`_LOCK`); a IA local não precisa
+  ser descarregada (o desenho não usa VRAM).
+- **Uma vez, dois destinos.** `jobs._visual` chama `visual3d.prepare` uma vez por entrega; o arquivo fica em
+  `DATA/visuals/<lumen_id>/<hash>.{gif,png,json}` (um por aula: o anterior sai), e o mesmo vale para Notion e Obsidian.
+  Tentar de novo um envio, Organizar, Atualizar e reabrir o app reaproveitam o arquivo (o cache passa pela mesma
+  conferência; estragado, é desenhado de novo). O manifesto (`history.json`) guarda o registro mínimo: hash da spec,
+  versão do renderer (`holo-1`), modo, família, origens, arquivo, tamanho, quadros, duração, bytes e estado; nada de
+  base64 no pacote nem no histórico. Pacotes antigos funcionam (a spec sai deles na hora; sem mapa, os tópicos).
+- **Notion.** Envio oficial (`file_uploads`, MIME `image/gif`/`image/png`, só anexado com `status: uploaded`) e bloco
+  nativo `image` só com tipo, envio e legenda, logo depois do callout “Ideia central”. Depois de publicar,
+  `media_is` lê o bloco e baixa a URL temporária (sem o token) para comparar os bytes: `confirmed`, `mismatch` ou
+  `unconfirmed`. GIF que não sobe → o PNG de reserva (o mesmo desenho). Antes de publicar, o estado vira `pending`; se a
+  publicação ficar sem resposta (o Notion pode ter gravado), a próxima tentativa procura, na página, imagens com a marca
+  desta aula na legenda (`ref. <8 do lumen_id>`) que não estejam nos blocos registrados nem na lista de visuais
+  confirmados (cópias pedidas pelo usuário) e as tira antes de publicar de novo. Limite conhecido, de antes: o texto
+  de um lote sem resposta não tem marca e continua sendo conferido pelo usuário (a mensagem já pede isso).
+- **Obsidian.** Anexo da aula (`Anexos/visualização 3d · <aula>.gif`) no mesmo manifesto de propriedade (`files`) das
+  telas e gráficos, embutido com `![[…]]` logo depois da ideia central e com a legenda em itálico. Nome estável
+  (reprocessar não duplica); um arquivo com esse nome que o Lumen não gravou (tamanho diferente do manifesto) não é
+  sobrescrito: o visual ganha outro nome. Caminho dentro de `area.MAX`. A limpeza (`_tidy`) agora também confere se o
+  anexo é citado em alguma nota, Canvas ou Base do cofre antes de apagar: vale para telas e gráficos também. Migração
+  (sem o desenho em mãos) mantém o visual que já está. Não entra no painel visual (`board`), na capa, no mapa nem no
+  Gemini Notebook. Depende de “Telas e gráficos no cofre” (um cofre sem imagens fica sem imagens).
+- **Primeiro marco, real (27/10/2026).** Página de teste nova no Notion real (filha da raiz configurada, “Lumen · teste
+  da Visualização 3D (pode apagar)”): blocos `image`/`file`, bytes baixados idênticos aos enviados (GIF 2.913.648, PNG
+  215.679), envio do GIF 1,9 s. Reaberta no Notion desktop (CDP, só a área do conteúdo): o GIF anima (diferença média
+  9,9 e 11,1 entre capturas na área da imagem; 0,00 no texto) e ocupa a coluna em todas as larguras, sem rolagem
+  horizontal (`scrollWidth = clientWidth`). Obsidian real num cofre isolado novo, perfil separado e **sem internet**
+  (proxy para uma porta fechada; `fetch` externo falha): anexos locais carregados, nenhum link sem destino, animando
+  (10,3), 700 × 394 na largura de leitura e 504 × 284 com 640 px de janela, sem cortes.
+- **Interface:** Integrações → Destinos do material → **Visualização 3D** (Animada, Estática, Desligada; detalhes
+  técnicos recolhidos). O resultado do processamento mostra a mesma imagem (`/api/visual`), com o PNG quando o sistema
+  pede menos movimento (`<picture>` + `prefers-reduced-motion`); a preferência do sistema não muda o GIF exportado, por
+  isso o modo Estática publica PNG de verdade.
+
+## Conversa rápida na barra flutuante (09/11/2026; `lumen/web/chat.js`, `launcher/WidgetForm.cs`, `launcher/Lumen.cs`)
+
+- **O que é:** um painel de chat dentro da barra (ícone de balão entre Gravar e Ajustes) que usa o MESMO agente, as mesmas rotas e a mesma conversa do Cérebro; "Abrir no Cérebro" abre o
+  mesmo identificador. Sem servidor, banco ou processo novos. Decisões D127–D134 em `docs/implementation/LUMEN_STUDY_AI_DECISIONS.md`; relatório e provas em
+  `docs/implementation/LUMEN_CONVERSA_RAPIDA_20261109.md`.
+- **Janela nativa (corrigido em 09/11, 2ª versão):** a conversa abre na janela COMPACTA de sempre (`WidgetForm.ChatPanel = MainPanel`, 304 × 252: a barra não cresce); "Ampliar" pede `ChatWide`
+  360 × 540 (`widget:panel:chat-wide`, só na sessão). A 1ª versão (420 × 620 + `--chat-w/--chat-h`) cortava a conversa quando o `Lumen.exe` em uso não conhecia o pedido de tamanho. Agora o `.notch` da
+  conversa é `100vw × 100vh` (a página acompanha a janela, nunca o contrário) e a animação é a existente (`Approach`), interrompida continua do tamanho atual (maior passo ≤ 50% do percurso, sem
+  recuo). `chat:open[:id]` é validada no `Lumen.exe` (`^(tmp-)?[A-Za-z0-9_-]{1,64}$`) e de novo no `app.js`. Decisões D135–D140.
+- **Foco:** abrir por hover continua sem ativar a janela; o clique ativa e o campo recebe o foco. Com a conversa aberta e o foco na barra o mouse sair não recolhe; perder o foco recolhe. Esc: menu, depois recolher.
+- **Sem GPU global, sem blur, sem animação contínua parado.** O WebView2 continua em software. A resposta em escrita é redesenhada no máximo ~11 vezes por segundo e nada é desenhado recolhido.
+- **Linha de base herdada:** `widget_ui.py` e `DesktopChecks.cs` já falhavam antes (7ª categoria de Ajustes; duplo de teste sem `/api/protection`); corrigidos só nos testes. A trilha ganhou um quarto controle e
+  Gravar deixou de ser o do meio (teste atualizado).
+- **Limites:** sem comandos `/`, anexos, `/tela` nem voz na barra (confirmações de custo/envio externo e microfone ficam no Cérebro). O executável oficial só muda depois de Sair e trocar o arquivo.
+
+## Gemini gratuito e bloqueio de serviços pagos (09/11/2026; `lumen/study/policy.py`)
+
+> **Histórico — superado em 09/11/2026.** A integração com o Gemini foi retirada do Lúmen (relatório: `docs/implementation/LUMEN_REMOCAO_GEMINI_20261109.md`). O texto abaixo registra o que foi decidido e medido na época; não descreve o código de hoje.
+
+- **Regra:** só entra na IA externa o que está comprovado gratuito em documentação oficial (lista de permissões). Local (Ollama) sempre; Google Gemini só chat de texto, em
+  `policy.GEMINI_FREE_CHAT` (4 modelos “Free of charge” na tabela de preços de 09/11/2026), e só depois de três aceites do estudante (cotas, uso de dados do plano gratuito, plano
+  do projeto da chave). Claude, OpenAI, imagem/vídeo em nuvem, busca hospedada, TTS/ASR/embeddings em nuvem e armazenamento remoto: **bloqueados no backend**, antes de qualquer requisição.
+- **“Gratuito e sem cotas” não existe** no Gemini (a documentação publica só a camada gratuita com limites, sem números por modelo): o Gemini fica **desativado por padrão** e a
+  exigência não é flexibilizada em silêncio. O plano do projeto não é consultável só com a chave: vale a confirmação do estudante, atada à chave (trocar a chave pede de novo);
+  um HTTP 402 trava o Gemini para aquela chave. O Lúmen nunca gera “para ver se cobra” nem sugere ativar faturamento.
+- **Um ponto só:** `policy.authorize` (chat, JSON, alternativo, capas, listagem) + `policy.normalize` em `settings.load()` (ajuste antigo nunca reativa serviço pago) + enums fechados em
+  `settings.save()` (a seção `gemini` só muda pela rota `/api/study/gemini`). Migração única com `settings.json.antes-gemini-gratis-20261109.bak`.
+- **Privacidade:** no plano gratuito o Google usa o conteúdo e revisores podem lê-lo; a tela diz isso antes do aceite. Áudio nunca sai (vozes locais); `/web` usa a pesquisa guiada no Edge.
+- **Erros/cotas:** mensagens distintas (chave, acesso, plano/região, modelo, cota, indisponível, timeout); 429 lê `Retry-After`/`retryDelay`, no máximo UMA nova tentativa, só antes de
+  qualquer trecho da resposta e com espera curta; nunca troca de projeto/chave nem sugere pagar. Falha no meio do streaming com alternativo: o texto parcial é trocado, não duplicado.
+- **Protocolo:** `thoughtSignature` e `id` das chamadas voltam na mesma parte (exigência do Gemini 3/4); sem ferramentas hospedadas. `generateContent` é legado na documentação; migrar para a
+  Interactions API só com validação real. Relatório: `docs/implementation/LUMEN_GEMINI_GRATUITO_20261109.md`. Restauração: `D:\Lumen\restauracao\gemini-gratis-20261109`.
+
+## Retirada completa do Gemini (09/11/2026; `lumen/study/policy.py`, `lumen/study/settings.py`, `lumen/gdrive.py`)
+
+- **Decisão do estudante:** tirar o Gemini do Lúmen e seguir só com IA local (Ollama), sem cobrança por chamada de API. Vale para o
+  chat (adaptador, modelos, chave, aceites), para a mídia em nuvem e para o conector **Gemini Notebook** (`lumen/notebook.py`).
+  Não se troca o Gemini por outra API externa. Claude e OpenAI continuam **bloqueados**.
+- **O que fica:** Ollama e os motores locais (embeddings, voz, transcrição, imagens, visão); Notion e Obsidian; a pesquisa guiada no
+  Edge; a gravação e a captura; a Proteção e a restauração; **o Google Drive da Proteção** (`gdrive.py` + `protection_drive.py`).
+- **`gdrive.py` é compartilhado:** perde só o que era do Notebook (pasta “Lumen - Gemini Notebook”, `create`, `update`, `folder`,
+  conversão para Google Doc). Login OAuth, token, `find`, `_call` e a política de erros e repetições ficam. As rotas do Drive saíram de
+  `/api/notebook/drive/*` para `/api/drive*` (a Proteção chamava a de login por esse caminho).
+- **Política única (`policy.py`):** `PROVIDERS = ("ollama",)`. Claude e OpenAI: `paid_provider`. `google` e `gemini`:
+  `removed_provider` (só para a recusa explicar). Qualquer outro nome: `unknown_provider`. Recursos em nuvem: `paid_feature`.
+- **Migração (`settings.migrate`, idempotente):** é guiada pelo conteúdo do arquivo (não por uma marca): se ele ainda guarda `gemini`,
+  `models.google`, `models.image_google`, `privacy.external` ou um provedor/imagem/vídeo que não existe mais, reescreve só isso
+  (principal → local, alternativo → nenhum, imagem → local, vídeo → desativado), preserva o resto (inclusive o modelo local escolhido,
+  sem inventar nome) e guarda **uma** cópia, `settings.json.antes-remocao-gemini-20261109.bak`. Rodar de novo não faz nada e não cria outra
+  cópia. A leitura (`load`) já neutraliza o arquivo antigo antes de a migração rodar.
+- **Credencial:** a migração apaga do cofre do Windows só a entrada `Lumen` / `google-api-key` (sem lê-la), nunca as do Drive, do Notion,
+  da Proteção nem de outros aplicativos. Apagar a cópia local **não revoga** a chave na conta Google.
+- **Dados antigos do Notebook:** `DATA/notebook/` (arquivos preparados e materiais trazidos) e `DATA/notebook.json` (vínculos) ficam
+  no PC, sem nenhum código que os leia; “Limpar dados” apaga a pasta, como já fazia. Nada é apagado no Google (cadernos, documentos,
+  pasta no Drive).
+- **Testes:** `tests/test_gemini_removed.py` (migração, rejeição, rotas, credencial em cofre simulado, dados antigos, IA local e
+  varredura do código), `tests/test_gdrive.py` (Drive que a Proteção usa), `tests/local_ai_ui.py` (Chrome headless). O `tests/__init__.py`
+  passou a instalar um cofre em memória: nenhum teste toca no Gerenciador de Credenciais do Windows.
+
+## Conversa rápida: modelo rápido como padrão, ajustes próprios e temporário discreto (09/11/2026; `lumen/study/settings.py`, `agent.py`, `providers.py`, `lumen/web/chat.js`)
+
+Relatório e provas: `docs/implementation/LUMEN_CONVERSA_RAPIDA_AJUSTES_20261109.md`.
+
+- **D141 · A barra pede, o servidor decide.** A requisição da barra leva `surface: "quick"` (e nada de modelo, provedor ou URL). O agente lê os ajustes `quick.*` NO COMEÇO de cada resposta
+  (`agent._turn`), então mudar um ajuste nunca altera a resposta em andamento e vale da próxima. O Cérebro (sem `surface`) não é tocado, e `models.fast` global nunca é gravado pela barra.
+- **D142 · "Rápido" = nível Rápido + modelo rápido.** Sem escolha própria (`quick.model` vazio), a barra envia o esforço `rapido` (sem raciocínio; 4 fontes; 2 rodadas de ferramentas: a definição
+  que o nível já tinha) e usa `settings.fast_model()` resolvido na hora (nunca um nome fixo). O modelo é FIXADO no provedor (`Ollama.pin`): resposta, entender a pergunta, título, memória e
+  resumo usam o mesmo, e nenhum outro sai do HD. Com modelo escolhido, o nível segue o automático e o modelo vale em todos os níveis. O perfil adulto, quando escolhido, mantém o modelo dedicado
+  e nada dele passa pelo modelo da barra.
+- **D143 · Modelo escolhido é validado no backend.** `settings.quick_choices()` = modelos de chat instalados no Ollama (sem embeddings e sem o modelo dedicado ao perfil adulto); `_check` recusa
+  nome fora da lista, caminho, URL, provedor e Ollama fora do ar (não dá para conferir). Ajuste editado à mão com valor inválido volta ao padrão na leitura.
+- **D144 · Modelo ausente: recuperação local ou erro claro.** `settings.quick_resolve()`: pedido → rápido → principal, só entre os instalados. Se o respondente difere do pedido, a resposta
+  traz o evento `fallback`, `meta.quick.fallback` e a tela diz qual respondeu. Sem nenhum modelo local: erro claro DEPOIS de confirmar a pergunta (Tentar de novo). Nada é baixado e nada
+  sai do computador.
+- **D145 · Ajustes próprios, pequenos.** `settings.json → quick: {model, new_chat}` (migração = padrões de `DEFAULTS`); rota `GET/POST /api/study/quick` (grava só essas duas chaves; `{"reset": true}`
+  volta só elas). O tamanho Compacto/Ampliado continua sendo UMA configuração (`lumen.quick.wide`, só da sessão); o painel de ajustes e o menu chamam a mesma função `setWide`.
+- **D146 · Temporário.** Segue o contrato existente (`chats.TEMP` em memória, sem memórias, `temporary_private`). Novo: o servidor segue `quick.new_chat` quando o pedido não diz `temporary`
+  (escolha explícita do menu vale mais; conversa que existe nunca muda de tipo); a tela não grava NADA temporário no navegador (mensagens vêm do servidor; rascunho temporário só na memória da
+  página; sem ponteiro em `localStorage`; ponteiro temporário de versão anterior é apagado); rascunho normal e temporário são dois espaços; erros de ferramenta numa conversa temporária deixam
+  de registrar argumentos e mensagem no registro de atividades. Indicador: chip neutro com relógio e o texto "Temporária" na linha de modo, sem pulso nem cor de alerta.
+- **D147 · Painel interno em vez de janela.** "Ajustes desta conversa" substitui a conversa dentro do painel (a janela não cresce): Modelo, Novas conversas, Tamanho, Restaurar, com Voltar sempre à
+  vista e rolagem só no corpo. Leituras e gravações dos ajustes passam pela mesma fila na tela (uma leitura iniciada antes não devolve o valor velho). Barra em cima/embaixo: o menu de 5 ações
+  usa itens de 26 px para caber sem rolar (ampliada: 40 px).
+
+## Cápsula de gravação da barra flutuante (09/11/2026; `lumen/web/widget.html`, `widget.css`, `widget.js`)
+
+Relatório e provas: `docs/implementation/LUMEN_BARRA_GRAVACAO_CAPSULA_20261109.md`. Nenhum C# do produto, rota ou captura de áudio foi alterado.
+
+- **D148 · Um estado da interface existente.** A Pausa é o `#pause` e o `togglePause()` de antes (mesmas rotas `/api/record/pause|resume`, mesmo atalho), movido do painel para a trilha;
+  o Gravar é o `#action` e o `toggleRecording()` de antes. Não há segundo botão de pausa na mesma apresentação, nem ID ou listener duplicado.
+- **D149 · O Gravar não se mexe.** O grupo `.rec-group` tem o tamanho do botão; a Pausa é posicionada em absoluto e emerge de trás dele; os vizinhos deslizam com `translate` (a grade e
+  a janela não mudam). Parado, a barra é idêntica à anterior (comparado em px). Em vez de refazer a grade (que obrigaria a mover o Gravar), cada orientação tem constantes pequenas
+  (`--cap-*`) conferidas contra os 250 px da barra lateral e os 302 px da deitada, com e sem Minha compreensão.
+- **D150 · O servidor é a fonte; a animação segue a mudança de estado.** `renderCapsule()` aplica `data-rec` só quando o estado muda e roda também durante o aviso de erro de um comando (o
+  texto do painel fica; a cápsula mostra o real). Primeira leitura = sem animação (`data-capsule=init`).
+- **D151 · Segurança do toque.** O clique age pelo que a pessoa viu (estado diferente ⇒ mostra, não age); 700 ms de guarda depois de iniciar; comandos pendentes recusam cliques
+  (`aria-disabled`, não `disabled`); respostas anteriores a um comando concluído são descartadas. O fluxo de depois de parar (`record:ready`) não mudou.
+- **D152 · Não força painel.** Iniciar a gravação deixou de fechar o painel de Ajustes (a cápsula já mostra o estado); conversa, ajustes e nota seguem abertos, e recolher a barra não pausa
+  nem encerra.
+- **D153 · Dicas.** A dica da Pausa é curta e, na barra deitada, as dicas dos controles da trilha abrem para o lado de dentro (antes cobriam os vizinhos à direita).
+
+## Estilo da interface Lúmen Glass 2026 (10/11/2026; `lumen/web/glass.css`, `glass.js`, `index.html`, ganchos em `app.js`; relatório em `docs/implementation/LUMEN_GLASS_2026_20261110.md`)
+
+- **D161 · Estilo da interface.** O redesign muda disposição, geometria, vidro e movimento. É um eixo à parte: `config.json → ui_style`
+  (`classic` | `glass`; ausente = `classic`), escolhido em Ajustes → Aparência → Estilo da interface pelo mesmo `/api/settings` de sempre (qualquer outro valor é recusado). O Clássico continua o
+  padrão e intocado.
+- **D162 · O servidor marca o `<html>`.** `index.html` traz `data-ui="{{UI_STYLE}}" data-theme-kind="{{THEME_KIND}}"`; `server._page_marks` troca só por valores fixos (`store.UI_STYLES`; `default`
+  quando `themes.rev()` é `d0`) e recalcula o ETag. A janela abre no estilo certo, sem piscar o outro. Trocar em Ajustes não recarrega: `glass.js` muda o atributo e reorganiza o que precisa.
+- **D163 · Tudo escopado; Clássico provado idêntico.** Toda regra de `glass.css` está sob `:root[data-ui="glass"]` (teste lê cada bloco) e o arquivo entra por último (depois de `study.css`), então
+  sobrepõe sem `!important`. As peças só do Glass ficam no HTML com `.g-only` (ocultas no Clássico por uma regra em `app.css`) e o texto só do Clássico com `.c-only`. Prova: estilos calculados
+  (39 propriedades, de cor a tamanho, margem, grade, transformação e animação) de 69 080 elementos em 39 telas/estados, cópia de antes × atual, no Clássico: 0 diferenças.
+- **D164 · Reorganizar movendo, nunca recriando.** As colunas independentes do Início, a faixa do Pomodoro dentro da área de trabalho (rola com a página, nunca cobre o conteúdo) e o corpo da
+  Biblioteca (estrutura + lista) exigem outra ordem de elementos. `glass.js` MOVE os elementos que já existem (ouvintes, foco e estado continuam) e, ao voltar ao Clássico, devolve cada um ao lugar e
+  à ordem originais (teste compara a ordem antes/depois). Nada é recriado nem duplicado; formulários e rascunhos não se perdem na troca.
+- **D165 · Nenhuma função inventada.** O que as referências mostravam e o Lumen não faz ficou de fora: "Outro link" como fonte, "Áudio do sistema" com chave (o som do PC é a própria gravação;
+  vira um aviso), destinos com caixa de seleção na Nova aula (isso é em Integrações), Tags, miniaturas de vídeo, porcentagens, "Trabalhar com o seu conhecimento" no Cérebro e alternância
+  grade/lista. Ações rápidas e atalhos só chamam o que existe (Planejar → Estudar › Plano de estudos; Organizar → Biblioteca › A organizar; Buscar → Ctrl+K). A jornada marca a etapa pelo
+  estado real da aula (gravação, tarefa ou primeira pendente); sem aula, fica neutra. Os números da Biblioteca são contados das mesmas listas que ela mostra.
+- **D166 · As fontes da Nova aula voltam à vista.** As abas Gravar/Arquivo/Capturas estavam ocultas (só pela busca). No Glass há três cartões que acionam as abas de sempre (`selectTab` faz o
+  resto); o link do YouTube continua como referência da aula, não como fonte. O botão de gravar continua vermelho coral; em repouso não pulsa (D168).
+- **D167 · Vidro sem GPU.** O WebView2 roda com `--disable-gpu` (D anterior: estabilidade). O vidro dos cartões é material em camadas (preenchimento translúcido derivado dos tokens do tema,
+  reflexo especular, borda óptica com máscara, sombra de contato) sobre um fundo ambiente fixo; `backdrop-filter` só em flutuantes pequenos (menus, painel do Pomodoro, diálogo, aviso, dica) e
+  NUNCA em elemento sticky (a barra de ação ficou quase opaca: o desfoque seria refeito a cada quadro de rolagem). A "luz que segue o mouse" dos cartões fica desligada no Glass (recalculava
+  o estilo dos filhos a cada movimento). Medido no Chrome sem GPU: rolagem a 60 quadros/s sem quadro longo nas quatro telas, troca de tela em ~2 quadros, como no Clássico.
+  Mica/Acrylic não foram usados: o WebView2 pinta a área cliente inteira de opaco, então o material do Windows só apareceria tornando a janela transparente (risco que o projeto já evitou).
+- **D168 · Movimento pela régua Emil Kowalski.** Curvas fortes de ease-out nas mesmas variáveis do Lumen (`--ease-standard/emphasized/exit`), 100–280 ms, pressão `scale(.95–.98)`, nenhuma
+  animação infinita decorativa (pulso do botão principal, do gravador em repouso, do passo atual e do ponto do Monitor saem), troca de tela instantânea, popover nascendo da origem (painel do
+  Pomodoro: canto superior direito), aviso com `@starting-style` (interrompível). Reduzir movimento: sem deslocamento, mas aviso, diálogo, painel e dica mantêm um fade curto.
+  Reduzir transparência e contraste alto têm variantes.
+- **D169 · Windows em vez de macOS na moldura.** No Glass a barra de título traz a marca à esquerda e minimizar/maximizar(restaurar)/fechar no formato do Windows à direita (`data-g-window`,
+  mesmas mensagens `window:*` ao `Lumen.exe`, só com a moldura própria). O ícone vira "restaurar" quando a janela ocupa a área de trabalho. Limite: botões em HTML não abrem o menu de
+  Snap Layouts ao passar o mouse (isso exigiria o hit-test nativo de HTMAXBUTTON); arrastar para as bordas, Win+Z, Win+setas e duplo clique na barra funcionam.
+- **D170 · Paleta só sobre o tema padrão.** A paleta da direção visual (#0B0D12, #F1F2F6, #A0A6B4…) vale com `data-theme-kind="default"`; com um tema personalizado, o Glass usa as cores dele
+  (os materiais são derivados dos tokens por `color-mix`). O azul principal #5571EF ficou #4C69EE (2% mais escuro, visualmente igual) para o texto branco passar 4,5:1; secundário #A8AEBB e
+  terciário #9097A6 pelo mesmo motivo (teste de contraste igual ao do padrão).
+
+- **D171 · Resultado em cartões por destino (Glass, 12/11/2026).** O resultado de uma aula mostra, no Glass, um cartão por destino (Notion, Obsidian), a visualização
+  3D e as ações em duas fileiras. Os fatos são os MESMOS das linhas do Clássico: `obsidianParts` e `visualFacts` (`app.js`) alimentam os dois; o bloco `.g-result` é
+  `.g-only` e existe nos dois estilos (a troca sem recarregar não redesenha). "Tentar de novo" de um destino fica no cartão dele; com um destino só, o rodapé não repete
+  o botão. O foco vai para a ação do primeiro destino e a tela fica no topo. De passagem: resultado sem visualização mostrava o texto "null" (corrigido nos dois estilos).
+- **D172 · A barra e a nota conhecem o estilo.** `/widget` e `/note` passam por `_page_marks` (`<html data-ui>`) e `/api/widget` devolve `ui`; as duas janelas trocam
+  o atributo na leitura que já faziam (o caminho do tema). O que é do Glass na barra fica num bloco do `widget.css` em que toda regra começa por
+  `:root[data-ui="glass"]` (teste). Primeiro uso: os Ajustes da barra em ladrilhos (R35), só com a barra em cima/embaixo — na lateral não há largura.
+- **D173 · Capas, Proteção e Diagnóstico só por apresentação.** Capas: a trilha de três passos é um espelho visual (`aria-hidden`) do estado do fluxo, lido pelo CSS
+  (`#cov-page`, `#cov-img[data-empty]`); "Como funciona" repete a frase de sempre em três passos; `settingsArrange` aceita `[data-g-group]` (começa um cartão) e
+  `[data-g-free]` (fica solto). Proteção: nenhuma linha do `protection.js` mudou — o Glass reorganiza os blocos existentes por CSS (situação em cartão, etapas com o
+  estado em selo, cópias lado a lado). Diagnóstico: o selo grande espelha o `data-tone` do selo da porcentagem.
+- **D174 · Ícones dos cartões e das linhas das Configurações da IA.** `Glass.aiSection` → `aiCards` põe um ladrilho no título de cada cartão e um ícone em cada linha,
+  por tabelas de título/rótulo → ícone (`CARD_ICO`, `ROW_ICO`); são decorativos (`aria-hidden`, `.g-only`). Num cartão, as linhas só ganham ícone quando todas têm um.
+  Nenhuma classe nova em elemento existente (a comparação do Clássico acusa): o CSS reconhece o cartão com frase por `:has()`.
+- **D175 · Configurações da IA em peças `.g-only` (12/11, 4ª sessão).** Atividades vira linha do tempo por dia (`Glass.activity`, mesmos registros da tabela, lotes de 30
+  sem chamada nova), Avaliação ganha contador, estado vazio e trilha (`Glass.evaluation`), PDFs e Personalização são um cartão do Clássico desenhado como vários cartões
+  de vidro (`Glass.split`: fundos e cabeçalhos `.g-only`, nada é movido), o Catálogo ganha ladrilho por skill. `study-settings.js` só chama os ganchos opcionais
+  `window.Glass?.x` e entrega os mesmos valores aos dois estilos. Na barra (R37), bandeja e filete são só desenho: a geometria é contrato com `launcher/WidgetForm.cs`.
+- **D176 · Reestruturar por CSS quando a marcação já tem tudo (14/11).** Monitor (R25) e o cartão de descrição do menu de modo (R36) mudam de "centralizado" para
+  "ladrilho + filete + texto à esquerda" sem tocar no `app.js`/`study.js`: o contêiner do título vira `display: contents`, o ícone vira o ladrilho (caixa de conteúdo com
+  `padding`) e o filete é o `::after` do cartão, todos posicionados numa grade. O Monitor ganha `max-height` e rola (`flex-shrink: 0` nos filhos) em janela baixa.
+- **D177 · Coluna "Salvar" da Análise (R02) e Salvos (R08) (14/11).** No Glass a coluna tem `clamp(340px, 30%, 420px)` acima de 1100 px e o cartão de destinos entra
+  sem moldura (o Clássico já fazia isso; a regra genérica de cartão do Glass a devolvia). O ladrilho dos Salvos reusa a regra de `.g-tile-ico` por `:is()`.
+  Busca, filtros por tipo e ordenação dos Salvos e os filtros das Atividades não foram desenhados: seriam função nova, fora do escopo do estilo.
+- **D178 · Centralizar só o texto curto e independente, por token (14/11/2026).** O pedido foi centralizar os textos de todas as interfaces sem redesenhar. O inventário
+  mediu 650 tipos de contêiner de texto no Glass e 605 no Clássico (90 telas/estados cada): a maioria está ancorada a um ícone, a um controle ou à borda de uma lista,
+  e centralizá-la mudaria o desenho aprovado (referências R01–R38). Decisão: centralizam as mensagens independentes (cartão do Início gravando/pausado/processando no
+  Glass, mensagem do Pomodoro, estado vazio das conversas, notas de rodapé de cartão, rótulo "Posição na tela" da barra), por dois tokens (`--ta-short`, `--jc-short`)
+  e uma regra central no `ui.css`; o bloco de centralização do Clássico passou a usar o mesmo token (mesmo resultado visual). Títulos de página/seção do Glass
+  continuam à esquerda: são a borda de leitura do estilo, e mudar isso é decisão de desenho do usuário (`--ta-short` não os alcança de propósito).
+  Achado ao medir: no Clássico a barra de progresso do cartão do Início tinha largura 0 desde a centralização antiga (coluna flex centralizada); corrigido com
+  `align-self: stretch`. O launcher não mudou (não desenha texto: só o menu da bandeja e o aviso, que são do Windows), então não houve executável novo.
+
+- **D179 · Temas personalizados removidos (15/11/2026).** O usuário pediu para retirar a função de temas "sem deixar rastro e sem quebrar o código; é inútil". Saiu: `lumen/themes.py`, as rotas
+  `/api/themes*` e `/theme.css`, o `config.json → theme` (o arquivo deixa de gravar a chave), `theme.js`, `theme-settings.js`, a seção "Temas" de Ajustes → Aparência (fica só o
+  Estilo da interface), a categoria "Aparência" da barra flutuante, `.theme-scope`/`html.theme-swapping` no `ui.css`, o atributo `data-theme-kind` do `<html>` (a paleta Glass vale agora
+  só sob `:root[data-ui="glass"]`), o `NativeTheme` do launcher (virou `NativeColors`, com as mesmas cores fixas do padrão e a mesma chamada ao DWM) e as mensagens `theme:native:*` e
+  `window:settings:appearance`, o bloco "Temas" de `tests/DesktopChecks.cs`, `tests/test_themes.py`, `tests/themes_ui.py`, `tests/themes/` e os guias `docs/TEMAS.md`, `docs/temas/`.
+  O harness de servidor dos testes de interface passou de `tests/themes_harness.py` para `tests/ui_harness.py`. As decisões D154–D160 (o formato dos temas) foram retiradas junto;
+  D162, D170 e D172 falavam de `data-theme-kind` e de "paleta só sobre o tema padrão" (hoje a paleta Glass vale sempre sob `data-ui="glass"`). O visual de sempre não mudou.
+  Restauração: tag `PRE-REMOVER-TEMAS-20261115` (commit de snapshot, fora da branch) e `D:\Lumen\restauracao\remover-temas-20261115\antes.zip`.
+- **D181 · Open Notebook: só a transcrição em texto, pela API, sem duplicar (15/11/2026).** `lumen/opennotebook.py` fala com a API REST do Open Notebook
+  (rotas conferidas no `/openapi.json` da 1.15.1): `POST /api/sources` em multipart com `type=text`, `async_processing=true` e `notebooks=[id]`; nunca o banco dele.
+  Fica fora do roteador de destinos (`jobs._deliver`) de propósito: é um envio à parte, pedido aula por aula (ou automático, desligado por padrão e numa thread
+  depois da entrega), e a falha dele não muda o resultado do Notion nem do Obsidian. O estado mora no manifesto que já existia (`history.json`, campo
+  `opennotebook`: hash do texto, caderno, id da fonte, estado); não há outro banco. Um envio sem resposta vira `unconfirmed` e a nova tentativa procura a fonte no
+  caderno antes de repetir: a API assíncrona só preenche `full_text` depois do processamento, então a fonte ainda na fila é reconhecida pelo título e pela data
+  de criação (5 min de folga de relógio) e a já processada, pelo `lumen_id` no texto. `embed` só vai `true` quando o Open Notebook tem modelo de embeddings
+  padrão (sem ele o processamento falharia). Falha de processamento lá usa `POST /api/sources/{id}/retry` na mesma fonte. Pedidos sem proxy e sem seguir
+  redirecionamento (a senha e o texto não vão a outro endereço); a senha fica no cofre (`Lumen`/`opennotebook`) e é esquecida ao trocar o endereço da API.
+  “Abrir no Open Notebook” usa uma janela própria (`NotebookForm` em `launcher/Lumen.cs`): perfil WebView2 separado, `IsWebMessageEnabled=false`, navegação presa
+  à origem; a janela principal nunca sai do Lúmen. Restauração: tag `PRE-OPEN-NOTEBOOK-20261115` e `D:\Lumen\open-notebook-20261115\Lumen.exe.antes`.
+- **D182 · “Iniciar Open Notebook”: só a pedido, só o que falta, sem encerrar ninguém (15/11/2026).** O “Serviço indisponível” era a instalação nativa
+  parada depois de reiniciar o PC, não o endereço. `lumen/onlocal.py` inicia banco (SurrealDB em `127.0.0.1:8000`), API, worker e interface nessa ordem, com
+  caminhos fixos, argumentos em lista e `shell=False`; a senha do banco vem do `.env` do Open Notebook e vai pelo ambiente do processo (`SURREAL_USER`/`SURREAL_PASS`),
+  nunca na linha de comando nem no log. Cada componente é reconhecido antes de qualquer partida: `/version` do SurrealDB, `dbStatus` em `/api/config`, `apiUrl` em
+  `/config` da interface e a linha de comando do worker (ele não tem porta). Porta aberta sem essa resposta é “outro programa”: erro com o nome do processo, nada
+  encerrado (o módulo não tem nenhuma chamada que encerre processo). Uma partida por vez; repetir o clique devolve o andamento. Os serviços têm de sobreviver ao
+  Lúmen, então o grupo de processos do `Lumen.exe` passou a permitir saída (`KILL_ON_JOB_CLOSE | BREAKAWAY_OK`) e só eles pedem `CREATE_BREAKAWAY_FROM_JOB`; com
+  um `Lumen.exe` anterior a pedido é negado, o serviço inicia preso ao Lúmen e a interface diz isso (`tied`). Restauração: tag `PRE-ON-INICIAR-20261115`.
+
+- **D183 · HyperbookLM: título e transcrição, à mão, por uma ponte local autenticada (16/11/2026).** O HyperbookLM guarda as fontes só no estado React da
+  página (`useState` em `app/page.tsx`; o `useLocalSources` com `localStorage` existe, mas não é usado) e não tem rota de importação: as rotas dele só chamam
+  provedores pagos. Importar pela interface seria automação de cliques, e gravar no `localStorage` de outra origem não é possível. Por isso a integração tem
+  duas metades. No HyperbookLM, uma ponte (`lib/lumenBridge.ts`, `app/api/lumen`, `app/api/lumen/sources`) guarda o que chega em `.lumen/sources.json`
+  (escrita atômica, uma por vez) e a página lê esse arquivo ao abrir e ao voltar ao foco; remover a fonte na página a apaga do arquivo. No Lúmen,
+  `lumen/hyperbooklm.py` é um módulo à parte do Open Notebook (reaproveita só o abridor sem proxy/redirecionamento e a sonda de porta) com as rotas
+  `/api/hyperbooklm*`, a aba e o diálogo em `hyperbooklm.js`. Vai só `{title, text}`; a ponte recusa qualquer outro campo. O id é o SHA-256 de título + texto,
+  calculado dos dois lados: reenviar nunca duplica, um tempo esgotado fica *não confirmado* e pode ser repetido, e “Guardada” só vale depois de a ponte listar o
+  id. Sem envio automático. Segurança: o Lúmen gera o código (`secrets.token_urlsafe(32)`), guarda no cofre do sistema e mostra uma vez a linha
+  `LUMEN_BRIDGE_TOKEN=…` para o `.env.local` do HyperbookLM (o Lúmen não escreve em arquivos de outro aplicativo: o pareamento é o único passo manual). A ponte
+  exige o código para gravar (comparação em tempo constante), atende a página por mesma origem (`Sec-Fetch-Site`), recusa `Host` e `x-forwarded-for` que não
+  sejam deste PC, e os scripts `dev`/`start` do HyperbookLM passaram a escutar só em `127.0.0.1` (o `x-forwarded-for` do Next pode ser forjado; o que isola de
+  verdade é a escuta local mais o código). O Lúmen só aceita endereço `http` de loopback. “Conectado” é o servidor; as chaves de IA aparecem à parte e só como
+  *existe/não existe* (a ponte lê `process.env` e não chama nenhum provedor). A ponte responde por análise (`features`: `text`, `slides`, `audio`, `scrape`),
+  não por provedor, para a interface do Lúmen não voltar a citar o provedor retirado (o guarda de `tests/test_gemini_removed.py` segue valendo, sem exceção nova). Porta: o `next dev` sobe a porta quando a 3000 está ocupada (o Open Notebook a
+  usa), então “Testar conexão” procura da 3000 à 3010 por `app: hyperbooklm` quando o endereço guardado não responde; abrir a aba não sonda nada. Janela:
+  `NotebookForm` ganhou título e perfil como parâmetros (`webview-hyperbooklm`), e o `Lumen.exe` novo se anuncia no User-Agent (`LumenShell/2`) para a página
+  cair no navegador padrão quando o executável é anterior. A aba de Integrações passou de cinco colunas para duas fileiras de três. Também foi preciso trocar
+  `require("tailwindcss-animate")` por `import` no `tailwind.config.ts` do HyperbookLM: no Node 26 deste PC o arquivo é carregado como módulo ES e o `require`
+  derrubava o servidor ao compilar a página. Restauração: cópias conferidas por hash em `D:\Lumen\hyperbooklm-20261116\rollback` (com `RESTAURAR.md`).
+
+- **D184 · HyperbookLM dentro da janela principal, num painel nativo com WebView2 próprio (16/11/2026).** A janela separada (`NotebookForm`) tirava o
+  usuário do Lúmen. Agora `hyperbooklm:open:` mostra `HyperbookView` (`launcher/Lumen.cs`): um `Panel` filho do `MainForm`, por cima do WebView2 do Lúmen,
+  com uma barra nativa (botões de janela como os da página, **Voltar ao Lúmen**, **Recarregar**, nome e estado; a barra arrasta a janela e dois cliques
+  maximizam, porque sem a barra de título nativa não haveria onde pegar) e um WebView2 no mesmo perfil de antes (`webview-hyperbooklm`). Um `<iframe>` na
+  página do Lúmen foi descartado: dividiria o perfil e o processo com o Lúmen, exigiria afrouxar a CSP dele (`default-src 'self'`) e não daria para prender
+  a navegação por origem. A página do Lúmen não é recarregada nem escondida, só coberta: voltar é esconder o painel, e o estado dela fica intacto; o
+  HyperbookLM também fica carregado para a próxima abertura. Isolamento igual ao da janela antiga (sem ponte de mensagens, sem DevTools, sem preenchimento
+  automático), com a navegação mais restrita: fora da origem só sai para o navegador padrão o que o usuário clicou (`IsUserInitiated`) e é http(s);
+  redirecionamento por script e outros esquemas são só bloqueados. O painel nunca fica em branco: “Abrindo…”, “não está respondendo” (falha de rede na
+  navegação; uma página de erro HTTP do próprio servidor é mostrada como veio) e “WebView2 demorou demais” (30 s; a partida trava em vez de falhar quando o
+  perfil é inacessível, então a tentativa é descartada e “Recarregar” cria outra). Medidas em pixels pela escala da janela (`GetDpiForWindow`), refeitas no
+  `WM_DPICHANGED`. Pedidos que precisam da página do Lúmen (Ajustes pela bandeja, “Abrir no Cérebro”, gravação pronta, nota encaixada) escondem o painel.
+  O Open Notebook continua na janela separada. A página (`hyperbooklm.js`) não mudou: a mesma mensagem, outro destino. Restauração:
+  `D:\Lumen\hyperbooklm-embed-20261116\rollback` (inclui o `Lumen.exe` oficial de antes).
+
+- **D185 · Perplexity: o site oficial num painel do Lúmen, só a pergunta vai, a volta é colar (19/11/2026).** `/perplexity <pergunta>` (Estudos) abre um
+  diálogo com a pergunta editável e o aviso de que só ela sai do Lúmen; ao confirmar, a página manda `perplexity:open:<endereço>` ao `Lumen.exe` (`LumenShell/3`
+  no User-Agent; o `hyperbooklm.js` passou a aceitar 2 ou depois). O endereço é o modelo de busca publicado pelo próprio site (`https://www.perplexity.ai/opensearch.xml`:
+  `/search?s=o&q={searchTerms}`), sem o `s=o`, que marca buscas da barra do navegador; conferido em 19/11/2026: `perplexity.ai` → `www.perplexity.ai`, e
+  `/search?q=` → `/search/new?q=`, que faz a busca e troca o endereço por `/session/<id>`; sem conta, a busca roda e depois o site pede para entrar
+  (Google, Apple, e-mail ou SSO). Nada de API, script na página, leitura do DOM ou clique automático: o Lúmen só abre o endereço. O `Lumen.exe` confere de novo
+  (`MainForm.PerplexityStart`: https, porta padrão, `www.perplexity.ai`, só `/` ou `/search?q=`, sem usuário nem fragmento). O painel é o do HyperbookLM (D184)
+  com parâmetros, renomeado `SiteView` (nome, perfil, hosts liberados, aviso de indisponível e o botão **Trazer resposta ao Lúmen**). Perfil próprio
+  `webview-perplexity` na pasta de dados do Lúmen: o login fica nele, gerido pelo WebView2; o Lúmen não lê senha, cookie nem token (senha e preenchimento
+  automático desligados). Ficam no painel só `https` de `www.perplexity.ai`, `perplexity.ai`, `accounts.google.com` e `appleid.apple.com`; o resto: link
+  clicado (http/https) abre no navegador padrão, redirecionamento e outros esquemas são bloqueados com “Bloqueado: <host>” na barra (e, se a própria abertura
+  foi levada para fora, um aviso no lugar de “Abrindo…”, defeito do painel que valia também para o HyperbookLM). Em site da internet (`allow`), downloads
+  são cancelados com aviso, toda permissão é negada e esquema externo não abre aplicativo; nos dois painéis, sem ponte de mensagens, objetos do aplicativo
+  nem DevTools. Atenção: o `Navigate` do aplicativo conta como gesto do usuário no WebView2 (`IsUserInitiated`), por isso a regra também exige `!IsRedirected`.
+  A volta é sempre do usuário: Copiar no Perplexity, **Trazer resposta ao Lúmen** (volta e manda `desktop:perplexity:paste` à página, sem conteúdo) ou
+  `/perplexity` sem pergunta abrem um diálogo de colar; o texto entra na caixa de mensagem marcado “[Conteúdo do Perplexity colado por mim · não verificado
+  pelo Lúmen]”, com fontes e links como vieram, sem envio automático. Acima de 8 000 caracteres (o corte do `agent.py`) vira o anexo `perplexity-….md`, inteiro.
+  O `/web` (pesquisa guiada no Edge) não mudou. Conferido: `tests/test_perplexity.py` e a verificação nativa `tests/PerplexityCheck.cs` (site oficial sem conta,
+  site local para downloads, permissões e redirecionamentos). Falta conferir com conta: entrar com Google/Apple/e-mail no painel e copiar uma resposta de verdade;
+  se o provedor recusar o navegador embutido, o limite fica assim, sem contorno. Restauração: `D:\Lumen\perplexity-20261119\rollback` (com `SHA256.txt`).
+  Acréscimo (19/11/2026, a pedido: o usuário não achou a função): botão ↗ “Pesquisar no Perplexity” na caixa de mensagem do Cérebro e a aba
+  **Integrações → Perplexity** (`#integ-perplexity`): campo da pergunta com o aviso de que só ele sai, “Pesquisar”, “Abrir o Perplexity” (página
+  inicial), “Colar resposta no Cérebro”, os três passos e a lista de privacidade. Sem conexão a testar: o estado diz só se abre no painel ou no navegador.
+
+- **D186 · Diagnóstico do sistema: tudo o que o app usa, só com leituras, sem sucesso falso (19/11/2026; `lumen/diagnostics.py`).** O diagnóstico antigo dava
+  “ok” sem prova (versão do Voice Studio fixa “0.5.7”, Restic “verificado” só por existir, WebView2 e servidor sempre ok, erro desconhecido do Notion virava ok,
+  `info` contava como ok na nota e o selo mostrava “100%” antes de rodar). Agora são 45 verificações em 11 grupos, do inventário do código: Python e pacotes
+  fixados (versão e importação), pacotes de GPU, pasta de dados e espaço, cofre do Windows, servidor (o próprio pedido: endereço, porta, token), janela do
+  Lumen.exe (WebView2 pelo registro e o `LumenShell/N` de quem chamou), Edge (CDP), abrir com o Windows, loopback, microfone, PyAV/FFmpeg, eco, motores e
+  modelo de transcrição (arquivos no cache), CUDA, Ollama (/api/version, /api/tags e /api/show — metadados e capacidade, sem rodar o modelo), modelos do
+  chat, embedding, perfil adulto, política só local, banco dos Estudos (SQLite FTS5 aberto só para leitura), pastas autorizadas, /web, Voice Studio
+  (instalação, backend, modelos, voz escolhida), Chatterbox, Notion (/users/me e a página raiz por GET), Obsidian, Open Notebook (API e caderno, sem o
+  `view()` que grava o endereço da interface), HyperbookLM, Perplexity (só se o painel já foi usado), Restic (`restic version` e `cat config --no-lock
+  --no-cache` com a chave do cofre), cópia local pelos recibos, Google Drive (renovação feita aqui sem gravar no cofre + uma listagem), gerador de imagens,
+  filtro de música, 3D e GPU. Cada item: obrigatório/opcional, ligado, estado (ok, faltando, configuração incorreta, inacessível, desativado, não
+  verificado, bloqueado), etapas (instalado, configurado, autenticado, alcançável, utilizável), evidência, próximo passo seguro, limite do que não foi
+  provado e tempo. Obrigatórios: o fluxo da aula (gravar → transcrever → IA local → destinos escolhidos em `destinations`). Verificação que quebra ou passa
+  do prazo conta como obrigatória e não verificada. Cobertura (o que rodou) e prontidão (obrigatórias ok; é o número do selo) são separadas; “100%
+  operacional” só com todas as obrigatórias ok. Paralelo, 30 s no total, 3 s por sonda local e 6 s na internet; segredos conhecidos e formatos de token
+  viram ••••. Testes: `tests/test_diagnostics.py` (servidores falsos e cofre em memória). Restauração: `D:\Lumen\diagnostico-20261119\rollback`.
+
+- **D187 · Instalar / reparar no Diagnóstico e linhas legíveis (19/11/2026; `lumen/repair.py`, `/api/repair`).** O diagnóstico continua só leitura; ele
+  só aponta (`repair` no item) e o estudante decide. O que pode rodar é recalculado no servidor a cada pedido, só a partir de manifestos do projeto: os pacotes
+  do `requirements.txt` que não estão instalados (pip do próprio ambiente, versão fixada; versão diferente fica para o Iniciar Lumen.bat com o Lúmen fechado;
+  opcionais nunca) e o HyperbookLM (`package.json` × `yarn.lock` × `node_modules`; faltando, Yarn 1 com `--frozen-lockfile`, pelo yarn instalado ou pelo
+  corepack com `COREPACK_ENABLE_AUTO_PIN=0`; depois o `npm run dev -- -p <porta>` existente, fora do grupo do Lumen.exe como o Open Notebook, e “pronto” só
+  quando `/api/lumen` responde como a ponte). Um HyperbookLM já de pé em outra porta só corrige o endereço salvo; porta ocupada por outro programa nunca é
+  mexida. Um reparo por vez, passos reais na tela, Cancelar encerra só o que ele iniciou e ainda não ficou pronto (taskkill /T no PID dele), prazos de 30 min
+  (instalar) e 180 s (a ponte responder), log em DATA/logs/repair-*.log. Nada de administrador, comando vindo de texto, `.env.local`, código de pareamento,
+  `.lumen`, lockfile ou dados do estudante. Linhas do diagnóstico: grid `20px minmax(0, 1fr) auto` (ícone | nome e estado | ação) com o detalhe, o próximo
+  passo, as etapas e o limite na largura toda; com o contêiner estreito (≤ 560 px) a ação desce. O Glass perdeu a coluna fixa de 180–270 px que espremia o
+  texto. Em 19/11 o HyperbookLM real estava parado com as 29 dependências completas: o reparo seria só iniciar, sem baixar nada.
+
+- **D188 · Memória e CPU neste PC (21/11/2026; i5-11400F 6c/12t, 16 GB, RTX 3060, Lúmen no HD D:).** Medido com o Lumen.exe isolado
+  (`LUMEN_DATA`), 60 s parado: servidor Python com a interface de 228 → 77 MB únicos (USS) e 695 → 73 MB comprometidos; janela à vista
+  sem foco 23,5% → 4,1% de um núcleo. O que mudou, sem mudar o que o app faz:
+  - `transcribe.has_gpu()` confere que o cuBLAS/cuDNN carregam e os solta (`_ctypes.FreeLibrary`): presos, custavam ~86 MB de RAM e
+    ~240 MB comprometidos sem transcrição nenhuma. O CTranslate2 os carrega de novo quando um modelo vai para a GPU (verificado: turbo
+    na GPU, float16, depois da conferência).
+  - `OPENBLAS_NUM_THREADS=1` (`lumen/__init__.py`, `OWN_ENV`): o OpenBLAS do numpy reservava ~30 MB por thread lógica (12) ao carregar;
+    as contas do Lúmen com ele são pequenas. Não vai para o Voice Studio, o Open Notebook nem os instaladores (`_env`/`_spawn` o tiram).
+  - faster-whisper, PyAV, Pillow e pypdf só carregam no uso; `downloaded()` confere o disco pelo huggingface_hub com os mesmos
+    repositórios e arquivos do faster-whisper 1.2.1 (`WHISPER_REPOS`; `tests/test_transcribe.py` compara).
+  - Modelos de fala parados há 15 min (`transcribe._loaded`, `call._ASR_MODELS`) saem da memória (`release_idle`, no laço de
+    `lumen/__main__.py`); nunca com transcrição ou chamada em andamento. Libera ~2,1 GB de VRAM; a RAM do runtime CUDA (~0,7 GB depois de
+    usar a GPU) só volta ao fechar o Lúmen.
+  - Proteção: `peek()` lê o `state.json` (24 MB aqui) só quando ele muda (mtime + tamanho + id do arquivo) nas leituras que não gravam
+    (o `deliver_local` a cada 5 s, a tela a cada 5 s); `/api/protection` vai sem `item_versions` (23,7 MB → 0,19 MB por atualização).
+  - Os pulsos de chamar atenção (`fx-pulse`, ponto do monitor) param com a janela sem foco (`body.inactive`, também ao abrir sem foco):
+    sem GPU no WebView2 cada quadro custa CPU, ~20% de um núcleo só com a janela à vista. Com foco, continuam iguais.
+  - Janela principal escondida ou minimizada: `MemoryUsageTargetLevel.Low` no WebView2 (os scripts seguem rodando).
+  - Saíram o SDK `anthropic` (o Claude é bloqueado pela política antes de qualquer rede; o cliente era inalcançável) e as 11 dependências
+    só dele, e o Playwright do `.venv` (os testes de interface usam o do Python do sistema).

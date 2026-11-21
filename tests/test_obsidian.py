@@ -79,7 +79,8 @@ class Base(unittest.TestCase):
         self.root = Path(self.tmp) / "Cérebro com espaço"
         self.root.mkdir()
         make_vault(self.root)
-        self.cfg = {**store.DEFAULTS, "destinations": "obsidian", "obsidian_vault": str(self.root)}
+        # revisões são opcionais (padrão: desligadas); estes testes as usam ligadas, OptionalReviews testa sem
+        self.cfg = {**store.DEFAULTS, "destinations": "obsidian", "obsidian_vault": str(self.root), "obsidian_review": True}
         self.patch = mock.patch.object(store, "get_token", return_value="secret_ABCDEFGHIJKLMNOPQRSTUV")
         self.patch.start()
 
@@ -426,6 +427,171 @@ class Reviews(Base):
         text = self.read(self.deliver()["note"])
         self.assertIn("- [ ] Revisão 2 · 2026-10-28", text)
         self.assertNotIn("Revisão 3", text)
+
+
+class OptionalReviews(Base):
+    """Revisões espaçadas opcionais: a preferência `obsidian_review` decide a seção, as chaves de agenda, o texto de
+    ajuda e o que é cobrado; desligar não mexe no cofre, só nas notas criadas ou atualizadas depois."""
+    SECTION = ("## Revisões", "Marque cada revisão feita", "- [ ] Revisão 1", "Marque cada revisão feita em Revisões")
+
+    def off(self):
+        self.cfg["obsidian_review"] = False
+
+    def assertNoReviews(self, text):
+        for s in self.SECTION:
+            self.assertNotIn(s, text)
+        fm = vault.fields(vault.split(text)[0])
+        self.assertNotIn("review-stage", fm)
+        self.assertNotIn("next-review", fm)
+        self.assertNotRegex(text, r"Revisão \d+ · \d{4}-")
+
+    def assertComplete(self, text):
+        """O material de estudo não depende das revisões: perguntas, flashcards, compreensão, avisos e status."""
+        for s in ("> [!info]- Como usar esta nota", "> [!warning] Conteúdo gerado por IA", "## Perguntas de active recall",
+                  "## Teste de compreensão", "## Flashcards", "> [!quote] Minha nota original", "## Conceitos essenciais",
+                  "![[Mapa - RAG busca + geração.canvas]]", "- [ ] Buscar antes de gerar reduz invenção.",
+                  "## Minhas anotações", "status: review-required", "## Conexões"):
+            self.assertIn(s, text)
+        self.assertEqual(text.count("%% lumen:begin"), 1)
+
+    def test_new_config_has_reviews_off_and_saved_choices_survive_a_restart(self):
+        (store.DATA / "config.json").unlink(missing_ok=True)
+        self.assertIs(store.load_config()["obsidian_review"], False)  # instalação nova: desligadas
+        store._write("config.json", {"quality": "rapido"})  # config antiga sem a chave: também desligadas
+        self.assertIs(store.load_config()["obsidian_review"], False)
+        for value in (True, False, True):  # um valor salvo vale do jeito que está, ida e volta pelo disco
+            store.save_config({**store.load_config(), "obsidian_review": value})
+            self.assertIs(json.loads((store.DATA / "config.json").read_text("utf-8"))["obsidian_review"], value)
+            self.assertIs(store.load_config()["obsidian_review"], value)
+        (store.DATA / "config.json").unlink()
+
+    def test_switch_keeps_the_intervals_and_refuses_an_empty_list(self):
+        from lumen import server
+        (store.DATA / "config.json").unlink(missing_ok=True)
+        with store.LOCK:
+            server._apply_settings({"obsidian_review": True, "review_intervals": "2, 4, 8"})
+            cfg = server._apply_settings({"obsidian_review": False})
+        self.assertEqual((cfg["obsidian_review"], cfg["review_intervals"]), (False, [2, 4, 8]))
+        with self.assertRaises(AppError):
+            server._apply_settings({"review_intervals": ""})  # o campo escondido nunca vira uma lista vazia
+        cfg = server._apply_settings({"obsidian_review": True})
+        self.assertEqual((cfg["obsidian_review"], cfg["review_intervals"]), (True, [2, 4, 8]))
+        self.assertIs(server._apply_settings({"obsidian_review": "sim"})["obsidian_review"], False)  # só True liga
+        (store.DATA / "config.json").unlink()
+
+    def test_off_new_note_has_no_section_dates_or_instructions_and_is_complete(self):
+        self.off()
+        p = self.pkg()
+        self.assertTrue(p["review_dates"])  # pacote preparado com revisões (cache de antes): vale a preferência atual
+        out = self.deliver(p)
+        text = self.read(out["note"])
+        self.assertNoReviews(text)
+        self.assertComplete(text)
+        self.assertIn("Use as Conexões para ligar o assunto ao resto do cofre. Ideias que valem guardar".lower(), text.lower())
+        known = {f.name.casefold() for f in self.root.rglob("*")} | {f.stem.casefold() for f in self.root.rglob("*")}
+        self.assertEqual(obsidian.check(text, known), [])  # sem título vazio nem link quebrado
+        self.assertNotRegex(text, r"\n## [^\n]*\n\n## ")
+        self.assertEqual(self.deliver(p, prev=out)["state"], "unchanged")  # idempotente
+
+    def test_on_and_off_have_the_same_study_material(self):
+        on = self.read(self.deliver()["note"])
+        self.assertComplete(on)
+        self.assertIn("- [ ] Revisão 1 · 2026-10-24", on)
+        shutil.rmtree(self.root / "Estudos")
+        self.off()
+        off = self.read(self.deliver()["note"])
+        self.assertComplete(off)
+        strip = lambda t: re.sub(r"\n## Revisões\n.*?(?=\n## |\n> \[!note\]- Metadados)", "", t, flags=re.S)  # noqa: E731
+        body = lambda t: [ln for ln in vault.split(strip(t))[1].split("\n") if "lumen:end" not in ln]  # noqa: E731
+        self.assertEqual(body(off), [ln.replace(" Marque cada revisão feita em Revisões; o Lumen atualiza a próxima data.", "")
+                                     for ln in body(on)])  # tirando a seção e a frase, nada muda
+
+    def test_off_does_not_sync_or_list_old_schedules(self):
+        out = self.deliver()  # feita com revisões
+        path = self.root / out["note"]
+        path.write_text(path.read_text("utf-8").replace("- [ ] Revisão 1", "- [x] Revisão 1"), "utf-8")
+        before = path.read_text("utf-8")
+        self.off()
+        self.assertEqual(obsidian.sync_reviews(self.cfg), 0)  # nada em segundo plano
+        self.assertEqual(path.read_text("utf-8"), before)  # desligar não mexe no cofre
+        self.assertEqual(obsidian.due_reviews(self.cfg, today=date(2026, 12, 1)), [])
+        from lumen import area, server
+        hist = {"aula-1": {"lumen_id": self.pkg()["lumen_id"], "obsidian": {"status": "ok"}, "title": "RAG"}}
+        with mock.patch.object(store, "load_config", return_value=self.cfg), \
+                mock.patch.object(store, "history", return_value=hist):
+            self.assertEqual(server._reviews(), {"items": []})
+            item, = server._history()["items"]
+            self.assertEqual(item["review"], {"next": "", "stage": "", "status": "review-required"})
+            self.cfg["obsidian_review"] = True
+            self.assertEqual(server._history()["items"][0]["review"]["next"], "2026-10-24")  # ligadas: como antes
+        area.refresh({**self.cfg, "obsidian_review": False})
+        self.assertNotIn("revis", self.read("Estudos/00 - Estudos.md").split("%% lumen:end")[0].split("%% lumen:begin")[1].lower())
+        self.assertNotIn("next-review", self.read("Estudos/Estudos.base"))
+
+    def test_update_while_off_removes_only_the_managed_schedule(self):
+        first = self.deliver()  # com revisões, depois o usuário estudou e escreveu na nota
+        path = self.root / first["note"]
+        text = path.read_text("utf-8").replace("- [ ] Revisão 1", "- [x] Revisão 1").replace("- [ ] Buscar antes", "- [x] Buscar antes")
+        text = text.replace("type: ai-study", "type: ai-study\nminha-chave: valor\nreview-mine: 3")
+        text += "\nMinha anotação pessoal.\n\n## Revisões\n- [x] Revisão 1 · 2026-11-02 (a minha, fora do bloco)\n"
+        path.write_text(text, "utf-8")
+        obsidian.sync_reviews(self.cfg)
+        self.off()
+        out = self.deliver(self.pkg(lesson(summary="Resumo novo da aula reprocessada.")), prev=first)
+        self.assertEqual(out["state"], "updated")
+        new = path.read_text("utf-8")
+        block = obsidian.parts(new)[2]
+        self.assertNotIn("Revisão", block)
+        fm = vault.fields(vault.split(new)[0])
+        self.assertNotIn("review-stage", fm)
+        self.assertNotIn("next-review", fm)
+        self.assertNotIn("Marque cada revisão feita em Revisões", new)
+        for kept in ("minha-chave: valor", "review-mine: 3", "Minha anotação pessoal.", "status: review-required",
+                     "- [x] Revisão 1 · 2026-11-02 (a minha, fora do bloco)", "- [x] Buscar antes de gerar reduz invenção.",
+                     "Resumo novo da aula reprocessada.", "> [!quote] Minha nota original"):
+            self.assertIn(kept, new)
+        self.assertEqual(new.count("%% lumen:begin"), 1)
+        self.assertTrue(any("- [x] Revisão 1 · 2026-10-24" in b.read_text("utf-8")
+                            for b in (store.DATA / "obsidian-backups").rglob("*.md")))  # o progresso fica no backup
+        self.assertEqual(self.deliver(self.pkg(lesson(summary="Resumo novo da aula reprocessada.")), prev=out)["state"], "unchanged")
+
+    def test_turning_on_again_adds_a_fresh_checklist_once(self):
+        self.off()
+        first = self.deliver()
+        self.cfg["obsidian_review"] = True
+        out = self.deliver(prev=first)
+        path = self.root / out["note"]
+        text = path.read_text("utf-8")
+        self.assertEqual(text.count("## Revisões"), 1)
+        self.assertNotIn("[x] Revisão", text)  # nenhum histórico inventado
+        self.assertIn("Marque cada revisão feita em Revisões", text)
+        fm = vault.fields(vault.split(text)[0])
+        self.assertEqual((fm["review-stage"], fm["next-review"]), ("0", "2026-10-24"))
+        path.write_text(text.replace("- [ ] Revisão 1", "- [x] Revisão 1"), "utf-8")
+        obsidian.sync_reviews(self.cfg)
+        for _ in range(2):  # várias atualizações: nada duplicado, nada desmarcado, a contagem segue
+            self.deliver(self.pkg(lesson(summary="De novo.")), prev=out)
+        text = path.read_text("utf-8")
+        self.assertEqual((text.count("## Revisões"), text.count("- [x] Revisão 1"), text.count("Revisão 6")), (1, 1, 1))
+        self.assertEqual(text.count("Marque cada revisão feita em Revisões"), 1)
+        fm = vault.fields(vault.split(text)[0])
+        self.assertEqual((fm["review-stage"], fm["next-review"]), ("1", "2026-10-26"))
+
+    def test_conflicts_and_user_edited_help_text_are_respected(self):
+        first = self.deliver()
+        path = self.root / first["note"]
+        mine = path.read_text("utf-8").replace("o Lumen atualiza a próxima data.", "o Lumen atualiza a próxima data (meu lembrete).", 1)
+        path.write_text(mine, "utf-8")
+        self.off()
+        out = self.deliver(prev=first)  # o callout editado por mim não é trocado
+        self.assertIn("(meu lembrete)", path.read_text("utf-8"))
+        self.assertNotIn("## Revisões", obsidian.parts(path.read_text("utf-8"))[2])
+        edited = path.read_text("utf-8").replace("Reduz invenções.", "Reduz invenções (anotei aqui).")
+        path.write_text(edited, "utf-8")
+        self.cfg["obsidian_review"] = True
+        with self.assertRaises(AppError):  # bloco editado à mão: conflito, nada gravado, como sempre
+            self.deliver(prev=out)
+        self.assertEqual(path.read_text("utf-8"), edited)
 
 
 class Vault(Base):

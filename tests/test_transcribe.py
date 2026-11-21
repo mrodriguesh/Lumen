@@ -270,5 +270,31 @@ class Speeds(unittest.TestCase):
         self.assertTrue(seen["condition_on_previous_text"])
 
 
+class Memory(unittest.TestCase):
+    def test_downloaded_checks_the_same_repositories_as_faster_whisper(self):
+        """downloaded() confere o disco sem carregar o faster-whisper: repositórios e arquivos têm de ser os dele."""
+        import inspect
+        from faster_whisper import utils
+        for name, repo in transcribe.WHISPER_REPOS.items():
+            self.assertEqual(utils._MODELS[name], repo)
+        self.assertEqual(set(transcribe.WHISPER_REPOS), {m for q in transcribe.BY_HARDWARE.values() for m in q} - {transcribe.PARAKEET})
+        source = inspect.getsource(utils.download_model)
+        for pattern in transcribe.WHISPER_FILES:
+            self.assertIn(f'"{pattern}"', source)
+
+    def test_idle_models_leave_memory_only_when_nothing_is_transcribing(self):
+        with mock.patch.dict(transcribe._loaded, {("small", "cpu"): object()}, clear=True), \
+                mock.patch.object(transcribe, "_used", 0.0), mock.patch.object(transcribe, "_running", [1]):
+            transcribe.release_idle()
+            self.assertTrue(transcribe._loaded)  # uma transcrição longa em andamento não perde o modelo
+            transcribe._running.clear()
+            transcribe.release_idle()
+            self.assertFalse(transcribe._loaded)
+        with mock.patch.dict(transcribe._loaded, {("small", "cpu"): object()}, clear=True), \
+                mock.patch.object(transcribe, "_used", transcribe.time.monotonic()):
+            transcribe.release_idle()
+            self.assertTrue(transcribe._loaded)  # usado agora: fica
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -9,6 +9,7 @@ import threading
 import shutil
 import subprocess
 import tempfile
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -93,26 +94,50 @@ def download(engine, progress, check):
 _lock = threading.Lock()  # duas gerações ao mesmo tempo disputariam a VRAM
 
 
-def generate(prompt, engine=DEFAULT_ENGINE, width=1536, height=640, seed=-1, timeout=240):
+def generate(prompt, engine=DEFAULT_ENGINE, width=1536, height=640, seed=-1, timeout=240, *, check=lambda: None):
     """PNG (bytes) gerado localmente na GPU (Vulkan) ou CPU. None se o gerador não estiver instalado."""
+    if engine not in ENGINES or not isinstance(prompt, str) or not prompt.strip():
+        raise AppError("Descreva a imagem e escolha um gerador disponível.")
+    if any(type(n) is not int or n < 256 or n > 1536 or n % 64 for n in (width, height)) or width * height > 1048576:
+        raise AppError("Proporção de imagem inválida.")
     if not ready(engine):
         return None
-    with _lock:
-        return _generate(prompt, engine, width, height, seed, timeout)
+    while not _lock.acquire(timeout=0.2):
+        check()
+    try:
+        check()
+        return _generate(prompt, engine, width, height, seed, timeout, check)
+    finally:
+        _lock.release()
 
 
-def _generate(prompt, engine, width, height, seed, timeout):
+def _generate(prompt, engine, width, height, seed, timeout, check):
     e, f = ENGINES[engine], folder()
-    with tempfile.TemporaryDirectory(prefix="lumen-img-", ignore_cleanup_errors=True) as tmp:
+    with tempfile.TemporaryDirectory(prefix="lumen-img-", dir=f, ignore_cleanup_errors=True) as tmp:
         out = Path(tmp) / "capa.png"
         cmd = [str(_exe()), "--diffusion-model", str(f / e["files"]["model"][0]), "--llm", str(f / e["files"]["llm"][0]),
-               "--vae", str(f / e["files"]["vae"][0]), "-p", clean_prompt(prompt)[:1500] + STYLE, "-W", str(width), "-H", str(height),
+               "--vae", str(f / e["files"]["vae"][0]), "-p", clean_prompt(prompt)[:1500] +
+               (STYLE if width > height else STYLE.replace("wide cinematic", "balanced")), "-W", str(width), "-H", str(height),
                "-s", str(seed), "--diffusion-fa", "-o", str(out), *e["args"]]
         # sem --offload-to-cpu/--vae-tiling: com folga de VRAM o sd.cpp decide sozinho onde pôr cada parte
         # (backend_fit); com as duas opções ligadas a geração passou de 4 minutos no teste
         try:
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout,
-                           cwd=str(_exe().parent), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            with subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                  cwd=str(_exe().parent), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)) as proc:
+                until = time.monotonic() + timeout
+                try:
+                    while proc.poll() is None:
+                        check()
+                        if time.monotonic() >= until:
+                            raise subprocess.TimeoutExpired(cmd, timeout)
+                        time.sleep(0.2)
+                    check()
+                    if proc.returncode:
+                        return None
+                finally:
+                    if proc.poll() is None:
+                        proc.kill()
+                        proc.wait()
         except (OSError, subprocess.SubprocessError):
             return None
         return out.read_bytes() if out.exists() and out.stat().st_size > 1000 else None

@@ -1,17 +1,33 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-ui="{{UI_STYLE}}">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="lumen-token" content="{{TOKEN}}">
 <title>Lumen</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='1' y='1' width='30' height='30' rx='8' fill='%233b6ff0'/%3E%3Ccircle cx='16' cy='16' r='8.4' fill='none' stroke='white' stroke-width='2.6'/%3E%3Ccircle cx='16' cy='16' r='3.8' fill='%23ffd60a'/%3E%3C/svg%3E">
+<link rel="icon" href="/favicon.ico" sizes="16x16 24x24 32x32 48x48 64x64 128x128 256x256">
 <link rel="stylesheet" href="/ui.css">
 <link rel="stylesheet" href="/app.css">
 <script src="/ui.js" defer></script>
+<script src="/cursor.js" defer></script>
 <script src="/understanding-editor.js" defer></script>
 <script src="/pomodoro.js" defer></script>
 <script src="/app.js" defer></script>
+<link rel="stylesheet" href="/protection.css">
+<script src="/protection.js" defer></script>
+<link rel="stylesheet" href="/study.css">
+<script src="/voice.js" defer></script>
+<script src="/opennotebook.js" defer></script>
+<script src="/hyperbooklm.js" defer></script>
+<script src="/md.js" defer></script>
+<script src="/study.js" defer></script>
+<script src="/study-diagram.js" defer></script>
+<script src="/study-learn.js" defer></script>
+<script src="/study-settings.js" defer></script>
+<script src="/study-call.js" defer></script>
+<!-- Estilo da interface Lúmen Glass 2026 (Ajustes → Aparência): tudo em glass.css vale só com <html data-ui="glass"> -->
+<link rel="stylesheet" href="/glass.css">
+<script src="/glass.js" defer></script>
 </head>
 <body>
 <div class="app" id="app">
@@ -26,29 +42,45 @@
     </div>
   </div>
   <span class="brand" aria-hidden="true">
-    <svg viewBox="0 0 32 32"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5e5ce6"/><stop offset="1" stop-color="#0a84ff"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="9" fill="url(#g)"/><circle cx="16" cy="16" r="8.4" fill="none" stroke="#fff" stroke-width="2.6"/><circle cx="16" cy="16" r="3.8" fill="#ffd60a"/></svg>
+    <img src="/lumen.png" width="32" height="32" alt="">
   </span>
   <nav class="rail-nav" aria-label="Áreas do Lumen">
     <button class="rail-item" type="button" id="nav-home" data-view="home" data-tip="Início" data-tip-pos="right"><svg class="i"><use href="/icons.svg#home"/></svg><span>Início</span></button>
     <button class="rail-item" type="button" id="nav-new" data-view="new" data-tip="Nova aula" data-tip-pos="right"><svg class="i"><use href="/icons.svg#new"/></svg><span>Nova aula</span></button>
     <button class="rail-item" type="button" id="nav-library" data-view="library" data-tip="Biblioteca" data-tip-pos="right"><svg class="i"><use href="/icons.svg#library"/></svg><span>Biblioteca</span></button>
-    <button class="rail-item" type="button" id="nav-integrations" data-view="integrations" data-tip="Notion e Obsidian" data-tip-pos="right"><svg class="i"><use href="/icons.svg#plug"/></svg><span>Integrações</span></button>
+    <button class="rail-item" type="button" id="nav-study" data-view="study" data-tip="Cérebro · Central de Inteligência" data-tip-pos="right"><svg class="i"><use href="/icons.svg#brain"/></svg><span>Cérebro</span></button>
+    <button class="rail-item" type="button" id="nav-integrations" data-view="integrations" data-tip="Notion, Obsidian e Google Drive" data-tip-pos="right"><svg class="i"><use href="/icons.svg#plug"/></svg><span>Integrações</span></button>
   </nav>
   <div class="rail-foot">
+    <button class="rail-item" type="button" id="open-monitor" data-tip="Monitor de Recursos" data-tip-pos="right" aria-label="Monitor de Recursos" aria-expanded="false">
+      <svg class="i"><use href="/icons.svg#cpu"/></svg>
+      <span class="rail-pulse-dot" title="Monitor Ativo"></span>
+      <span>Monitor</span>
+    </button>
     <button class="rail-item" type="button" id="open-settings" data-view="settings" data-tip="Ajustes" data-tip-pos="right"><svg class="i"><use href="/icons.svg#gear"/></svg><span>Ajustes</span></button>
   </div>
 </aside>
 
+<!-- Painel Flutuante: Monitor de Recursos (Lúmen & Sistema) -->
+<div class="sys-monitor-pop" id="sys-monitor-pop" hidden aria-hidden="true"></div>
+
 <!-- Barra superior: onde estou, busca, o que o Lumen está fazendo e o Pomodoro (arrastável) -->
 <header class="topbar">
+  <span class="g-brand g-only" aria-hidden="true"><img src="/lumen.png" width="20" height="20" alt=""><span>Lúmen</span></span>
   <p class="where" id="where"><span id="where-view">Início</span><span class="where-sub" id="where-sub" hidden></span></p>
-  <button class="search-btn" type="button" id="open-palette" aria-haspopup="dialog" aria-keyshortcuts="Control+K">
-    <svg class="i"><use href="/icons.svg#search"/></svg><span>Buscar ou ir para…</span><kbd>Ctrl K</kbd></button>
+
+
   <div class="top-right">
     <span class="sr" id="status-live" role="status" aria-live="polite"></span>
-    <button class="status-pill" type="button" id="global-status" data-tone="ok">
+    <button class="status-pill" type="button" id="global-status" data-tone="ok" hidden>
       <span class="status-ico" id="global-status-ico" aria-hidden="true"></span><span id="global-status-text">Pronto</span></button>
     <span class="pomo-slot" id="u-pomo"></span>
+  </div>
+  <!-- Glass: os controles da janela no lugar e no formato do Windows (só com a moldura própria do Lumen.exe; ligados em glass.js com as mesmas mensagens) -->
+  <div class="g-winctl g-only" role="group" aria-label="Janela">
+    <button type="button" class="g-win" data-g-window="minimize" aria-label="Minimizar" data-tip="Minimizar"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9"/></svg></button>
+    <button type="button" class="g-win" data-g-window="maximize" id="g-win-max" aria-label="Maximizar" data-tip="Maximizar"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5"/></svg></button>
+    <button type="button" class="g-win close" data-g-window="close" aria-label="Fechar" data-tip="Fechar (o Lumen continua na bandeja)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
   </div>
 </header>
 
@@ -73,21 +105,45 @@
   <div class="home-grid">
     <section class="card hero-card" id="home-hero" aria-label="Agora"></section>
     <section class="card" id="home-system" aria-labelledby="sys-h">
-      <header class="card-head"><h2 id="sys-h">Sistema</h2><button class="btn ghost sm" type="button" data-go="integrations">Integrações<svg class="i"><use href="/icons.svg#chevron-right"/></svg></button></header>
+      <header class="card-head"><span class="g-head-ico g-only" aria-hidden="true"><svg class="i"><use href="/icons.svg#wave"/></svg></span><h2 id="sys-h">Sistema</h2><span class="badge g-only" id="sys-overall" hidden></span><div class="card-actions"><button class="btn ghost sm" type="button" id="home-diag-btn"><svg class="i"><use href="/icons.svg#check-circle"/></svg>Diagnóstico</button><button class="btn ghost sm" type="button" data-go="integrations">Integrações<svg class="i"><use href="/icons.svg#chevron-right"/></svg></button></div></header>
       <div class="sys-list" id="side-status" aria-label="Estado do sistema"></div>
+      <div class="g-sys-foot g-only">
+        <button class="btn g-sys-btn" type="button" id="g-sys-diag">Ver diagnóstico<svg class="i"><use href="/icons.svg#chevron-right"/></svg></button>
+        <button class="btn ghost sm" type="button" data-go="integrations">Integrações<svg class="i"><use href="/icons.svg#chevron-right"/></svg></button>
+      </div>
     </section>
     <section class="card" id="pending" aria-labelledby="pending-h">
-      <header class="card-head"><h2 id="pending-h">Continuar aprendendo</h2><button class="btn ghost sm" type="button" data-go="library" data-filter="pending" id="pending-all">Ver todas<svg class="i"><use href="/icons.svg#chevron-right"/></svg></button></header>
+      <header class="card-head"><span class="g-head-ico g-only" aria-hidden="true"><svg class="i"><use href="/icons.svg#clock"/></svg></span><h2 id="pending-h"><span class="c-only">Continuar aprendendo</span><span class="g-only">Continue de onde parou</span><small class="g-head-sub g-only">Suas aulas em andamento e a próxima ação de cada uma.</small></h2><button class="btn ghost sm" type="button" data-go="library" data-filter="pending" id="pending-all">Ver todas<svg class="i"><use href="/icons.svg#chevron-right"/></svg></button></header>
       <div class="rows" id="pending-list" role="list"></div>
     </section>
     <section class="card" id="home-recent" aria-labelledby="recent-h">
-      <header class="card-head"><h2 id="recent-h">Salvas recentemente</h2><button class="btn ghost sm" type="button" data-go="library" data-filter="saved">Biblioteca<svg class="i"><use href="/icons.svg#chevron-right"/></svg></button></header>
+      <header class="card-head"><span class="g-head-ico g-only" aria-hidden="true"><svg class="i"><use href="/icons.svg#library"/></svg></span><h2 id="recent-h">Salvas recentemente<small class="g-head-sub g-only">O material que já está no Notion e no Obsidian.</small></h2><button class="btn ghost sm" type="button" data-go="library" data-filter="saved">Biblioteca<svg class="i"><use href="/icons.svg#chevron-right"/></svg></button></header>
       <div class="rows" id="recent-list" role="list"></div>
     </section>
     <section class="card" id="home-reviews" hidden aria-labelledby="reviews-h">
-      <header class="card-head"><h2 id="reviews-h">Revisões</h2><span class="badge" id="reviews-count"></span></header>
+      <header class="card-head"><span class="g-head-ico g-only" aria-hidden="true"><svg class="i"><use href="/icons.svg#calendar"/></svg></span><h2 id="reviews-h">Revisões<small class="g-head-sub g-only">Revisões para hoje e as atrasadas.</small></h2><span class="badge" id="reviews-count"></span></header>
       <div class="rows" id="review-list" role="list"></div>
       <p class="card-note faint t-caption">As revisões são marcadas na nota de estudo, no Obsidian.</p>
+    </section>
+    <!-- Glass: atalhos para funções que já existem (nenhuma ação nova) -->
+    <section class="card g-only g-quick" id="g-quick" aria-labelledby="g-quick-h">
+      <header class="card-head"><span class="g-head-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#bolt"/></svg></span><h2 id="g-quick-h">Ações rápidas</h2></header>
+      <div class="g-quick-grid">
+        <button class="g-tile" type="button" data-g-quick="plan"><svg class="i"><use href="/icons.svg#calendar"/></svg><span>Planejar estudo</span></button>
+        <button class="g-tile" type="button" data-g-quick="organize"><svg class="i"><use href="/icons.svg#layers"/></svg><span>Organizar materiais</span></button>
+        <button class="g-tile" type="button" data-g-quick="search" data-kbd="Ctrl K"><svg class="i"><use href="/icons.svg#search"/></svg><span>Buscar conteúdo</span></button>
+      </div>
+    </section>
+    <!-- Glass: o percurso de uma aula no Lumen. A etapa marcada vem do estado real da aula em andamento; sem aula, nada é marcado -->
+    <section class="card g-only g-journey" id="g-journey" aria-labelledby="g-journey-h">
+      <header class="card-head"><span class="g-head-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#route"/></svg></span><h2 id="g-journey-h">Seu processo de aprendizagem<small class="g-head-sub" id="g-journey-sub">Do registro da aula à revisão: você entende primeiro, a IA aprofunda depois.</small></h2></header>
+      <ol class="g-steps" id="g-journey-steps">
+        <li data-s="capture"><span class="g-step-ico"><svg class="i"><use href="/icons.svg#record"/></svg></span><strong>Capturar</strong><small>Grave ou importe o conteúdo</small></li>
+        <li data-s="understand"><span class="g-step-ico"><svg class="i"><use href="/icons.svg#pen"/></svg></span><strong>Compreender</strong><small>Escreva o que você entendeu</small></li>
+        <li data-s="deepen"><span class="g-step-ico"><svg class="i"><use href="/icons.svg#sparkle"/></svg></span><strong>Aprofundar</strong><small>A IA local analisa e completa</small></li>
+        <li data-s="organize"><span class="g-step-ico"><svg class="i"><use href="/icons.svg#layers"/></svg></span><strong>Organizar</strong><small>Salve no Notion e no Obsidian</small></li>
+        <li data-s="review"><span class="g-step-ico"><svg class="i"><use href="/icons.svg#sync"/></svg></span><strong>Revisar</strong><small>Revise e fortaleça a memória</small></li>
+      </ol>
     </section>
   </div>
 </div>
@@ -107,13 +163,26 @@
         <p class="lead">Escolha a fonte. Depois você escreve o que entendeu, e só então a IA local analisa.</p></div>
     </header>
     <div class="compose-grid">
+      <!-- Glass: as três fontes reais, à vista (cada uma aciona a aba de sempre, que continua oculta no DOM) -->
+      <div class="card g-only g-src" role="group" aria-label="Fonte da aula">
+        <button type="button" class="g-src-opt" data-g-src="recording" aria-pressed="true"><span class="g-src-ico"><svg class="i"><use href="/icons.svg#record"/></svg></span><span class="g-src-txt"><strong>Gravar aula</strong><small>Som do PC e, se quiser, a tela</small></span></button>
+        <button type="button" class="g-src-opt" data-g-src="file" aria-pressed="false"><span class="g-src-ico"><svg class="i"><use href="/icons.svg#upload"/></svg></span><span class="g-src-txt"><strong>Importar arquivo</strong><small>Vídeo ou áudio do seu PC</small></span></button>
+        <button type="button" class="g-src-opt" data-g-src="captures" aria-pressed="false"><span class="g-src-ico"><svg class="i"><use href="/icons.svg#image"/></svg></span><span class="g-src-txt"><strong>Capturas de tela</strong><small>Prints, slides ou código</small></span></button>
+      </div>
       <section class="card source-card" aria-labelledby="hero-title">
-        <div class="segmented src-tabs" role="tablist" aria-label="Fonte da aula">
-          <button role="tab" id="tab-recording" aria-controls="panel-recording" aria-selected="true" data-kind="recording" data-tip="Gravar ao assistir" data-sub="Dê play na aula em qualquer site ou app e o Lumen grava o som do PC."><svg class="i"><use href="/icons.svg#record"/></svg><span class="tab-label">Gravar ao assistir</span></button>
-          <button role="tab" id="tab-file" aria-controls="panel-file" aria-selected="false" tabindex="-1" data-kind="file" data-tip="Arquivo local" data-sub="Um vídeo ou áudio que já está no seu computador."><svg class="i"><use href="/icons.svg#file"/></svg><span class="tab-label">Arquivo local</span></button>
-          <button role="tab" id="tab-captures" aria-controls="panel-captures" aria-selected="false" tabindex="-1" data-kind="captures" data-tip="Capturas de tela" data-sub="Prints de sites, textos, slides ou código: o Lumen lê tudo e monta a página."><svg class="i"><use href="/icons.svg#image"/></svg><span class="tab-label">Capturas de tela</span></button>
+        <!-- Tabs mantidas ocultas no DOM para total compatibilidade de scripts e testes legados -->
+        <div class="src-tabs-legacy" hidden aria-hidden="true">
+          <div class="segmented src-tabs" role="tablist" aria-label="Fonte da aula">
+            <button role="tab" id="tab-recording" aria-controls="panel-recording" aria-selected="true" data-kind="recording" data-tip="Gravar ao assistir" data-sub="Dê play na aula em qualquer site ou app e o Lumen grava o som do PC."><svg class="i"><use href="/icons.svg#record"/></svg><span class="tab-label">Gravar ao assistir</span></button>
+            <button role="tab" id="tab-file" aria-controls="panel-file" aria-selected="false" tabindex="-1" data-kind="file" data-tip="Arquivo local" data-sub="Um vídeo ou áudio que já está no seu computador."><svg class="i"><use href="/icons.svg#file"/></svg><span class="tab-label">Arquivo local</span></button>
+            <button role="tab" id="tab-captures" aria-controls="panel-captures" aria-selected="false" tabindex="-1" data-kind="captures" data-tip="Capturas de tela" data-sub="Prints de sites, textos, slides ou código: o Lumen lê tudo e monta a página."><svg class="i"><use href="/icons.svg#image"/></svg><span class="tab-label">Capturas de tela</span></button>
+          </div>
         </div>
-        <div class="src-head"><h2 class="t-h2" id="hero-title">Gravar ao assistir</h2><p class="muted t-sm" id="hero-sub">Dê play na aula em qualquer site ou app e o Lumen grava o som do PC.</p></div>
+
+        <div class="src-head">
+          <h2 class="t-h2" id="hero-title">Gravar ao assistir</h2>
+          <p class="muted t-sm" id="hero-sub">Dê play na aula em qualquer site ou app e o Lumen grava o som do PC.</p>
+        </div>
 
         <div role="tabpanel" id="panel-recording" aria-labelledby="tab-recording">
           <div class="recorder" id="recorder" data-state="idle">
@@ -181,6 +250,18 @@
         </div>
 
         <div class="source" id="source" hidden aria-live="polite"></div>
+        <button class="icon-btn g-only g-cap-set" type="button" id="g-cap-set" aria-label="Ajustes de captura" data-tip="Ajustes de captura"><svg class="i"><use href="/icons.svg#gear"/></svg></button>
+      </section>
+
+      <!-- Glass: o caminho da aula, com a etapa de agora marcada (a mesma ordem do stepper) -->
+      <section class="card g-only g-flow" aria-labelledby="g-flow-h">
+        <header class="card-head"><span class="g-head-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#route"/></svg></span><h2 id="g-flow-h">Fluxo da aula no Lúmen<small class="g-head-sub">Acompanhe o que vem depois da captura.</small></h2></header>
+        <ol class="g-flow-steps">
+          <li data-on="now"><span class="g-step-ico"><svg class="i"><use href="/icons.svg#screen"/></svg></span><strong>Capturar</strong><small>Grave ou importe o conteúdo</small></li>
+          <li><span class="g-step-ico"><svg class="i"><use href="/icons.svg#pen"/></svg></span><strong>Compreender</strong><small>Escreva o que você entendeu, sem IA</small></li>
+          <li><span class="g-step-ico"><svg class="i"><use href="/icons.svg#sparkle"/></svg></span><strong>Análise</strong><small>A IA local complementa e aprofunda</small></li>
+          <li><span class="g-step-ico"><svg class="i"><use href="/icons.svg#layers"/></svg></span><strong>Salvar</strong><small>No Notion, no Obsidian ou nos dois</small></li>
+        </ol>
       </section>
 
       <div class="compose-side">
@@ -217,6 +298,7 @@
                 <span class="dest-meta notion-ok"><span class="dest-path" id="dest-path"></span></span>
                 <span class="dest-meta dest-msg" id="dest-notion-msg"></span>
                 <button class="btn sm" type="button" id="dest-notion-fix" hidden></button>
+                <button class="btn sm" type="button" id="dest-notion-cover" aria-haspopup="dialog" aria-controls="cov-dlg" data-tip="Gerar e aplicar a capa de uma página do Notion"><svg class="i"><use href="/icons.svg#image"/></svg>Capa</button>
               </div>
             </div>
           </div>
@@ -240,7 +322,7 @@
             <label class="set-row compact"><span class="set-text"><strong>Mapa conceitual</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_canvas"></label>
             <label class="set-row compact"><span class="set-text"><strong>Painel visual</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_board"></label>
             <label class="set-row compact"><span class="set-text"><strong>Conexões com o cofre</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_connections"></label>
-            <label class="set-row compact"><span class="set-text"><strong>Revisões espaçadas</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_review"></label>
+            <label class="set-row compact"><span class="set-text"><strong>Incluir revisões espaçadas</strong></span><input type="checkbox" class="switch" role="switch" data-cfg="obsidian_review" aria-describedby="obs-review-hint"></label>
             <button class="link-btn" type="button" data-go-integ>Área de estudos, anexos e intervalos em Integrações</button>
           </div>
         </section>
@@ -382,7 +464,8 @@
   <section class="card run" id="run" hidden aria-labelledby="run-h">
     <header class="run-head">
       <span class="run-ico" aria-hidden="true"><svg class="i lg"><use href="/icons.svg#sparkle"/></svg></span>
-      <div><h2 class="t-h2" id="run-h" tabindex="-1">Gerando a aula</h2><p class="muted t-sm" id="eta"></p></div>
+      <div><h2 class="t-h2" id="run-h" tabindex="-1">Gerando a aula</h2><p class="muted t-sm" id="eta"></p>
+        <p class="muted t-sm g-only" id="g-run-sub">Sua compreensão foi organizada e os materiais estão prontos para consulta.</p></div>
     </header>
     <ol class="pipeline" id="stages">
       <li data-stage="prepare"><span class="ps-mark" aria-hidden="true"></span><span class="ps-label">Preparar a fonte</span></li>
@@ -454,30 +537,74 @@
   <div class="card list-card" id="library-list" aria-live="polite"></div>
 </div>
 
-<!-- ================= Integrações: Notion e Obsidian ================= -->
+<!-- ================= Integrações: os destinos do material e uma integração por vez (abas) ================= -->
+<!-- Cada formulário existe uma vez só: trocar de aba só mostra ou oculta o painel (nada é salvo, enviado ou recriado) -->
+<div class="view view-study" id="view-study" hidden aria-labelledby="study-h"><div data-study></div></div>
+
 <div class="view" id="view-integrations" hidden aria-labelledby="integ-h">
   <header class="page-head">
-    <div><h1 class="t-h1" id="integ-h">Integrações</h1><p class="lead">Para onde vai o material de cada aula. O Lumen escreve uma vez e salva o mesmo conteúdo em cada destino.</p></div>
+    <div><h1 class="t-h1" id="integ-h">Integrações</h1><p class="lead">Onde o Lumen salva o material das aulas e onde você estuda as fontes delas.</p></div>
   </header>
-  <section class="card" id="dest-settings" aria-labelledby="dest-h">
-    <h2 class="side-h" id="dest-h">Destinos do material</h2>
-    <div class="segmented wide" role="radiogroup" aria-labelledby="dest-h" id="dest-mode">
-      <label><input type="radio" name="dest_mode" value="both"> Notion + Obsidian<small>O mesmo material nos dois</small></label>
-      <label><input type="radio" name="dest_mode" value="notion"> Só Notion<small>Organizar e acompanhar</small></label>
-      <label><input type="radio" name="dest_mode" value="obsidian"> Só Obsidian<small>Sem precisar do Notion</small></label>
+  <div class="integ-page">
+    <section class="card dest-settings" id="dest-settings" aria-labelledby="dest-h">
+      <div class="dest-settings-text"><h2 class="t-h3" id="dest-h">Destinos do material</h2>
+        <p class="field-hint" id="dest-desc">Ao salvar uma aula, o Lumen escreve o material uma vez e grava o mesmo conteúdo em cada destino.</p></div>
+      <div class="segmented wide" role="radiogroup" aria-labelledby="dest-h" aria-describedby="dest-desc" id="dest-mode">
+        <label><input type="radio" name="dest_mode" value="both"> Notion + Obsidian<small>O mesmo material nos dois</small></label>
+        <label><input type="radio" name="dest_mode" value="notion"> Só Notion<small>Organizar e acompanhar</small></label>
+        <label><input type="radio" name="dest_mode" value="obsidian"> Só Obsidian<small>Sem precisar do Notion</small></label>
+      </div>
+      <div class="v3d-set" role="group" aria-labelledby="v3d-h">
+        <div class="dest-settings-text"><h3 class="t-h3" id="v3d-h">Visualização 3D</h3>
+          <p class="field-hint" id="v3d-desc">Um esquema em 3D com os conceitos da aula, logo abaixo da ideia central, nas páginas novas e nas que você atualizar.</p></div>
+        <div class="segmented wide" role="radiogroup" aria-labelledby="v3d-h" aria-describedby="v3d-desc" id="v3d-mode">
+          <label><input type="radio" name="visual_3d" value="animated"> Animada<small>GIF em laço, com PNG de reserva</small></label>
+          <label><input type="radio" name="visual_3d" value="static"> Estática<small>Só a imagem PNG</small></label>
+          <label><input type="radio" name="visual_3d" value="off"> Desligada<small>Sem a visualização</small></label>
+        </div>
+        <details class="disclosure v3d-tech">
+          <summary>Detalhes técnicos</summary>
+          <p class="field-hint">Desenhada no seu PC, sem IA nova e sem internet: só com o título, o mapa, os passos e as relações que o material já tem. A forma segue o conteúdo (processo, sistema, estrutura, comparação ou conceitos) e a imagem diz que é um esquema do Lumen. 960 × 540, até 48 quadros a 12 por segundo (4 s) e no máximo 4,5 MB; se a animação passar do tempo ou do peso, vai a imagem estática. No Notion é um bloco de imagem; no Obsidian, um anexo da aula (precisa de “Telas e gráficos no cofre”). Páginas antigas só mudam quando você as atualiza.</p>
+        </details>
+      </div>
+    </section>
+
+    <div class="integ-tabs" role="tablist" aria-label="Integrações" id="integ-tabs">
+      <button class="integ-tab" type="button" role="tab" id="itab-notion" aria-controls="integ-notion" aria-selected="true">
+        <span class="integ-tab-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#page"/></svg></span>
+        <span class="integ-tab-text"><span class="integ-tab-name">Notion</span><span class="integ-state" id="notion-badge"></span></span></button>
+      <button class="integ-tab" type="button" role="tab" id="itab-obsidian" aria-controls="integ-obsidian" aria-selected="false" tabindex="-1">
+        <span class="integ-tab-ico obs" aria-hidden="true"><svg class="i"><use href="/icons.svg#obsidian"/></svg></span>
+        <span class="integ-tab-text"><span class="integ-tab-name">Obsidian</span><span class="integ-state" id="obsidian-badge"></span></span></button>
+      <button class="integ-tab" type="button" role="tab" id="itab-drive" aria-controls="integ-drive" aria-selected="false" tabindex="-1">
+        <span class="integ-tab-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#upload"/></svg></span>
+        <span class="integ-tab-text"><span class="integ-tab-name">Google Drive</span><span class="integ-state" id="drive-badge"></span></span></button>
+      <button class="integ-tab" type="button" role="tab" id="itab-voicestudio" aria-controls="integ-voicestudio" aria-selected="false" tabindex="-1">
+        <span class="integ-tab-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#volume"/></svg></span>
+        <span class="integ-tab-text"><span class="integ-tab-name">Voice Studio</span><span class="integ-state" id="vs-badge"></span></span></button>
+      <button class="integ-tab" type="button" role="tab" id="itab-opennotebook" aria-controls="integ-opennotebook" aria-selected="false" tabindex="-1">
+        <span class="integ-tab-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#notebook"/></svg></span>
+        <span class="integ-tab-text"><span class="integ-tab-name">Open Notebook</span><span class="integ-state" id="on-badge"></span></span></button>
+      <button class="integ-tab" type="button" role="tab" id="itab-hyperbooklm" aria-controls="integ-hyperbooklm" aria-selected="false" tabindex="-1">
+        <span class="integ-tab-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#layers"/></svg></span>
+        <span class="integ-tab-text"><span class="integ-tab-name">HyperbookLM</span><span class="integ-state" id="hb-badge"></span></span></button>
+      <button class="integ-tab" type="button" role="tab" id="itab-perplexity" aria-controls="integ-perplexity" aria-selected="false" tabindex="-1">
+        <span class="integ-tab-ico px" aria-hidden="true"><svg class="i"><use href="/icons.svg#search"/></svg></span>
+        <span class="integ-tab-text"><span class="integ-tab-name">Perplexity</span><span class="integ-state" id="px-badge"></span></span></button>
     </div>
-  </section>
-  <div class="integ-grid">
-    <section class="card integ" id="integ-notion" aria-labelledby="notion-h">
-      <header class="integ-head"><span class="integ-icon"><svg class="i lg"><use href="/icons.svg#page"/></svg></span>
-        <div><h2 class="t-h2" id="notion-h">Notion</h2><p class="muted t-sm">Página da aula e “Minha compreensão”</p></div>
-        <span class="badge" id="notion-badge"></span></header>
-      <div class="integ-sec">
-        <h3 class="eyebrow">Conexão</h3>
+
+    <section class="card integ" id="integ-notion" role="tabpanel" aria-labelledby="itab-notion">
+      <header class="integ-head"><span class="integ-icon" aria-hidden="true"><svg class="i lg"><use href="/icons.svg#page"/></svg></span>
+        <div><h2 class="t-h2" id="notion-h">Notion</h2><p class="muted t-sm">Cria a página de cada aula e, dentro dela, a subpágina “Minha compreensão”.</p></div></header>
+      <p class="callout integ-off" id="notion-off" hidden><svg class="i"><use href="/icons.svg#info"/></svg>
+        <span>O Notion está fora dos destinos: o material vai só para o Obsidian. Os ajustes abaixo continuam guardados.</span>
+        <button class="btn sm" type="button" data-dest-both>Usar Notion e Obsidian</button></p>
+      <div class="integ-sec" role="group" aria-labelledby="notion-conn-h">
+        <h3 class="eyebrow" id="notion-conn-h">Conexão</h3>
         <label class="field">Token da integração interna
-          <span class="input-row"><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ntn_…">
+          <span class="input-row"><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ntn_…" aria-describedby="token-status">
           <button class="btn" type="button" id="token-save">Salvar</button></span></label>
-        <p class="field-hint" id="token-status"></p>
+        <p class="field-hint" id="token-status" aria-live="polite"></p>
         <details class="disclosure">
           <summary>Como conectar</summary>
           <ol class="steps t-sm">
@@ -488,47 +615,48 @@
           </ol>
         </details>
       </div>
-      <div class="integ-sec">
-        <h3 class="eyebrow">Destino</h3>
+      <div class="integ-sec" role="group" aria-labelledby="notion-dest-h">
+        <h3 class="eyebrow" id="notion-dest-h">Páginas de destino</h3>
         <label class="field">Página raiz dos cursos
-          <span class="input-row"><select id="root"></select>
+          <span class="input-row"><select id="root" aria-describedby="root-hint"></select>
           <button class="icon-btn" type="button" id="root-load" aria-label="Recarregar páginas" data-tip=""><svg class="i"><use href="/icons.svg#refresh"/></svg></button></span></label>
+        <p class="field-hint" id="root-hint">Cada curso vira uma página dentro dela, e os módulos ficam dentro do curso.</p>
         <label class="field">Página de conteúdo gratuito <span class="opt">um material por página</span>
           <select id="free-root"></select></label>
-        <p class="field-hint">Cursos ficam dentro da página raiz (um curso, e dentro dele os módulos); conteúdo gratuito ganha uma página por material.
-          O Lumen só vê as páginas liberadas para a integração. <button class="link-btn" type="button" data-grant>Dar acesso no Notion</button></p>
+        <p class="field-hint">O Lumen só vê as páginas liberadas para a integração. <button class="link-btn" type="button" data-grant>Dar acesso no Notion</button></p>
+        <label class="set-row"><span class="set-text"><strong>Abrir no Notion ao terminar</strong><small>A página da aula abre no navegador quando o material fica pronto.</small></span><input type="checkbox" class="switch" role="switch" id="notion-open" data-cfg="notion_open"></label>
       </div>
-      <div class="integ-foot">
+      <div class="integ-sec" role="group" aria-labelledby="notion-cov-h">
+        <h3 class="eyebrow" id="notion-cov-h">Capas</h3>
+        <div class="set-row"><span class="set-text"><strong>Capas do Notion</strong><small>Gere uma imagem no seu PC e aplique como capa em qualquer página compartilhada com o Lumen.</small></span>
+          <button class="btn sm" type="button" data-cover-open><svg class="i"><use href="/icons.svg#image"/></svg>Criar capa</button></div>
+      </div>
+      <div class="integ-foot" id="notion-foot">
+        <p class="field-hint">Desconectar tira o token deste PC e apaga o histórico local. As páginas no Notion ficam.</p>
         <button class="btn danger sm" type="button" id="forget"><svg class="i"><use href="/icons.svg#power"/></svg>Desconectar Notion</button>
       </div>
     </section>
 
-    <section class="card integ" id="integ-obsidian" aria-labelledby="obsidian-h">
-      <header class="integ-head"><span class="integ-icon"><svg class="i lg"><use href="/icons.svg#notebook"/></svg></span>
-        <div><h2 class="t-h2" id="obsidian-h">Obsidian</h2><p class="muted t-sm">Nota de estudo, mapa conceitual, painel visual e revisões</p></div>
-        <span class="badge" id="obsidian-badge"></span></header>
-      <div class="integ-sec">
-        <h3 class="eyebrow">Cofre</h3>
+    <section class="card integ" id="integ-obsidian" role="tabpanel" aria-labelledby="itab-obsidian" hidden>
+      <header class="integ-head"><span class="integ-icon obs" aria-hidden="true"><svg class="i lg"><use href="/icons.svg#obsidian"/></svg></span>
+        <div><h2 class="t-h2" id="obsidian-h">Obsidian</h2><p class="muted t-sm">Nota de estudo, mapas no Canvas e revisões, no seu cofre.</p></div>
+        <button class="btn sm" type="button" id="vault-dashboard"><svg class="i"><use href="/icons.svg#external"/></svg>Abrir Estudos no Obsidian</button></header>
+      <p class="callout integ-off" id="obsidian-off" hidden><svg class="i"><use href="/icons.svg#info"/></svg>
+        <span>O Obsidian está fora dos destinos: o material vai só para o Notion. Os ajustes abaixo continuam guardados.</span>
+        <button class="btn sm" type="button" data-dest-both>Usar Notion e Obsidian</button></p>
+      <div class="integ-sec" role="group" aria-labelledby="vault-h">
+        <h3 class="eyebrow" id="vault-h">Cofre</h3>
         <label class="field"><span class="sr">Cofre do Obsidian</span>
           <span class="input-row"><select id="vault" aria-describedby="vault-status" aria-label="Cofre do Obsidian"></select>
           <button class="btn" type="button" id="vault-pick"><svg class="i"><use href="/icons.svg#folder"/></svg>Escolher pasta…</button></span></label>
         <p class="field-hint" id="vault-status" aria-live="polite"></p>
-      </div>
-      <div class="integ-sec">
-        <h3 class="eyebrow">Estudos</h3>
-        <label class="set-row"><span class="set-text"><strong>Mapa conceitual</strong><small>Um .canvas com os conceitos e as relações entre eles, a nota no centro.</small></span><input type="checkbox" class="switch" role="switch" id="obs-canvas" data-cfg="obsidian_canvas"></label>
-        <label class="set-row"><span class="set-text"><strong>Painel visual</strong><small id="board-hint">Um segundo .canvas com as telas e os gráficos da aula, compostos para reconhecer e lembrar.</small></span><input type="checkbox" class="switch" role="switch" id="obs-board" data-cfg="obsidian_board"></label>
-        <div class="segmented wide board-density" role="radiogroup" aria-label="Imagens do painel visual" id="board-density">
-          <label><input type="radio" name="board_density" value="compacto"> Compacto<small>Até 5 imagens</small></label>
-          <label><input type="radio" name="board_density" value="equilibrado"> Equilibrado<small>Até 10 imagens</small></label>
-          <label><input type="radio" name="board_density" value="visual"> Visual<small>Até 15 imagens</small></label>
-        </div>
-        <label class="set-row"><span class="set-text"><strong>Conexões com o cofre</strong><small>A IA local procura notas suas ligadas à aula.</small></span><input type="checkbox" class="switch" role="switch" id="obs-connections" data-cfg="obsidian_connections"></label>
-        <label class="set-row"><span class="set-text"><strong>Revisões espaçadas</strong><small>Datas de revisão na nota e no painel de estudos.</small></span><input type="checkbox" class="switch" role="switch" id="obs-review" data-cfg="obsidian_review"></label>
-        <label class="field review-intervals">Intervalos das revisões (dias)
-          <input id="review-intervals" inputmode="numeric" spellcheck="false" autocomplete="off" placeholder="1, 3, 7, 14, 30, 60"></label>
-        <label class="set-row"><span class="set-text"><strong>Telas e gráficos no cofre</strong><small>Só as imagens escolhidas; o vídeo nunca é copiado.</small></span><input type="checkbox" class="switch" role="switch" id="obs-attachments" data-cfg="obsidian_attachments"></label>
-        <label class="set-row"><span class="set-text"><strong>Abrir no Obsidian ao terminar</strong></span><input type="checkbox" class="switch" role="switch" id="obs-open" data-cfg="obsidian_open"></label>
+        <label class="set-row"><span class="set-text"><strong>Abrir no Obsidian ao terminar</strong><small>A nota da aula abre sozinha quando o material fica pronto.</small></span><input type="checkbox" class="switch" role="switch" id="obs-open" data-cfg="obsidian_open"></label>
+        <details class="disclosure">
+          <summary>Pasta da área de estudos</summary>
+          <label class="field">Área de estudos (pasta no cofre)
+            <input id="vault-folder" spellcheck="false" autocomplete="off" maxlength="200" aria-describedby="vault-folder-hint"></label>
+          <p class="field-hint" id="vault-folder-hint">Cursos, conteúdo gratuito, aulas avulsas e “A organizar” ficam dentro dela, uma pasta por aula.</p>
+        </details>
       </div>
       <div class="integ-sec migration" id="migration" hidden>
         <h3 class="eyebrow">Materiais antigos</h3>
@@ -537,14 +665,165 @@
         <p class="field-hint">Cada aula vai inteira (nota, mapa, painel e imagens) para “A organizar”, sem renomear nada. Antes, uma cópia da pasta antiga fica guardada no PC.</p>
         <button class="btn sm" type="button" id="migration-go"><svg class="i"><use href="/icons.svg#move"/></svg>Migrar para a área de estudos</button>
       </div>
-      <details class="disclosure integ-sec">
-        <summary>Avançado</summary>
-        <label class="field">Área de estudos (pasta no cofre)
-          <input id="vault-folder" spellcheck="false" autocomplete="off" maxlength="200"></label>
-        <p class="field-hint">Cursos, conteúdo gratuito, aulas avulsas e “A organizar” ficam dentro dela, uma pasta por aula.</p>
-      </details>
-      <div class="integ-foot">
-        <button class="btn sm" type="button" id="vault-dashboard"><svg class="i"><use href="/icons.svg#external"/></svg>Abrir Estudos no Obsidian</button>
+      <div class="integ-sec" role="group" aria-labelledby="obs-made-h">
+        <h3 class="eyebrow" id="obs-made-h">Materiais gerados</h3>
+        <div class="set-list">
+          <label class="set-row"><span class="set-text"><strong>Mapa conceitual</strong><small>Um .canvas com os conceitos e as relações entre eles, a nota no centro.</small></span><input type="checkbox" class="switch" role="switch" id="obs-canvas" data-cfg="obsidian_canvas"></label>
+          <label class="set-row"><span class="set-text"><strong>Telas e gráficos no cofre</strong><small>Só as imagens escolhidas e a visualização 3D; o vídeo nunca é copiado.</small></span><input type="checkbox" class="switch" role="switch" id="obs-attachments" data-cfg="obsidian_attachments"></label>
+          <div class="set-item">
+            <label class="set-row"><span class="set-text"><strong>Painel visual</strong><small id="board-hint">Um segundo .canvas com as telas e os gráficos da aula, compostos para reconhecer e lembrar.</small></span><input type="checkbox" class="switch" role="switch" id="obs-board" data-cfg="obsidian_board" aria-describedby="board-hint"></label>
+            <div class="segmented wide board-density" role="radiogroup" aria-label="Imagens do painel visual" id="board-density">
+              <label><input type="radio" name="board_density" value="compacto"> Compacto<small>Até 5 imagens</small></label>
+              <label><input type="radio" name="board_density" value="equilibrado"> Equilibrado<small>Até 10 imagens</small></label>
+              <label><input type="radio" name="board_density" value="visual"> Visual<small>Até 15 imagens</small></label>
+            </div>
+          </div>
+          <label class="set-row"><span class="set-text"><strong>Conexões com o cofre</strong><small>A IA local procura notas suas ligadas à aula.</small></span><input type="checkbox" class="switch" role="switch" id="obs-connections" data-cfg="obsidian_connections"></label>
+        </div>
+      </div>
+      <div class="integ-sec" role="group" aria-labelledby="obs-review-h">
+        <h3 class="eyebrow" id="obs-review-h">Revisões</h3>
+        <label class="set-row"><span class="set-text"><strong>Incluir revisões espaçadas</strong><small id="obs-review-hint">Adiciona datas e um checklist de revisão às notas do Obsidian. Opcional.</small></span><input type="checkbox" class="switch" role="switch" id="obs-review" data-cfg="obsidian_review" aria-describedby="obs-review-hint obs-review-scope"></label>
+        <label class="field review-intervals">Intervalos das revisões (dias)
+          <input id="review-intervals" inputmode="numeric" spellcheck="false" autocomplete="off" placeholder="1, 3, 7, 14, 30, 60" aria-describedby="review-intervals-hint"></label>
+        <p class="field-hint review-intervals" id="review-intervals-hint">Dias em ordem crescente, de 1 a 365, separados por vírgula. As datas aparecem na seção “Revisões” de cada nota, no painel de estudos do cofre e no Início do Lumen.</p>
+        <p class="field-hint" id="obs-review-scope">Vale para novas notas e notas atualizadas. As notas existentes permanecem até serem atualizadas.</p>
+      </div>
+    </section>
+
+    <section class="card integ" id="integ-drive" role="tabpanel" aria-labelledby="itab-drive" hidden>
+      <header class="integ-head"><span class="integ-icon" aria-hidden="true"><svg class="i lg"><use href="/icons.svg#upload"/></svg></span>
+        <div><h2 class="t-h2" id="drive-h">Google Drive</h2><p class="muted t-sm">A conta onde a Proteção do cérebro guarda a cópia de segurança fora deste computador. Opcional.</p></div></header>
+      <div class="integ-sec" role="group" aria-labelledby="drive-h">
+        <div class="drive-state" id="drive-status" role="status" tabindex="-1"></div>
+        <div class="drive-btns" id="drive-actions"></div>
+        <details class="disclosure" id="drive-help">
+          <summary>Como configurar o Google Drive</summary>
+          <ol class="steps t-sm">
+            <li>No seu projeto do Google Cloud (console.cloud.google.com), ative a <strong>Google Drive API</strong>.</li>
+            <li>Em <em>Tela de consentimento OAuth</em>, escolha <em>Externo</em> e adicione o seu e-mail como usuário de teste.</li>
+            <li>Em <em>Credenciais</em>, crie um <em>ID do cliente OAuth</em> do tipo <strong>App para computador</strong> e baixe o JSON.</li>
+            <li>Aqui, escolha esse JSON e clique em <strong>Entrar com Google</strong>. O acesso vale só para os arquivos que o Lumen criar, e a autorização fica no Gerenciador de Credenciais do Windows.</li>
+          </ol>
+          <p class="field-hint">A API do Google Drive é oficial e gratuita, e o espaço é o da sua conta. Com o app em modo <em>Testing</em>, o Google pede para entrar de novo a cada 7 dias. As cópias e a recuperação ficam em Ajustes → Proteção do cérebro.</p>
+        </details>
+      </div>
+    </section>
+
+    <!-- Montado por voice.js (a galeria vem do Voice Studio pelo backend do Lúmen) -->
+    <section class="card integ" id="integ-voicestudio" role="tabpanel" aria-labelledby="itab-voicestudio" hidden></section>
+
+    <!-- Open Notebook (opennotebook.js; lumen/opennotebook.py): só a transcrição em texto, pela API dele -->
+    <section class="card integ" id="integ-opennotebook" role="tabpanel" aria-labelledby="itab-opennotebook" hidden>
+      <header class="integ-head"><span class="integ-icon" aria-hidden="true"><svg class="i lg"><use href="/icons.svg#notebook"/></svg></span>
+        <div><h2 class="t-h2" id="on-h">Open Notebook</h2><p class="muted t-sm">Envia a transcrição das aulas, em texto, para um caderno do seu Open Notebook.</p></div></header>
+      <div class="integ-sec" role="group" aria-labelledby="on-conn-h">
+        <h3 class="eyebrow" id="on-conn-h">Conexão</h3>
+        <p class="integ-state on-status" id="on-status" role="status"></p>
+        <div class="on-fields">
+        <label class="field">Endereço da API
+          <input id="on-url" type="url" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:5055"></label>
+        <label class="field">Endereço da interface <span class="opt">para abrir os cadernos</span>
+          <input id="on-ui" type="url" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:3000"></label>
+        <label class="field">Senha <span class="opt">só se o seu Open Notebook pede</span>
+          <input id="on-password" type="password" autocomplete="off" spellcheck="false" aria-describedby="on-password-hint"></label>
+        </div>
+        <p class="field-hint" id="on-password-hint">A senha fica no Gerenciador de Credenciais do Windows, nunca em arquivo.</p>
+        <div class="on-actions"><button class="btn primary" type="button" id="on-connect">Conectar</button>
+          <button class="btn" type="button" id="on-start" hidden><svg class="i"><use href="/icons.svg#power"/></svg>Iniciar Open Notebook</button></div>
+        <!-- Open Notebook instalado neste PC (lumen/onlocal.py): o que está parado e o andamento da partida, serviço por serviço -->
+        <p class="integ-state on-status" id="on-local" role="status" hidden></p>
+        <ul class="on-steps" id="on-steps" aria-label="Serviços do Open Notebook" hidden></ul>
+      </div>
+      <div class="integ-sec" role="group" aria-labelledby="on-book-h" id="on-book-sec" hidden>
+        <h3 class="eyebrow" id="on-book-h">Caderno de destino</h3>
+        <label class="field">Caderno
+          <span class="input-row"><select id="on-book" aria-describedby="on-book-hint"></select>
+          <button class="icon-btn" type="button" id="on-reload" aria-label="Recarregar cadernos" data-tip="Recarregar cadernos"><svg class="i"><use href="/icons.svg#refresh"/></svg></button></span></label>
+        <p class="field-hint" id="on-book-hint">Cada transcrição entra como uma fonte de texto neste caderno. O Lúmen não altera nem apaga o que já está lá.</p>
+        <div class="on-actions">
+          <button class="btn sm" type="button" id="on-create"><svg class="i"><use href="/icons.svg#plus"/></svg>Criar o caderno “Lúmen — Transcrições”</button>
+          <button class="btn sm" type="button" id="on-open"><svg class="i"><use href="/icons.svg#external"/></svg>Abrir no Open Notebook</button></div>
+        <label class="set-row"><span class="set-text"><strong>Enviar ao terminar cada aula</strong><small>Quando o material fica pronto, a transcrição vai sozinha para este caderno. Desligado, você envia aula por aula.</small></span><input type="checkbox" class="switch" role="switch" id="on-auto" data-cfg="opennotebook_auto"></label>
+      </div>
+      <div class="integ-sec" role="group" aria-labelledby="on-what-h">
+        <h3 class="eyebrow" id="on-what-h">O que é enviado</h3>
+        <p class="field-hint">Só texto: a transcrição da aula com o título, o curso e o módulo, a data, o idioma e o link da fonte (quando há). Áudio, vídeo, imagens e a sua nota de compreensão não são enviados. O destino é o endereço da API acima; se ele for de outro computador, o texto sai deste PC.</p>
+      </div>
+      <div class="integ-foot" id="on-foot" hidden>
+        <p class="field-hint">Desconectar tira a senha deste PC. Os cadernos e as fontes no Open Notebook ficam.</p>
+        <button class="btn danger sm" type="button" id="on-disconnect"><svg class="i"><use href="/icons.svg#power"/></svg>Desconectar</button>
+      </div>
+    </section>
+
+    <!-- HyperbookLM (hyperbooklm.js; lumen/hyperbooklm.py): só o título e a transcrição, à mão, pela ponte local dele -->
+    <section class="card integ" id="integ-hyperbooklm" role="tabpanel" aria-labelledby="itab-hyperbooklm" hidden>
+      <header class="integ-head"><span class="integ-icon" aria-hidden="true"><svg class="i lg"><use href="/icons.svg#layers"/></svg></span>
+        <div><h2 class="t-h2" id="hb-h">HyperbookLM</h2><p class="muted t-sm">Envia a transcrição de uma aula, em texto, como fonte do HyperbookLM deste PC.</p></div></header>
+      <div class="integ-sec" role="group" aria-labelledby="hb-conn-h">
+        <h3 class="eyebrow" id="hb-conn-h">Conexão</h3>
+        <p class="integ-state on-status" id="hb-status" role="status"></p>
+        <p class="integ-state on-status" id="hb-ai" role="status" hidden></p>
+        <label class="field">Endereço local
+          <input id="hb-url" type="url" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:3000" aria-describedby="hb-url-hint"></label>
+        <p class="field-hint" id="hb-url-hint">Só endereços deste PC. Abra o HyperbookLM na pasta dele com <code>npm run dev</code>. Se ele subir em outra porta (a 3000 pode estar ocupada), o teste procura da 3000 à 3010 e corrige o endereço.</p>
+        <div class="on-actions"><button class="btn primary" type="button" id="hb-connect">Conectar</button>
+          <button class="btn" type="button" id="hb-open"><svg class="i"><use href="/icons.svg#external"/></svg>Abrir o HyperbookLM</button></div>
+      </div>
+      <div class="integ-sec" role="group" aria-labelledby="hb-pair-h" id="hb-pair-sec" hidden>
+        <h3 class="eyebrow" id="hb-pair-h">Pareamento</h3>
+        <p class="field-hint" id="hb-pair-hint">Uma vez só: gere o código, cole a linha no arquivo <code>.env.local</code> da pasta do HyperbookLM e reinicie-o. O código fica no Gerenciador de Credenciais do Windows; gerar outro invalida o anterior.</p>
+        <div class="on-actions"><button class="btn sm" type="button" id="hb-pair" aria-describedby="hb-pair-hint"><svg class="i"><use href="/icons.svg#key"/></svg>Gerar código de pareamento</button></div>
+        <label class="field" id="hb-line-box" hidden>Linha para o .env.local <span class="opt">mostrada só agora</span>
+          <span class="input-row"><input id="hb-line" type="text" readonly autocomplete="off" spellcheck="false">
+          <button class="icon-btn" type="button" id="hb-copy" aria-label="Copiar a linha" data-tip="Copiar a linha"><svg class="i"><use href="/icons.svg#copy"/></svg></button></span></label>
+      </div>
+      <div class="integ-sec" role="group" aria-labelledby="hb-what-h">
+        <h3 class="eyebrow" id="hb-what-h">O que é enviado</h3>
+        <p class="field-hint">Só o título da aula e o texto da transcrição, e só quando você envia, aula por aula. Áudio, vídeo, telas, anotações e caminhos de arquivos não são enviados. A análise (chat, resumo, mapa mental, slides) é feita pelo HyperbookLM com as chaves de IA configuradas nele, de serviços externos (como a OpenAI) que recebem o texto e podem cobrar pelo uso; o Lúmen só vê se elas existem.</p>
+      </div>
+      <div class="integ-foot" id="hb-foot" hidden>
+        <p class="field-hint">Desconectar tira o código deste PC. As transcrições já enviadas ficam no HyperbookLM.</p>
+        <button class="btn danger sm" type="button" id="hb-disconnect"><svg class="i"><use href="/icons.svg#power"/></svg>Desconectar</button>
+      </div>
+    </section>
+
+    <!-- Perplexity (study.js, D185): o site oficial num painel do Lumen.exe; só a pergunta confirmada sai do Lúmen e a volta é colar -->
+    <section class="card integ" id="integ-perplexity" role="tabpanel" aria-labelledby="itab-perplexity" hidden>
+      <header class="integ-head"><span class="integ-icon px" aria-hidden="true"><svg class="i lg"><use href="/icons.svg#search"/></svg></span>
+        <div><h2 class="t-h2" id="px-h">Perplexity</h2><p class="muted t-sm">Pesquise no site oficial do Perplexity, com a sua conta de lá, num painel dentro do Lúmen, e traga a resposta com as fontes para o Cérebro.</p></div></header>
+      <form class="integ-sec px-ask" id="px-form" role="group" aria-labelledby="px-ask-h">
+        <h3 class="eyebrow" id="px-ask-h">Pesquisar</h3>
+        <p class="integ-state on-status" id="px-status" role="status"></p>
+        <label class="field">Pergunta enviada ao Perplexity
+          <textarea id="px-q" rows="3" spellcheck="true" placeholder="Ex.: Quais são as diferenças entre mitose e meiose?" aria-describedby="px-q-hint"></textarea></label>
+        <p class="field-hint" id="px-q-hint">Só este texto sai do Lúmen. Conversas, notas, anexos e fontes ficam aqui.</p>
+        <div class="on-actions">
+          <button class="btn primary" type="submit" id="px-search"><svg class="i"><use href="/icons.svg#search"/></svg>Pesquisar no Perplexity</button>
+          <button class="btn" type="button" id="px-home"><svg class="i"><use href="/icons.svg#external"/></svg>Abrir o Perplexity</button>
+          <button class="btn" type="button" id="px-paste"><svg class="i"><use href="/icons.svg#copy"/></svg>Colar resposta no Cérebro</button>
+        </div>
+      </form>
+      <div class="integ-sec" role="group" aria-labelledby="px-how-h">
+        <h3 class="eyebrow" id="px-how-h">Como funciona</h3>
+        <ol class="px-flow">
+          <li><span class="px-num" aria-hidden="true">1</span><strong>Pergunte</strong><small>Aqui, no botão <svg class="i" role="img" aria-label="Pesquisar no Perplexity"><use href="/icons.svg#external"/></svg> da caixa de mensagem do Cérebro ou com <code>/perplexity</code>.</small></li>
+          <li><span class="px-num" aria-hidden="true">2</span><strong>Pesquise e copie</strong><small>Entre com a sua conta, se quiser, e use Copiar na resposta: as fontes e os links vêm juntos.</small></li>
+          <li><span class="px-num" aria-hidden="true">3</span><strong>Traga ao Cérebro</strong><small>“Trazer resposta ao Lúmen” cola na caixa de mensagem, marcada como do Perplexity. Nada é enviado sozinho.</small></li>
+        </ol>
+      </div>
+      <div class="integ-sec" role="group" aria-labelledby="px-priv-h">
+        <h3 class="eyebrow" id="px-priv-h">Privacidade e segurança</h3>
+        <ul class="px-facts">
+          <li><svg class="i" aria-hidden="true"><use href="/icons.svg#key"/></svg><span><strong>Sem API e sem chave.</strong> É o site oficial, com o seu login e o seu plano de lá.</span></li>
+          <li><svg class="i" aria-hidden="true"><use href="/icons.svg#shield"/></svg><span><strong>Perfil próprio</strong> (<code>webview-perplexity</code>), separado do Lúmen e das outras integrações. O login fica nele; o Lúmen não lê senha, cookie nem token.</span></li>
+          <li><svg class="i" aria-hidden="true"><use href="/icons.svg#eye"/></svg><span><strong>O Lúmen só abre o endereço.</strong> Não roda script, não lê a página nem clica nela, e a página não fala com o Lúmen.</span></li>
+          <li><svg class="i" aria-hidden="true"><use href="/icons.svg#external"/></svg><span><strong>Fontes no seu navegador.</strong> Links para outros sites abrem no navegador padrão; downloads, microfone, câmera, localização e notificações ficam bloqueados.</span></li>
+        </ul>
+        <details class="disclosure">
+          <summary>Limites</summary>
+          <p class="field-hint">Respostas com mais de 8 000 caracteres entram inteiras como um anexo <code>perplexity-….md</code>. O login com SSO de empresa leva a um endereço que o painel não abre (aparece “Bloqueado” na barra), e um link de entrada recebido por e-mail abre no navegador padrão. Se o Google ou a Apple recusarem o navegador embutido, o Lúmen não contorna: entre por e-mail. Fora do <code>Lumen.exe</code>, o Perplexity abre no navegador padrão.</p>
+        </details>
       </div>
     </section>
   </div>
@@ -552,18 +831,77 @@
 
 <!-- ================= Ajustes ================= -->
 <div class="view" id="view-settings" hidden aria-labelledby="set-h">
-  <header class="page-head"><div><h1 class="t-h1" id="set-h">Ajustes</h1><p class="lead">Tudo roda no seu PC. Nada é enviado a terceiros além do Notion; sem telemetria.</p></div></header>
+  <header class="page-head"><div><h1 class="t-h1" id="set-h">Ajustes</h1><p class="lead">O fluxo principal roda no seu PC. Nada é enviado a terceiros além do Notion, do que você mandar ao Google Drive, das transcrições que você enviar ao seu Open Notebook e, se você configurar e permitir nos Estudos, das chamadas à API de IA escolhida; sem telemetria.</p></div></header>
   <div class="settings-layout">
     <nav class="settings-nav" id="settings-nav" aria-label="Categorias de ajustes">
+      <button type="button" data-cat="protection"><svg class="i"><use href="/icons.svg#shield"/></svg>Proteção do cérebro</button>
+      <button type="button" data-cat="diagnostics"><svg class="i"><use href="/icons.svg#check-circle"/></svg>Diagnóstico do sistema</button>
       <button type="button" data-cat="general" aria-current="true"><svg class="i"><use href="/icons.svg#sidebar"/></svg>Geral</button>
+      <button type="button" data-cat="appearance"><svg class="i"><use href="/icons.svg#palette"/></svg>Aparência</button>
       <button type="button" data-cat="capture"><svg class="i"><use href="/icons.svg#screen"/></svg>Captura</button>
       <button type="button" data-cat="pomodoro"><svg class="i"><use href="/icons.svg#timer"/></svg>Pomodoro</button>
       <button type="button" data-cat="transcription"><svg class="i"><use href="/icons.svg#wave"/></svg>Transcrição</button>
       <button type="button" data-cat="ai"><svg class="i"><use href="/icons.svg#cpu"/></svg>IA local</button>
-      <button type="button" data-cat="covers"><svg class="i"><use href="/icons.svg#image"/></svg>Capas com IA</button>
+      <button type="button" data-cat="covers"><svg class="i"><use href="/icons.svg#image"/></svg>Capas do Notion</button>
       <button type="button" data-cat="privacy"><svg class="i"><use href="/icons.svg#shield"/></svg>Privacidade e dados</button>
     </nav>
     <div class="settings-panels">
+      <section class="card set-panel" data-cat="protection" hidden><div class="protection-panel" data-protection></div></section>
+      <section class="card set-panel diag-panel" data-cat="diagnostics" hidden aria-labelledby="set-diag-h">
+        <div class="diag-header">
+          <div class="diag-title-area">
+            <h2 class="t-h2" id="set-diag-h">Diagnóstico do sistema</h2>
+            <p class="diag-desc muted">Verifique se todos os módulos, modelos de IA, drivers de áudio e integrações estão prontos para o funcionamento completo.</p>
+          </div>
+        </div>
+
+        <div class="diag-hero-card">
+          <div class="diag-hero-info">
+            <div class="diag-hero-text">
+              <span class="eyebrow" id="diag-status-eyebrow">INTEGRIDADE DO SISTEMA</span>
+              <h3 class="t-h2" id="diag-summary-title">Pronto para escanear</h3>
+              <p class="diag-summary-sub muted" id="diag-summary-desc">Clique no botão para iniciar a varredura completa de todos os subsistemas.</p>
+            </div>
+            <!-- o selo só aparece com um resultado: antes da primeira verificação não há número (nem um “—” vazio) -->
+            <div class="diag-score-container" id="diag-score-wrap" hidden>
+              <span class="badge lg diag-score-badge" id="diag-score-badge" data-tone="">
+                <svg class="i"><use href="/icons.svg#info"/></svg>
+                <span id="diag-score-val"></span>
+              </span>
+            </div>
+          </div>
+
+          <div class="diag-hero-actions">
+            <button type="button" class="btn primary lg diag-run-btn" id="diag-run-btn">
+              <svg class="i diag-spin-target"><use href="/icons.svg#refresh"/></svg>
+              <span id="diag-run-label">Verificar tudo agora</span>
+            </button>
+            <button type="button" class="btn lg diag-repair-btn" id="diag-repair-btn" hidden>
+              <svg class="i"><use href="/icons.svg#download"/></svg>
+              <span>Instalar / reparar itens faltando</span>
+            </button>
+            <span class="diag-last-scan muted t-caption" id="diag-last-scan"></span>
+          </div>
+        </div>
+
+        <!-- Instalar / reparar (D187; lumen/repair.py): só depois do clique e da confirmação; mostra cada passo real -->
+        <section class="diag-repair" id="diag-repair" aria-labelledby="diag-repair-title" hidden>
+          <div class="diag-repair-head">
+            <h3 class="t-h3" id="diag-repair-title">Instalar / reparar</h3>
+            <button type="button" class="btn sm" id="diag-repair-cancel" hidden>Cancelar</button>
+          </div>
+          <ol class="diag-repair-steps" id="diag-repair-steps" aria-live="polite"></ol>
+          <p class="diag-repair-msg" id="diag-repair-msg" role="status"></p>
+        </section>
+
+        <div class="diag-grid" id="diag-grid" aria-live="polite">
+          <!-- Categorias preenchidas dinamicamente pelo diagnóstico -->
+        </div>
+
+        <p class="card-note faint t-caption diag-note">
+          Só leituras, com prazo curto: nada é instalado, iniciado, gravado, enviado ou alterado, e nenhum segredo aparece aqui. Saem deste PC apenas as consultas de leitura ao Notion, ao Google Drive e ao Perplexity (quando em uso). O número é a prontidão: a parte das verificações obrigatórias que rodou e passou.
+        </p>
+      </section>
       <section class="card set-panel desktop-settings" data-cat="general" aria-labelledby="set-general-h">
         <h2 class="t-h2" id="set-general-h">Geral</h2>
         <h3 class="eyebrow">Lumen sempre por perto</h3>
@@ -580,6 +918,21 @@
         <label class="set-row"><span class="set-text"><strong>Iniciar com o Windows</strong><small>Abre discretamente, sem iniciar uma gravação.</small></span><input type="checkbox" class="switch" role="switch" id="autostart"></label>
         <div class="set-row"><span class="set-text"><strong>Sair do Lumen</strong><small id="desktop-hint">Disponível na janela do Lumen.exe.</small></span>
           <button class="btn danger sm" type="button" id="desktop-exit"><svg class="i"><use href="/icons.svg#power"/></svg>Sair</button></div>
+      </section>
+
+      <section class="card set-panel" data-cat="appearance" hidden aria-labelledby="set-appearance-h">
+        <h2 class="t-h2" id="set-appearance-h">Aparência</h2>
+        <h3 class="eyebrow" id="ui-style-h">Estilo da interface</h3>
+        <p class="field-hint" id="ui-style-desc">Muda a forma da janela principal: disposição, vidro e movimento. Aulas, notas, conversas, integrações e ajustes continuam os mesmos, e dá para voltar a qualquer momento.</p>
+        <div class="ui-style-pick" role="radiogroup" aria-labelledby="ui-style-h" aria-describedby="ui-style-desc" id="ui-style">
+          <label class="ui-style-opt"><input type="radio" name="ui_style" value="classic">
+            <span class="ui-style-prev" data-style="classic" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            <span class="ui-style-text"><strong>Clássico</strong><small>O visual de sempre do Lumen.</small></span></label>
+          <label class="ui-style-opt"><input type="radio" name="ui_style" value="glass">
+            <span class="ui-style-prev" data-style="glass" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            <span class="ui-style-text"><strong>Lúmen Glass 2026</strong><small>Vidro escuro, barra lateral com nomes e controles de janela do Windows.</small></span></label>
+        </div>
+        <p class="field-hint ui-style-state" id="ui-style-state" role="status" aria-live="polite"></p>
       </section>
 
       <section class="card set-panel" data-cat="capture" hidden aria-labelledby="set-capture-h">
@@ -632,18 +985,83 @@
         <div id="set-pomo"></div>
       </section>
 
-      <section class="card set-panel" data-cat="covers" hidden aria-labelledby="set-cov-h">
-        <h2 class="t-h2" id="set-cov-h">Capas com IA</h2>
-        <p class="field-hint" id="covers-status"></p>
-        <button class="btn sm" type="button" id="covers-dl" hidden><svg class="i"><use href="/icons.svg#download"/></svg>Baixar gerador de capas</button>
+      <!-- Capas do Notion: escolher a página → gerar a imagem no PC → aplicar só a capa (a mesma tela em Integrações,
+           Ctrl+K e no curso da Biblioteca: coverOpen). Cresce conforme o passo; nada de assistente em várias telas -->
+      <section class="card set-panel cov-panel" data-cat="covers" hidden aria-labelledby="set-cov-h">
+        <h2 class="t-h2" id="set-cov-h">Capas do Notion</h2>
+        <p class="field-hint c-only" data-g-free>Escolha a página, gere a imagem e aplique a capa. A imagem é gerada no seu PC e enviada ao Notion quando você aplicar.</p>
+        <!-- Glass (R27): a trilha dos três passos. É só um espelho visual do estado do fluxo abaixo (o CSS lê #cov-page e #cov-img); quem anuncia o estado é o próprio fluxo -->
+        <ol class="g-cov-steps g-only" data-g-free aria-hidden="true"><li data-s="1"><span>1</span>Escolher página</li><li data-s="2"><span>2</span>Gerar capa</li><li data-s="3"><span>3</span>Aplicar no Notion</li></ol>
+        <div class="cov-home" id="cov-home" data-g-group><div class="cov-box" id="cov-box">
+        <div class="empty cov-off" id="cov-off" hidden><span class="empty-icon"><svg class="i"><use href="/icons.svg#page"/></svg></span>
+          <strong>Conecte o Notion</strong><p>Com a integração conectada, dá para escolher qualquer página compartilhada com o Lumen.</p>
+          <button class="btn sm" type="button" id="cov-connect">Abrir Integrações</button></div>
+        <div class="cov-flow" id="cov-flow">
+          <div class="cov-pick" id="cov-pick">
+            <div class="g-cov-head g-only"><span class="g-tile-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#page"/></svg></span>
+              <div><p class="g-cov-title">Escolha uma página</p><p class="g-cov-sub">Selecione uma página compartilhada com o Lumen para criar uma capa.</p></div></div>
+            <p class="cov-why" id="cov-why" hidden><svg class="i"><use href="/icons.svg#info"/></svg><span id="cov-why-text"></span></p>
+            <label class="field">Qual página?
+              <span class="search-field"><svg class="i"><use href="/icons.svg#search"/></svg>
+              <input id="cov-q" type="text" role="combobox" aria-expanded="false" aria-controls="cov-list" aria-autocomplete="list"
+                     autocomplete="off" spellcheck="false" placeholder="Buscar página ou colar link do Notion" aria-describedby="cov-q-hint"></span></label>
+            <div class="cov-results" id="cov-results" hidden>
+              <ul class="pal-list cov-list" id="cov-list" role="listbox" aria-label="Páginas do Notion"></ul>
+              <div class="cov-list-foot"><span class="cov-list-msg" id="cov-list-msg" role="status" aria-live="polite"></span>
+                <button class="btn sm" type="button" id="cov-retry" hidden>Tentar de novo</button>
+                <button class="btn ghost sm" type="button" id="cov-more" hidden>Carregar mais</button></div>
+            </div>
+            <p class="field-hint" id="cov-q-hint">Só aparecem as páginas compartilhadas com a integração do Lumen. <button class="link-btn" type="button" data-grant>Dar acesso no Notion</button></p>
+          </div>
+          <div class="cov-page" id="cov-page" hidden>
+            <span class="cov-page-ico" id="cov-page-ico" aria-hidden="true"></span>
+            <span class="cov-page-text"><span class="cov-page-top"><strong id="cov-page-title"></strong><span class="badge" id="cov-page-badge"></span></span>
+              <small id="cov-page-where"></small></span>
+            <span class="cov-page-actions">
+              <button class="btn ghost sm" type="button" id="cov-page-open"><svg class="i"><use href="/icons.svg#external"/></svg>Abrir no Notion</button>
+              <button class="btn ghost sm" type="button" id="cov-page-change">Trocar</button></span>
+          </div>
+          <div class="cov-theme" id="cov-theme-box" hidden>
+            <label class="field">Como você quer a capa? <span class="opt">opcional</span>
+              <input id="cov-theme" maxlength="300" autocomplete="off" placeholder="Ex.: Uma ilustração minimalista sobre organização financeira." aria-describedby="cov-theme-hint"></label>
+            <p class="field-hint" id="cov-theme-hint"></p>
+          </div>
+          <div class="cover-area" id="cov-area" hidden>
+            <figure class="cover-preview" id="cov-fig">
+              <div class="cover-img" id="cov-img" data-empty="true"><img id="cov-pic" alt="" hidden><span class="cover-wait" id="cov-wait"></span></div>
+            </figure>
+            <div class="progress indeterminate" id="cov-progress" hidden><span></span></div>
+          </div>
+          <p class="cover-state" id="cov-state" role="status" aria-live="polite" tabindex="-1"></p>
+          <div class="cover-actions cov-actions" id="cov-actions" hidden>
+            <button class="btn sm" type="button" id="cov-gen"></button>
+            <button class="btn primary sm" type="button" id="cov-main" hidden></button>
+          </div>
+        </div>
+        </div></div>
+        <div class="g-cov-how g-only" data-g-group>
+          <h3 class="g-cov-how-h"><svg class="i" aria-hidden="true"><use href="/icons.svg#layers"/></svg>Como funciona</h3>
+          <ol class="g-cov-how-steps">
+            <li><span class="g-tile-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#page"/></svg></span><div><strong>Escolha a página</strong><small>Encontre uma página do Notion ou cole o link dela.</small></div></li>
+            <li><span class="g-tile-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#sparkle"/></svg></span><div><strong>Gere a imagem</strong><small>O Lumen cria a capa no seu PC, com a IA local.</small></div></li>
+            <li><span class="g-tile-ico" aria-hidden="true"><svg class="i"><use href="/icons.svg#notebook"/></svg></span><div><strong>Aplique a capa</strong><small>A imagem só vai ao Notion quando você confirmar.</small></div></li>
+          </ol>
+        </div>
+        <details class="disclosure" data-g-group>
+          <summary><svg class="i g-only" aria-hidden="true"><use href="/icons.svg#gear"/></svg>Gerador e detalhes técnicos</summary>
+          <div class="cov-state" id="covers-state"><span class="cov-ico" id="covers-ico" aria-hidden="true"></span>
+            <span class="set-text"><strong id="covers-title"></strong><small id="covers-status"></small></span></div>
+          <button class="btn sm" type="button" id="covers-dl" hidden><svg class="i"><use href="/icons.svg#download"/></svg>Baixar gerador de capas</button>
+          <dl class="cov-tech" id="covers-tech"></dl>
+        </details>
       </section>
 
       <section class="card set-panel" data-cat="privacy" hidden aria-labelledby="set-priv-h">
         <h2 class="t-h2" id="set-priv-h">Privacidade e dados</h2>
         <label class="set-row"><span class="set-text"><strong>Guardar gravações e transcrições</strong><small>Normalmente são apagadas sozinhas após o uso.</small></span><input type="checkbox" class="switch" role="switch" id="keep"></label>
-        <div class="set-row"><span class="set-text"><strong>Limpar histórico e dados locais</strong><small>Apaga o histórico, as transcrições guardadas e as notas de compreensão deste PC. As páginas no Notion ficam.</small></span>
+        <div class="set-row"><span class="set-text"><strong>Limpar histórico e dados locais</strong><small>Apaga o histórico, as transcrições guardadas, as notas de compreensão e os arquivos antigos do Gemini Notebook deste PC (a integração foi retirada). As páginas no Notion e o que está na sua conta do Google ficam.</small></span>
           <button class="btn danger sm" type="button" id="clear"><svg class="i"><use href="/icons.svg#trash"/></svg>Limpar</button></div>
-        <p class="field-hint">O áudio e o vídeo nunca saem do PC. Ao Notion vai só o texto da página; o log não guarda conteúdo.</p>
+        <p class="field-hint">O áudio e o vídeo nunca saem do PC. Ao Notion vai só o texto da página; ao Google Drive, só as fontes que você enviar; o log não guarda conteúdo.</p>
       </section>
     </div>
   </div>
@@ -671,7 +1089,20 @@
         <label class="field">Nome do curso<input id="org-course-name" maxlength="80" autocomplete="off" placeholder="Ex.: Edição de Vídeos"></label>
         <p class="field-hint org-similar" id="org-course-similar" aria-live="polite" hidden></p>
         <label class="field">Plataforma <span class="opt">opcional</span><input id="org-course-platform" maxlength="60" autocomplete="off" placeholder="Ex.: Hotmart, Udemy, YouTube"></label>
-        <label class="set-row compact" id="org-decorate-row"><span class="set-text"><strong>Enfeitar a página no Notion</strong><small>Ícone, capa e destaque criados pela IA no seu PC.</small></span><input type="checkbox" class="switch" role="switch" id="org-decorate"></label>
+        <!-- Capa no Notion: prévia feita no PC (nada vai ao Notion); “Criar curso” usa exatamente esta imagem -->
+        <div class="cover-box" id="org-decorate-row">
+          <label class="set-row compact"><span class="set-text"><strong>Capa no Notion</strong><small>Capa, ícone e frase de destaque para a página do curso, criados no seu PC.</small></span>
+            <input type="checkbox" class="switch" role="switch" id="org-decorate" aria-controls="org-cover" aria-expanded="false"></label>
+          <div class="cover-area" id="org-cover" hidden>
+            <figure class="cover-preview" id="org-cover-fig">
+              <div class="cover-img" id="org-cover-img"><img id="org-cover-pic" alt="" hidden><span class="cover-wait" id="org-cover-wait">A prévia aparece aqui.</span></div>
+              <span class="cover-emoji" id="org-cover-emoji" aria-hidden="true" hidden></span>
+              <figcaption class="cover-cap"><strong id="org-cover-title"></strong><span id="org-cover-where"></span><span class="cover-sub" id="org-cover-sub"></span></figcaption>
+            </figure>
+            <p class="cover-state" id="org-cover-state" role="status" aria-live="polite" tabindex="-1"></p>
+            <div class="cover-actions"><button class="btn sm" type="button" id="org-cover-gen"><svg class="i"><use href="/icons.svg#sparkle"/></svg><span>Gerar prévia</span></button></div>
+          </div>
+        </div>
         <div class="org-form-actions"><button class="btn ghost sm" type="button" id="org-course-cancel">Cancelar</button>
           <button class="btn primary sm" type="button" id="org-course-create">Criar curso</button></div>
       </div>
@@ -697,6 +1128,44 @@
   <div class="dlg-foot"><p class="org-hint" id="org-hint" aria-live="polite"></p>
     <button class="btn" type="button" id="org-cancel">Cancelar</button>
     <button class="btn primary" type="button" id="org-save">Salvar</button></div>
+</dialog>
+
+<!-- Envio da transcrição de uma aula ao Open Notebook (opennotebook.js): diz o que vai, para onde, e o estado real -->
+<dialog class="dlg on-dlg" id="on-dlg" aria-labelledby="on-dlg-h">
+  <div class="dlg-head"><span class="dlg-icon"><svg class="i"><use href="/icons.svg#notebook"/></svg></span>
+    <div><h2 id="on-dlg-h">Enviar ao Open Notebook</h2><p class="muted t-sm" id="on-dlg-sub"></p></div></div>
+  <div class="dlg-body">
+    <p class="t-sm" id="on-dlg-what"></p>
+    <p class="integ-state on-status" id="on-dlg-state" role="status"></p>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn" type="button" id="on-dlg-close">Fechar</button>
+    <button class="btn" type="button" id="on-dlg-open"><svg class="i"><use href="/icons.svg#external"/></svg>Abrir no Open Notebook</button>
+    <button class="btn" type="button" id="on-dlg-send-open">Enviar e abrir</button>
+    <button class="btn primary" type="button" id="on-dlg-send">Enviar</button></div>
+</dialog>
+
+<!-- Envio manual da transcrição de uma aula ao HyperbookLM (hyperbooklm.js): diz o que vai, para onde, e o estado real -->
+<dialog class="dlg on-dlg" id="hb-dlg" aria-labelledby="hb-dlg-h">
+  <div class="dlg-head"><span class="dlg-icon"><svg class="i"><use href="/icons.svg#layers"/></svg></span>
+    <div><h2 id="hb-dlg-h">Enviar transcrição ao HyperbookLM</h2><p class="muted t-sm" id="hb-dlg-sub"></p></div></div>
+  <div class="dlg-body">
+    <p class="t-sm" id="hb-dlg-what"></p>
+    <p class="integ-state on-status" id="hb-dlg-state" role="status"></p>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn" type="button" id="hb-dlg-close">Fechar</button>
+    <button class="btn" type="button" id="hb-dlg-open"><svg class="i"><use href="/icons.svg#external"/></svg>Abrir o HyperbookLM</button>
+    <button class="btn primary" type="button" id="hb-dlg-send">Enviar</button></div>
+</dialog>
+
+<!-- Capa do Notion na Nova aula (botão “Capa” do cartão do Notion): o mesmo bloco de Ajustes → Capas do Notion (#cov-box)
+     entra aqui enquanto o diálogo está aberto e volta ao fechar. Um estado, um formulário, as mesmas regras -->
+<dialog class="dlg cov-dlg" id="cov-dlg" aria-labelledby="cov-dlg-h">
+  <div class="dlg-head"><span class="dlg-icon"><svg class="i"><use href="/icons.svg#image"/></svg></span>
+    <h2 id="cov-dlg-h">Capa do Notion</h2>
+    <button class="icon-btn sm" type="button" id="cov-close" aria-label="Fechar" data-tip="Fechar" data-kbd="Esc"><svg class="i"><use href="/icons.svg#x"/></svg></button></div>
+  <div class="dlg-body" id="cov-dlg-body"></div>
 </dialog>
 
 <!-- Busca global (Ctrl+K): telas, ajustes, ações e aulas -->

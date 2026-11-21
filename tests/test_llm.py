@@ -143,5 +143,53 @@ class Generate(unittest.TestCase):
         self.assertEqual(cut, [1])
 
 
+class OllamaDown(unittest.TestCase):
+    """Com o Ollama parado, a lista de modelos não pode custar uma espera inteira a cada consulta (a tela de Estudos faz
+    várias por abertura): uma falha recente vale por alguns segundos, para o mesmo endereço, e uma resposta boa a limpa."""
+
+    def setUp(self):
+        self.old = llm.OLLAMA
+        llm.OLLAMA = "http://127.0.0.1:9"  # porta que ninguém ouve
+        llm._down.clear()
+
+    def tearDown(self):
+        llm.OLLAMA = self.old
+        llm._down.clear()
+
+    def test_one_failure_covers_the_next_queries_for_a_few_seconds(self):
+        with mock.patch.object(llm.urllib.request, "urlopen", side_effect=llm.urllib.error.URLError("recusada")) as op:
+            self.assertEqual([llm.models() for _ in range(6)], [None] * 6)
+        self.assertEqual(op.call_count, 1)  # uma tentativa só, não seis
+
+    def test_it_tries_again_after_the_window_and_a_good_answer_clears_the_failure(self):
+        clock = [100.0]
+        reply = mock.MagicMock()
+        reply.__enter__.return_value.read.return_value = b'{"models": [{"name": "qwen3.5:4b"}]}'
+        with mock.patch.object(llm.time, "monotonic", lambda: clock[0]), \
+                mock.patch.object(llm.urllib.request, "urlopen", side_effect=llm.urllib.error.URLError("recusada")) as op:
+            self.assertIsNone(llm.models())
+            clock[0] += llm.DOWN_FOR - 0.5
+            self.assertIsNone(llm.models())
+            self.assertEqual(op.call_count, 1)
+            clock[0] += 1.0  # passou a janela: tenta de novo
+            self.assertIsNone(llm.models())
+            self.assertEqual(op.call_count, 2)
+        with mock.patch.object(llm.time, "monotonic", lambda: clock[0] + 10), \
+                mock.patch.object(llm.json, "load", return_value={"models": [{"name": "qwen3.5:4b"}]}), \
+                mock.patch.object(llm.urllib.request, "urlopen", return_value=reply):
+            self.assertEqual(llm.models(), ["qwen3.5:4b"])
+        with mock.patch.object(llm.urllib.request, "urlopen", side_effect=llm.urllib.error.URLError("de novo")) as op:
+            self.assertIsNone(llm.models())  # a boa resposta limpou: a próxima falha conta de novo
+            self.assertEqual(op.call_count, 1)
+
+    def test_a_different_address_is_not_held_back_by_the_old_failure(self):
+        with mock.patch.object(llm.urllib.request, "urlopen", side_effect=llm.urllib.error.URLError("recusada")):
+            self.assertIsNone(llm.models())
+        llm.OLLAMA = "http://127.0.0.1:10"  # outro endereço (como um Ollama falso novo nos testes)
+        with mock.patch.object(llm.urllib.request, "urlopen", side_effect=llm.urllib.error.URLError("recusada")) as op:
+            self.assertIsNone(llm.models())
+        self.assertEqual(op.call_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

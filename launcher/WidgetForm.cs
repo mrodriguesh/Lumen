@@ -27,8 +27,13 @@ class WidgetForm : Form
     bool expanded, dragging;
     float scale = 1;
     int collapsedWidth, collapsedHeight, targetWidth, targetHeight, openHeight;
-    // Tamanho do painel aberto (96 dpi): os controles de gravação ou, maior, “Minha compreensão”.
+    // Tamanho do painel aberto (96 dpi): os controles de gravação ou, maior, “Minha compreensão” e a proteção.
+    // A Conversa rápida abre no MESMO tamanho compacto da gravação (ChatPanel = MainPanel: a barra não cresce); “Ampliar” no menu da conversa pede
+    // ChatWide. A página (widget.css/chat.css) não repete esses números: o painel da conversa ocupa o que a janela entregar, e a janela nunca passa
+    // da área útil da tela (Expand/ResizeForDpi/WidgetBounds).
     public static readonly Size MainPanel = new Size(304, 252), NotePanel = new Size(360, 440);
+    public static readonly Size ProtectionPanel = new Size(360, 540);
+    public static readonly Size ChatPanel = MainPanel, ChatWide = new Size(360, 540);
     Size panel = MainPanel;
 
     public WidgetForm(string url, string data, Action<string> command)
@@ -36,12 +41,13 @@ class WidgetForm : Form
         this.url = url; this.command = command; dataDir = data;
         positionFile = Path.Combine(data, "widget-position.txt");
         Text = "Lumen · barra flutuante";
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         FormBorderStyle = FormBorderStyle.None;
         AutoScaleMode = AutoScaleMode.None;
         MaximizeBox = false; MinimizeBox = false;
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false; TopMost = true;
-        BackColor = Color.FromArgb(8, 9, 12);  // = --bg-base do ui.css (fundo da barra)
+        BackColor = NativeColors.Bg;  // = --bg-base do ui.css (fundo da barra: 8, 9, 12)
         web = NewWeb();
         Controls.Add(web);
         animation.Tick += (s, e) => {
@@ -77,6 +83,10 @@ class WidgetForm : Form
         core.Settings.AreDevToolsEnabled = false;
         core.Settings.IsPasswordAutosaveEnabled = false;
         core.Settings.IsGeneralAutofillEnabled = false;
+        core.Settings.IsZoomControlEnabled = false;
+        core.Settings.IsPinchZoomEnabled = false;
+        web.ZoomFactor = 1.0;
+        web.NavigationCompleted += (s, e) => { web.ZoomFactor = 1.0; };
         core.NavigationStarting += (sender, ev) => { if (!ev.Uri.StartsWith(url, StringComparison.Ordinal)) ev.Cancel = true; };
         core.NewWindowRequested += (sender, ev) => ev.Handled = true;
         core.WebMessageReceived += (sender, ev) => {
@@ -85,7 +95,7 @@ class WidgetForm : Form
             if (msg == "widget:expand") Expand(true);
             else if (msg == "widget:collapse") Expand(false);
             else if (msg == "widget:drag") Drag();
-            else if (msg == "widget:panel:note" || msg == "widget:panel:main") Panel(msg.EndsWith("note") ? NotePanel : MainPanel);
+            else if (PanelFor(msg).HasValue) Panel(PanelFor(msg).Value);
             else command(msg);
         };
         core.NavigationCompleted += (sender, ev) => SendSide();
@@ -233,6 +243,19 @@ class WidgetForm : Form
         bool animate;
         if (SystemParametersInfo(0x1042, 0, out animate, 0) && !animate) { Size = new Size(targetWidth, targetHeight); Place(); RoundCorners(); return; }
         animation.Start();
+    }
+
+    // Mensagem da página → tamanho do painel (null = não é uma mensagem de tamanho). A conversa compacta é o próprio painel principal.
+    public static Size? PanelFor(string msg)
+    {
+        switch (msg) {
+            case "widget:panel:main": return MainPanel;
+            case "widget:panel:note": return NotePanel;
+            case "widget:panel:protection": return ProtectionPanel;
+            case "widget:panel:chat": return ChatPanel;
+            case "widget:panel:chat-wide": return ChatWide;
+            default: return null;
+        }
     }
 
     void Panel(Size size)

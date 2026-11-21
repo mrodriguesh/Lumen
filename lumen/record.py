@@ -375,6 +375,16 @@ def _finish_recording(keep=False):
     return {"path": str(path), "name": path.name.split("_", 1)[1], "warning": st.get("error")}
 
 
+def reveal(raw):
+    """Mostra a gravação no Explorer (só arquivos de work/uploads; nunca um caminho qualquer vindo da página)."""
+    path = Path(raw or "").resolve()
+    if not raw or path.parent != (store.WORK / "uploads").resolve() or not path.is_file():
+        raise AppError("A gravação não está mais no PC.", "Ela é apagada após o uso se “Guardar gravações” estiver desligado.")
+    if os.name == "nt":
+        import subprocess
+        subprocess.Popen(f'explorer /select,"{path}"')  # caminho do próprio Lumen (sem aspas no nome)
+
+
 def discard():
     with _controls:
         _discard_recording()

@@ -7,7 +7,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from . import AppError, jobs, obsidian, pomodoro, record, server, store
+from . import AppError, jobs, obsidian, pomodoro, protection, record, server, store
 
 
 def _edge():
@@ -41,7 +41,13 @@ def main():
     url = f"http://127.0.0.1:{httpd.server_port}/"
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     pomodoro.start()
+    try:
+        protection.start()
+    except (AppError, OSError):
+        logging.warning("Proteção não iniciada; confira a configuração e a chave nos Ajustes.")
     threading.Thread(target=_reviews, daemon=True).start()
+    from .study import listen  # “Deixar a voz pronta ao abrir” (D54); desligado por padrão
+    threading.Thread(target=listen.on_start, daemon=True, name="Lumen voice warm").start()
     logging.info("Lumen iniciado")
 
     edge = _edge()
@@ -55,14 +61,21 @@ def main():
     # Encerra quando a janela fecha (beacon) ou após 15 min sem contato e sem tarefa rodando. Dentro do Lumen.exe
     # não: a janela pode ficar parada na bandeja por horas, e o Lumen.exe já encerra o Python ao fechar.
     native = bool(os.environ.get("LUMEN_NO_WINDOW"))
+    from . import transcribe
+    from .study import call
     while True:
         time.sleep(1)
+        transcribe.release_idle()  # modelos de fala parados há 15 min saem da RAM e da VRAM
+        call.release_idle()
         now = time.monotonic()
         closed = server.bye_at and now - server.bye_at > 4 and server.last_seen <= server.bye_at
         idle = not native and now - server.last_seen > 900 and not jobs.busy() and not record.status()["active"]
         if closed or idle:
             jobs.cancel()
+            protection.stop()
             record._stop.set()
+            from . import voicestudio
+            voicestudio.BACKEND.stop()  # só o backend que o Lúmen subiu (o pipe fechado já o derrubaria)
             logging.info("Lumen encerrado")
             httpd.shutdown()
             return

@@ -2,6 +2,13 @@
 // Peças da interface compartilhadas pelas janelas do Lumen (ver docs/DESIGN.md): ícone do sprite, dica (tooltip),
 // confirmação e aviso rápido. Sem dependências; o visual está em ui.css.
 (() => {
+  // Anel de foco só para quem navega pelo teclado (D188). Ao mostrar a janela (bandeja, inicialização do Windows) ou voltar
+  // de um painel, o Windows entrega o foco ao WebView2 como um Tab e ele acendia o anel no primeiro botão (Início) sem
+  // ninguém ter usado o teclado. Uma tecla de navegação liga o anel; o mouse ou o toque o desligam (ui.css: .kbd-nav).
+  const NAV_KEYS = new Set(["Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown", "F6"]);
+  document.addEventListener("keydown", (e) => { if (NAV_KEYS.has(e.key)) document.documentElement.classList.add("kbd-nav"); }, true);
+  document.addEventListener("pointerdown", () => document.documentElement.classList.remove("kbd-nav"), true);
+
   const NS = "http://www.w3.org/2000/svg";
   function icon(name, cls = "") {
     const s = document.createElementNS(NS, "svg");
@@ -101,22 +108,55 @@
   // Aviso rápido: um por vez, no #toast da página (ou criado aqui). success/info 4 s; warning 6 s; error 9 s.
   const ICON = { success: "check-circle", info: "info", warning: "alert", error: "x-circle" };
   let toastTimer = 0;
-  function toast(msg, tone = "info", ms) {
+  // action (opcional): [rótulo, função], um botão no aviso (ex.: "Desfazer"); o aviso fecha ao clicar.
+  function toast(msg, tone = "info", ms, action) {
     let t = document.getElementById("toast");
     if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; t.setAttribute("role", "status"); t.setAttribute("aria-live", "polite"); document.body.append(t); }
+    // Com um diálogo modal aberto, o resto da página fica atrás do fundo escurecido e inerte: o aviso vai para dentro dele
+    const modal = [...document.querySelectorAll("dialog[open]")].filter((d) => d.matches(":modal")).pop() || document.body;
+    if (t.parentElement !== modal) modal.append(t);
     const close = document.createElement("button");
     close.type = "button"; close.className = "icon-btn"; close.setAttribute("aria-label", "Fechar aviso");
     close.append(icon("x"));
     close.onclick = () => { t.hidden = true; };
     const span = document.createElement("span");
     span.className = "toast-text"; span.textContent = msg;
-    t.replaceChildren(icon(ICON[tone] || ICON.info), span, close);
+    let act = null;
+    if (action) {
+      act = document.createElement("button");
+      act.type = "button"; act.className = "btn sm ghost toast-action"; act.textContent = action[0];
+      act.onclick = () => { t.hidden = true; action[1](); };
+    }
+    t.replaceChildren(...[icon(ICON[tone] || ICON.info), span, act, close].filter(Boolean));
     t.dataset.tone = tone;
     t.className = "toast" + (tone === "error" ? " err" : "");
     t.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { t.hidden = true; }, ms || { error: 9000, warning: 6000 }[tone] || 4000);
+    toastTimer = setTimeout(() => { t.hidden = true; }, ms || (action ? 8000 : 0) || { error: 9000, warning: 6000 }[tone] || 4000);
   }
+
+  // Desativa qualquer mecanismo de zoom acidental (roda do mouse, atalhos de teclado e gestos de pinça)
+  // mantendo a escala padrão e fixa de acordo com o design do Lumen.
+  window.addEventListener("wheel", (e) => {
+    if (e.ctrlKey || e.metaKey) e.preventDefault();
+  }, { passive: false });
+
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && (
+      e.key === "+" || e.key === "-" || e.key === "=" || e.key === "_" ||
+      e.key === "0" || e.code === "NumpadAdd" || e.code === "NumpadSubtract"
+    )) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  window.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
+  window.addEventListener("gesturechange", (e) => e.preventDefault(), { passive: false });
+  window.addEventListener("gestureend", (e) => e.preventDefault(), { passive: false });
+
+  try {
+    if (window.chrome?.webview) window.chrome.webview.postMessage("zoom:reset");
+  } catch (_) {}
 
   window.ui = { icon, setIcon, confirm, toast, hideTip: hide };
 })();

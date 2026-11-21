@@ -272,7 +272,7 @@ def make_video(path, scenes, fps=5, size=(320, 180)):
             c.mux(pkt)
 
 
-def fake_read(jpeg, model, check=lambda: None, keep_alive="3m"):
+def fake_read(jpeg, model, check=lambda: None, keep_alive="3m", num_ctx=vision.CTX):
     """“Modelo” que reconhece as telas sintéticas pelo desenho."""
     import io
     import av

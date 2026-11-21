@@ -1,5 +1,6 @@
 # Compila Lumen.exe na raiz do projeto usando o compilador C# que já vem no Windows (.NET Framework 4.8).
 $ErrorActionPreference = 'Stop'
+& (Join-Path $PSScriptRoot 'make-icon.ps1')
 $root = Split-Path $PSScriptRoot -Parent
 $bin = Join-Path $PSScriptRoot 'bin'
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'

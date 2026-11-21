@@ -110,10 +110,27 @@ class Build(unittest.TestCase):
         self.assertTrue(all(len(rt["text"]["content"]) <= 2000 for rt in blocks[0]["paragraph"]["rich_text"]))
 
     def test_page_id(self):
-        self.assertEqual(notion.page_id("https://www.notion.so/Estudos-0123456789abcdef0123456789abcdef?pvs=4"),
-                         "01234567-89ab-cdef-0123-456789abcdef")
-        with self.assertRaises(AppError):
-            notion.page_id("https://www.notion.so/sem-id")
+        page, other = "0123456789abcdef0123456789abcdef", "fedcba9876543210fedcba9876543210"
+        want = "01234567-89ab-cdef-0123-456789abcdef"
+        for link in (f"https://www.notion.so/Estudos-{page}?pvs=4", f"https://www.notion.so/ws/Caf%C3%A9-{page}",
+                     f"notion.so/Or%C3%A7amento-{page}?pvs=25#{other}",  # âncora de bloco não é a página
+                     f"https://www.notion.so/ws/{other}?v={'a' * 32}&p={page}&pm=s",  # registro aberto sobre o banco
+                     want, page.upper(), f"https://alguem.notion.site/Pagina-{page}/"):
+            self.assertEqual(notion.page_id(link), want, link)
+        self.assertEqual(notion.page_id(f"https://www.notion.so/{other}?v={page}"),  # banco + visualização: o banco
+                         "fedcba98-7654-3210-fedc-ba9876543210")
+        for bad in ("https://www.notion.so/sem-id", "", f"https://www.notion.so/x?v={page}"):
+            with self.assertRaises(AppError):
+                notion.page_id(bad)
+
+    def test_cover_ref_ignores_the_signature(self):
+        url = "https://prod-files-secure.s3.us-west-2.amazonaws.com/ws/arq/capa.png?X-Amz-Signature="
+        a, b = ({"type": "file", "file": {"url": url + s, "expiry_time": "2026-10-27T13:00:00.000Z"}} for s in "ab")
+        self.assertEqual(notion.cover_ref(a), notion.cover_ref(b))
+        self.assertEqual(notion.cover_ref(a), "file:prod-files-secure.s3.us-west-2.amazonaws.com/ws/arq/capa.png")
+        self.assertNotEqual(notion.cover_ref({"type": "external", "external": {"url": "https://x.com/a.png?v=1"}}),
+                            notion.cover_ref({"type": "external", "external": {"url": "https://x.com/a.png?v=2"}}))
+        self.assertIsNone(notion.cover_ref(None))
 
 
 class Api(unittest.TestCase):
@@ -166,7 +183,7 @@ class Api(unittest.TestCase):
         self.assertEqual(len(self.fake.pages[pid]["blocks"]), 231)
         self.assertEqual(len(ids), 231)
         self.assertEqual(self.fake.calls.count(("PATCH", f"/blocks/{pid}/children")), 3)
-        self.assertEqual(notion.page_url("secret_test", pid), f"https://www.notion.so/{pid}")
+        self.assertEqual(notion.page_url("secret_test", pid), f"https://www.notion.so/Estudos-{pid.replace('-', '')}")
 
     def test_failed_append_removes_only_new_blocks(self):
         notion.publish("secret_test", self.root, "Anterior", [], lambda: None)

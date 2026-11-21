@@ -38,10 +38,11 @@ class NoteForm : Form
         this.url = url; this.command = command; dataDir = data;
         file = Path.Combine(data, "understanding-panel.txt");
         Text = "Minha compreensão · Lumen";
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         FormBorderStyle = FormBorderStyle.SizableToolWindow;  // sem botão na barra de tarefas; fica junto do Lumen
         ShowInTaskbar = false; TopMost = true; MaximizeBox = false; MinimizeBox = false;
         StartPosition = FormStartPosition.Manual; AutoScaleMode = AutoScaleMode.None;
-        BackColor = Color.FromArgb(8, 9, 12);  // = --bg-base do ui.css
+        BackColor = NativeColors.Bg;  // = --bg-base do ui.css
         web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = BackColor };
         Controls.Add(web);
         Load += async (s, e) => { try { await Attach(); } catch (Exception) { Hide(); } };
@@ -58,6 +59,10 @@ class NoteForm : Form
         core.Settings.AreDevToolsEnabled = false;
         core.Settings.IsPasswordAutosaveEnabled = false;
         core.Settings.IsGeneralAutofillEnabled = false;
+        core.Settings.IsZoomControlEnabled = false;
+        core.Settings.IsPinchZoomEnabled = false;
+        web.ZoomFactor = 1.0;
+        web.NavigationCompleted += (s, e) => { web.ZoomFactor = 1.0; };
         core.NavigationStarting += (s, e) => { if (!e.Uri.StartsWith(url, StringComparison.Ordinal) && e.Uri != "about:blank") e.Cancel = true; };
         core.NewWindowRequested += (s, e) => e.Handled = true;
         core.ProcessFailed += (s, e) => { try { if (Visible && key != null) Navigate(); } catch (Exception) { } };
@@ -184,10 +189,7 @@ class NoteForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        int on = 1;
-        DwmSetWindowAttribute(Handle, 20, ref on, 4);  // moldura escura (o Lumen é sempre escuro)
-        int border = ColorTranslator.ToWin32(Color.FromArgb(38, 41, 48));
-        DwmSetWindowAttribute(Handle, 34, ref border, 4);  // borda discreta
+        NativeColors.Dwm(Handle);  // moldura e borda no escuro
         int round = 2;
         DwmSetWindowAttribute(Handle, 33, ref round, 4);  // cantos arredondados (Windows 11)
         SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0020 | 0x0002 | 0x0001 | 0x0004);  // recalcula sem a barra de título

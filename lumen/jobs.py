@@ -8,17 +8,19 @@ import re
 import shutil
 import threading
 import time
+import webbrowser
 from datetime import datetime
 from pathlib import Path
 
-from . import (AppError, Cancelled, area, catalog, charts, eta, llm, mindmap, notion, obsidian, package, sources, store,
-               transcribe, understanding, vault, vision)
+from . import (AppError, Cancelled, area, catalog, charts, eta, llm, mindmap, notion, obsidian, opennotebook, package, sources, store,
+               transcribe, understanding, vault, vision, visual3d)
 from . import music as _music  # só rótulos e regras; nenhum modelo é carregado sem o filtro ligado
 
 log = logging.getLogger("lumen")
 _lock = threading.Lock()
 _job = {"status": "idle"}
 _cancel = threading.Event()
+ON_DONE = []  # fn(kind, spec, result) depois de uma tarefa concluída (o resumo em áudio da aula, study/listen.py)
 
 
 def snapshot():
@@ -67,8 +69,14 @@ def start(kind, fn, *args, spec=None):
 
     def run():
         try:
-            _set(status="done", result=fn(*args), progress=1, eta=None)
+            result = fn(*args)
+            _set(status="done", result=result, progress=1, eta=None)
             log.info("%s concluído", kind)
+            for hook in ON_DONE:
+                try:
+                    hook(kind, spec, result)
+                except Exception as e:  # noqa: BLE001 — um gancho não derruba a tarefa que já terminou
+                    log.warning("depois de %s: %s", kind, type(e).__name__)
         except Cancelled:
             log.info("%s cancelado", kind)
             _set(status="cancelled", eta=None)
@@ -481,6 +489,12 @@ def finish(spec):
     dests, token = _destinations(cfg)
     src = _cached_source(spec) or sources.resolve(spec)
     mine = understanding.require(src["key"], analyzed=True)
+    finish_input = hashlib.sha256(json.dumps([spec, mine], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    pending = store.history().get(src["key"]) or {}
+    if pending.get("notion_publish"):
+        if pending.get("finish_input") == finish_input:
+            return deliver({**spec, "key": src["key"], "only": dests})
+        raise AppError("Há um envio ao Notion pendente desta aula.", "Use Tentar de novo no Notion antes de gerar outro material.")
     work = work_dir(src["key"])
     tr = _load(work / "transcript.json")
     if not tr:
@@ -522,7 +536,8 @@ def finish(spec):
     saved = _load(work / "lesson.json")
     cached = saved and not redo and saved.get("model") == model and saved.get("language") == lang \
         and saved.get("transcript") == digest and bool(saved.get("deep")) == deep
-    eta.current = eta.Plan(_page_steps(tr, screens, lines, model, cached, saved, spec, len(note), dests, deep, linking))
+    eta.current = eta.Plan(_page_steps(tr, screens, lines, model, cached, saved, spec, len(note), dests, deep, linking,
+                                       cfg["visual_3d"] != "off"))
     if cached:
         lesson, found = saved["lesson"], saved.get("charts")
     else:
@@ -554,6 +569,7 @@ def finish(spec):
                         vision.MODEL, cfg["review_intervals"] if cfg["obsidian_review"] else ())
     pkg = package.validate(pkg, _vault_names(cfg) if "obsidian" in dests else None)
     package.save(pkg)
+    store.remember(src["key"], {"finish_input": finish_input})
     log.info("pacote de estudo criado: versão %s, %d tópicos, %d perguntas, %d relações, %d conexões, %d telas",
              pkg["processor_version"], len(lesson["topics"]), len(lesson["review_questions"]),
              len(lesson.get("relations") or []), len(pkg["connections"]), len(pkg["screens"]))
@@ -626,6 +642,8 @@ def organize(spec):
     entry = store.history().get(key) or {}
     if not entry:
         raise AppError("Aula não encontrada na Biblioteca.", "Recarregue a Biblioteca.")
+    if entry.get("notion_publish"):
+        raise AppError("Há um envio ao Notion pendente desta aula.", "Conclua a nova tentativa antes de reorganizar.")
     cls = catalog.classification(spec.get("classification"))
     cfg = store.load_config()
     ob = entry.get("obsidian") or {}
@@ -719,7 +737,7 @@ def _find_links(lesson, cfg, model, lang, lid):
 
 def _deliver(pkg, dests, spec, cfg, token, shots, force=False):
     """Destination Router: o mesmo pacote para cada destino, um de cada vez. Obsidian primeiro (local, atômico e
-    idempotente pelo lumen_id: repetir não duplica), depois o Notion (que desfaz o envio em falha ou cancelamento).
+    idempotente pelo lumen_id: repetir não duplica), depois o Notion (que registra e reconcilia envios interrompidos).
     A falha de um não desfaz o outro: cada um tem o seu status no manifesto e “Tentar de novo” refaz só o que falhou."""
     key, plan, t0 = pkg["key"], eta.current, time.monotonic()
     prev = store.history().get(key) or {}
@@ -730,12 +748,16 @@ def _deliver(pkg, dests, spec, cfg, token, shots, force=False):
                          "processor_version": pkg["processor_version"], "spec": _spec(spec), "classification": cls,
                          # para a busca da Biblioteca achar a aula por conceito
                          "concepts": [t["title"] for t in pkg["lesson"]["topics"]][:12] + list(pkg.get("anchors") or [])})
-    gifs = _draw(pkg["charts"], plan) if "notion" in dests or cfg["obsidian_attachments"] else []
+    shows = "notion" in dests or cfg["obsidian_attachments"]  # algum destino recebe imagens
+    gifs = _draw(pkg["charts"], plan) if shows else []
+    vis, vrec = _visual(pkg, cfg, plan, spec.get("retry_visual") is True) if shows or cfg["visual_3d"] == "off" else \
+        (None, {"state": "skipped", "mode": cfg["visual_3d"], "reason": "os anexos do Obsidian estão desligados"})
+    store.remember(key, {"visual": visual3d.record(vis, vrec)})
     if "obsidian" in dests:
         if plan:
             plan.at("obsidian")
         _set(stage="obsidian", detail="Salvando no Obsidian (nota, mapas e conexões)…", progress=None)
-        assets = {"charts": gifs, "screens": {}}
+        assets = {"charts": gifs, "screens": {}, "visual": vis}
         if cfg["obsidian_attachments"]:
             for s in pkg["screens"]:
                 try:
@@ -767,7 +789,7 @@ def _deliver(pkg, dests, spec, cfg, token, shots, force=False):
     if "notion" in dests:
         check()  # cancelar aqui: o Obsidian já está salvo e “Retomar” não o duplica
         try:
-            res["notion"] = {"status": "ok", **_notion(pkg, spec, token, gifs, shots, plan, cfg)}
+            res["notion"] = {"status": "ok", **_notion(pkg, spec, token, gifs, shots, plan, cfg, vis)}
         except AppError as e:
             res["notion"] = {"status": "error", "error": str(e), "action": e.action}
         except Cancelled:
@@ -798,12 +820,25 @@ def _deliver(pkg, dests, spec, cfg, token, shots, force=False):
                                "title": res["title"], "course": res["course"]})
     res["url"], res["understanding_url"] = url, (res.get("notion") or {}).get("understanding_url")
     res["note"] = (res.get("notion") or {}).get("note")
+    res["visual"] = {**visual3d.record(vis, vrec), "notion": (res.get("notion") or {}).get("visual"),
+                     "notion_kind": (res.get("notion") or {}).get("visual_kind"),
+                     "obsidian": (res.get("obsidian") or {}).get("visual"),
+                     "obsidian_error": (res.get("obsidian") or {}).get("visual_error"),
+                     "obsidian_disabled": "obsidian" in dests and not cfg["obsidian_attachments"]}
     log.info("entrega: %s em %.1f s", ", ".join(f"{d}={res[d]['status']}" for d in dests), time.monotonic() - t0)
+    if url and (res.get("notion") or {}).get("status") == "ok" and cfg["notion_open"]:
+        try:
+            page_id = notion.page_id(url)
+            if not webbrowser.open("https://www.notion.so/" + page_id.replace("-", "")):
+                log.warning("notion: navegador não abriu a página salva")
+        except (AppError, OSError, webbrowser.Error) as e:
+            log.warning("notion: página salva, mas não foi possível abrir (%s)", type(e).__name__)
     if ob.get("status") == "ok" and cfg["obsidian_open"]:
         try:
             obsidian.open_path(Path(ob["vault"]) / ob["note"])
         except OSError:
             pass
+    opennotebook.auto(key)  # só se o envio automático estiver ligado; em segundo plano, não muda o resultado da entrega
     return res
 
 
@@ -818,6 +853,21 @@ def _transcript(key, spec):
         return None
     tr = _load(work_dir(key) / "transcript.json")
     return llm.transcript_text(tr["segments"]).split("\n") if tr else None
+
+
+def _visual(pkg, cfg, plan, refresh=False):
+    """A visualização 3D (visual3d), feita uma vez para os dois destinos e guardada: tentar de novo um envio, mover a
+    aula ou reabrir o app reaproveita o mesmo arquivo. Nunca impede o material (sem visual, a aula sai igual)."""
+    if plan:
+        plan.at("visual")
+    if cfg["visual_3d"] not in ("animated", "static"):
+        return None, {"state": "off", "mode": "off"}
+    _set(stage="generate", detail="Desenhando a visualização 3D…", progress=None)
+    asset, rec = visual3d.prepare(pkg, cfg["visual_3d"], check, refresh=refresh)
+    if plan and asset and not asset["cached"] and asset["kind"] == "gif":
+        eta.learn("visual_s", plan.elapsed())
+    check()
+    return asset, rec
 
 
 def _draw(found, plan):
@@ -890,12 +940,31 @@ def _notion_parent(pkg, cfg, token, old, spec):
     return pid, False, " › ".join(where)
 
 
-def _notion(pkg, spec, token, gifs, shots, plan, cfg):
+def _send_visual(token, vis):
+    """(envio, o que foi enviado): o GIF e, se ele não subir, o PNG de reserva (o mesmo desenho, sem refazer)."""
+    up = _send(token, vis["data"], f"visualizacao-3d.{vis['kind']}", vis["mime"])
+    if up or vis["kind"] != "gif" or not vis.get("png_data"):
+        return up, vis
+    png = {**vis, "kind": "png", "mime": "image/png", "data": vis["png_data"], "frames": 1, "duration_ms": 0,
+           "bytes": len(vis["png_data"])}
+    return _send(token, png["data"], "visualizacao-3d.png", "image/png"), png
+
+
+def _notion(pkg, spec, token, gifs, shots, plan, cfg, vis=None):
     """NotionRenderer + envio: a página da aula e a subpágina “Minha compreensão”, a partir do pacote."""
     key, lesson, src = pkg["key"], pkg["lesson"], pkg["source"]
     old = store.history().get(key) or {}
+    journal = old.get("notion_publish")
+    fingerprint = [pkg.get("content_hash"), pkg.get("classification"), (vis or {}).get("spec_hash"), cfg["visual_3d"],
+                   spec.get("course_id"), cfg.get("root_page_id"), cfg.get("notion_free_page_id")]
+    if journal and journal.get("fingerprint") != fingerprint:
+        raise AppError("Há um envio anterior ao Notion que precisa ser concluído.",
+                       "Retome com o mesmo material, organização e modo 3D antes de alterá-los.")
+    if not journal and (old.get("notion_visual") or {}).get("state") == "pending":
+        raise AppError("Uma versão anterior do Lumen deixou um envio sem confirmação.",
+                       "Confira a página antes de repetir. Sem o registro do pedido, o Lumen preserva todos os blocos.")
     _set(stage="publish", detail="Conferindo o lugar da aula no Notion…", progress=None)
-    course_id, own, where = _notion_parent(pkg, cfg, token, old, spec)
+    course_id, own, where = (journal["page"], journal["own"], journal["where"]) if journal else _notion_parent(pkg, cfg, token, old, spec)
     if spec.get("organize") and old.get("page_id") == course_id:  # a página atual já serve: nada a mover
         store.remember(key, {"course": where})
         return {"url": old.get("url"), "understanding_url": None, "note": "No Notion, a aula já estava no lugar certo.",
@@ -903,7 +972,7 @@ def _notion(pkg, spec, token, gifs, shots, plan, cfg):
     if plan:
         plan.at("mindmap")
     _set(stage="publish", detail="Desenhando o mapa mental…", progress=None)
-    mind_png = mindmap.render(pkg["map"])
+    mind_png = None if journal else mindmap.render(pkg["map"])
     check()
     _set(stage="publish", detail="Salvando na página da aula no Notion…", progress=None)
     course = " › ".join(catalog.breadcrumb(pkg.get("classification"))[1:]) or notion.NO_COURSE
@@ -918,7 +987,7 @@ def _notion(pkg, spec, token, gifs, shots, plan, cfg):
             pass  # o mapa vai em tópicos (notion._mind_map)
     if plan:
         eta.learn("mindmap_s", plan.elapsed())
-    if pkg["charts"]:
+    if pkg["charts"] and not journal:
         from concurrent.futures import ThreadPoolExecutor
         _set(stage="publish", detail="Enviando os gráficos da aula ao Notion…", progress=None)
         with ThreadPoolExecutor(3) as ex:
@@ -928,7 +997,7 @@ def _notion(pkg, spec, token, gifs, shots, plan, cfg):
         check()
     if plan:
         plan.at("screens")
-    if pkg["screens"]:
+    if pkg["screens"] and not journal:
         _set(stage="publish", detail=f"Enviando as {len(pkg['screens'])} telas da aula ao Notion…", progress=None)
         backup = {}  # telas que já saíram do PC: as do cofre (a mesma imagem, nos anexos da aula)
         ob = old.get("obsidian") or {}
@@ -939,17 +1008,57 @@ def _notion(pkg, spec, token, gifs, shots, plan, cfg):
         if plan:
             eta.learn("upload_s", plan.elapsed() / -(-len(pkg["screens"]) // 3))
         check()
+    vblock, sent, marker = None, None, notion.visual_marker(pkg["lumen_id"])
+    if vis and not journal:
+        _set(stage="publish", detail="Enviando a visualização 3D ao Notion…", progress=None)
+        up, sent = _send_visual(token, vis)
+        if up:
+            vblock = meta["visual_block"] = notion.visual_block(up, visual3d.caption(sent), marker)
+        else:
+            log.warning("notion: a visualização 3D não subiu; a página sai sem ela")
+        check()
+    prev_v = old.get("notion_visual") or {}
     title, blocks = notion.build_page(lesson, meta)
     transcript = _transcript(key, spec)
     check()
     sub = notion.understanding_page(pkg["understanding"], title)
+    if journal:
+        title, blocks, transcript, sub = (journal[k] for k in ("title", "blocks", "transcript", "sub"))
+        vblock = next((b for b in blocks if b.get("type") == "image" and
+                       b["image"].get("file_upload", {}).get("id") == journal.get("upload")), None)
+        if vblock:
+            up = journal["upload"]
+            sent = vis if journal["kind"] == "gif" else {**vis, "kind": "png", "data": vis["png_data"]}
+    else:
+        journal = {"fingerprint": fingerprint, "page": course_id, "own": own, "where": where,
+                   "title": title, "blocks": blocks, "transcript": transcript, "sub": sub,
+                   "upload": up if vblock else None, "kind": sent["kind"] if vblock else None}
+    save_publish = lambda value: store.remember(key, {"notion_publish": value})
+    store.remember(key, {"notion_publish": journal, **({"notion_visual": {
+        **prev_v, "state": "pending", "page": notion.page_id(course_id), "marker": marker}} if vblock else {})})
     requests = _requests(blocks, transcript) + len(notion.batches(sub))
     if plan:
         plan.at("publish", requests * eta.value("request_s"))
-    pid, url, block_ids = notion.publish(token, course_id, title, blocks, check, transcript=transcript, subpage=sub)
+    pid, url, block_ids = notion.publish(token, course_id, title, blocks, check, transcript=transcript, subpage=sub,
+                                        journal=journal, save=save_publish)
     if plan:
         eta.learn("request_s", plan.elapsed() / requests)
     mine_url = "https://www.notion.so/" + block_ids[-1].replace("-", "")  # a subpágina é o último bloco publicado
+    vstate = None
+    if vblock:  # uma resposta 200 não prova que a imagem certa está na página: lê o bloco e compara os bytes
+        bid = block_ids[1 + next(i for i, b in enumerate(blocks) if b is vblock)]  # o título da aula vem antes
+        ok = notion.media_is(token, bid, sent["data"])
+        vstate = "confirmed" if ok else "mismatch" if ok is False else "unconfirmed"
+        store.remember(key, {"notion_visual": {"state": vstate, "page": pid, "block": bid, "upload": up,
+                                               "kind": sent["kind"], "bytes": len(sent["data"]),
+                                               "spec_hash": vis["spec_hash"], "marker": marker,
+                                               # os visuais confirmados desta aula (cópias pedidas também): nunca são órfãos
+                                               "known": list(dict.fromkeys([bid, *(prev_v.get("known") or [])]))[:20],
+                                               "at": datetime.now().isoformat(timespec="seconds")}})
+        log.info("notion: visualização 3D %s (%s)", sent["kind"], vstate)
+    elif vis:
+        vstate = "upload-failed"
+        store.remember(key, {"notion_visual": {**prev_v, "state": vstate, "spec_hash": vis["spec_hash"]}})
     shown = meta.get("screens") or []
     log.info("página publicada: %d bloco(s); telas: %d na página (%d sem imagem)", len(block_ids), len(shown),
              sum(1 for s in shown if not s.get("upload")))
@@ -979,8 +1088,9 @@ def _notion(pkg, spec, token, gifs, shots, plan, cfg):
         else:
             note = "O material foi salvo no destino escolhido. A versão anterior foi preservada."
     store.remember(key, {"page_id": pid, "block_ids": block_ids, "url": url, "title": title, "course": where,
-                         "notion_own": own, "created": datetime.now().isoformat(timespec="minutes")})
-    return {"url": url, "understanding_url": mine_url, "note": note, "where": where}
+                         "notion_own": own, "created": datetime.now().isoformat(timespec="minutes"), "notion_publish": None})
+    return {"url": url, "understanding_url": mine_url, "note": note, "where": where, "visual": vstate,
+            "visual_kind": sent["kind"] if vblock else None}
 
 
 MAX_SCREENS = 40
@@ -993,7 +1103,8 @@ def _requests(blocks, transcript):
                                                                  for x in transcript])) if lines else 0)
 
 
-def _page_steps(tr, screens, lines, model, cached, saved, spec, extra=0, dests=("notion",), deep=False, linking=False):
+def _page_steps(tr, screens, lines, model, cached, saved, spec, extra=0, dests=("notion",), deep=False, linking=False,
+                visual=False):
     """As etapas do material com a estimativa de cada uma, antes de começar (extra: tamanho da nota)."""
     calls = [] if cached else llm.calls(tr["segments"], model, lines, extra=extra)
     steps = [(k, eta.llm_seconds(model, n, k)) for k, n in calls]
@@ -1005,6 +1116,8 @@ def _page_steps(tr, screens, lines, model, cached, saved, spec, extra=0, dests=(
     if linking and not (cached and saved.get("links") is not None):
         steps.append(("connect", eta.llm_seconds(model, 5000, "connect")))
     steps.append(("draw", eta.value("chart_s") if not cached or saved.get("charts") else 0))
+    if visual:
+        steps.append(("visual", eta.value("visual_s")))
     if "obsidian" in dests:
         steps.append(("obsidian", 1.5))
     if "notion" in dests:
@@ -1037,7 +1150,6 @@ def _find_charts(tr, screens, lesson, model):
 def _send(token, data, name, content_type):
     """Envia um arquivo ao Notion. Uma falha (o Notion limita pedidos por segundo) tenta de novo; se insistir, None
     (a página sai sem a imagem)."""
-    import time
     for attempt in range(3):
         try:
             return notion.upload_image(token, data, name, content_type)

@@ -1,0 +1,588 @@
+decisao	sig	pai	avo	tipo	text-align	medido	linhas	folga	emLinha	irmaos	cenarios	cenario	texto	motivo
+ja-centro	b#eye-n	span#eye.eye	footer	texto	center	cheio1	1	0	1	3	1	w-live-top	6	
+ja-centro	button	div.pomo-presets	div.pomo-panel	botao	center	centro3	1	108	1	3	1	aj-pomodoro	Personalizado	
+ja-centro	button	div.segmented	div.ds-row	botao	center	cheio3	1	0	1	3	1	design	Em andamento 3	
+ja-centro	button#clear.btn.danger.sm	div.set-row	section.card.set-panel	botao	center	cheio1	1	0	1	2	1	aj-privacy	Limpar	
+ja-centro	button#cov-gen.btn.sm	div#cov-actions.cover-actions.cov-actions	div#cov-flow.cov-flow	botao	center	cheio1	1	0	1	2	1	cov-3-previa	Gerar outra	
+ja-centro	button#cov-gen.btn.sm.primary	div#cov-actions.cover-actions.cov-actions	div#cov-flow.cov-flow	botao	center	cheio1	1	0	1	2	1	cov-2-pagina	Gerar capa	
+ja-centro	button#cov-main.btn.primary.sm	div#cov-actions.cover-actions.cov-actions	div#cov-flow.cov-flow	botao	center	cheio1	1	0	1	2	1	cov-3-previa	Aplicar capa	
+ja-centro	button#cov-page-change.btn.ghost.sm	span.cov-page-actions	div#cov-page.cov-page	botao	center	cheio2	1	0	1	2	2	cov-2-pagina	Trocar	
+ja-centro	button#cov-page-open.btn.ghost.sm	span.cov-page-actions	div#cov-page.cov-page	botao	center	cheio2	1	0	1	2	2	cov-2-pagina	Abrir no Notion	
+ja-centro	button#covers-dl.btn.sm	details.disclosure	section.card.set-panel.cov-panel	botao	center	cheio1	1	0	0	4	1	cov-4-detalhes	Baixar Z-Image-Turbo (6,7 GB)	
+ja-centro	button#desktop-exit.btn.danger.sm	div.set-row	section.card.set-panel.desktop-settings	botao	center	cheio1	1	0	1	2	1	set-general	Sair	
+ja-centro	button#dest-notion-cover.btn.sm	div.dest-line2	div.dest-main	botao	center	cheio5	1	0	1	4	5	analysis	Capa	
+ja-centro	button#dest-obs-change.btn.sm	div.dest-line2	div.dest-main	botao	center	cheio5	1	0	1	2	5	analysis	Alterar	
+ja-centro	button#ds-confirm.btn.danger	div.ds-row	section.card.ds	botao	center	cheio1	1	0	1	3	1	design	Abrir confirmação	
+ja-centro	button#ds-toast-err.btn	div.ds-row	section.card.ds	botao	center	cheio1	1	0	1	3	1	design	Mostrar erro	
+ja-centro	button#ds-toast.btn	div.ds-row	section.card.ds	botao	center	cheio1	1	0	1	3	1	design	Mostrar aviso	
+ja-centro	button#forget.btn.danger.sm	div#notion-foot.integ-foot	section#integ-notion.card.integ	botao	center	cheio1	1	0	1	2	1	integrations	Desconectar Notion	
+ja-centro	button#go.btn.primary.lg	div.action-bar	div#compose	botao	center	cheio4	1	0	1	2	4	new	Continuar	
+ja-centro	button#home-diag-btn.btn.ghost.sm	div.card-actions	header.card-head	botao	center	cheio10	1	0	0	2	10	confirm	Diagnóstico	
+ja-centro	button#mine-edit.btn.ghost.sm	div.mine-head	article.paper.mine	botao	center	cheio1	1	0	1	3	1	analysis	Editar	
+ja-centro	button#nw-go.btn.primary.sm	div#nw-status.nw-status	main.nw-body	botao	center	cheio1	1	0	1	2	1	w-note	Processar	
+ja-centro	button#org-cancel.btn	div.dlg-foot	dialog#org-dlg.dlg.org-dlg	botao	center	cheio1	1	0	1	3	1	sec-organizar	Cancelar	
+ja-centro	button#org-change.btn.sm	div.dest-line2	div.dest-main	botao	center	cheio5	1	0	1	2	5	analysis	Alterar	
+ja-centro	button#org-new-course.btn.sm	span.input-row	label.field	botao	center	cheio1	1	0	1	2	1	sec-organizar	Novo curso	
+ja-centro	button#org-new-module.btn.sm	span.input-row	label.field	botao	center	cheio1	1	0	1	2	1	sec-organizar	Novo módulo	
+ja-centro	button#org-save.btn.primary	div.dlg-foot	dialog#org-dlg.dlg.org-dlg	botao	center	cheio1	1	0	1	3	1	sec-organizar	Salvar	
+ja-centro	button#rec-recover-drop.btn.sm.ghost	div#rec-recover.rec-recover	div#recorder.recorder	botao	center	cheio1	1	0	1	4	1	new-recover	Descartar	
+ja-centro	button#rec-recover-use.btn.sm.primary	div#rec-recover.rec-recover	div#recorder.recorder	botao	center	cheio1	1	0	1	4	1	new-recover	Usar gravação	
+ja-centro	button#review-cancel.btn.ghost	div.review-actions	aside#review.card.review	botao	center	centro1	1	164	1	3	1	analysis	Salvar depois	
+ja-centro	button#review-go.btn.primary.lg	div.review-actions	aside#review.card.review	botao	center	centro1	1	18	1	3	1	analysis	Salvar no Notion e no Obsidian	
+ja-centro	button#st-tab-chat	div.st-tabs	header.st-head	botao	center	cheio7	1	0	1	4	7	cb-learn	Conversar	
+ja-centro	button#st-tab-saved	div.st-tabs	header.st-head	botao	center	cheio7	1	0	1	4	7	cb-learn	Salvos	
+ja-centro	button#st-tab-sources	div.st-tabs	header.st-head	botao	center	cheio7	1	0	1	4	7	cb-learn	Fontes	
+ja-centro	button#token-save.btn	span.input-row	label.field	botao	center	cheio1	1	0	1	2	1	integrations	Salvar	
+ja-centro	button#u-go.btn.primary.lg	div.u-actions	section#understand.understand	botao	center	cheio1	1	1	1	3	1	understand	Processar minha compreensão	
+ja-centro	button#u-later.btn.ghost	div.u-actions	section#understand.understand	botao	center	cheio1	1	0	1	3	1	understand	Escrever depois	
+ja-centro	button#vault-dashboard.btn.sm	header.integ-head	section#integ-obsidian.card.integ	botao	center	cheio1	1	0	0	3	1	integ-obsidian	Abrir Estudos no Obsidian	
+ja-centro	button#vault-pick.btn	span.input-row	label.field	botao	center	cheio1	1	0	1	2	1	integ-obsidian	Escolher pasta…	
+ja-centro	button.btn	div#run-actions.actions	section#run.card.run	botao	center	cheio14	1	0	1	8	5	res-notion-fail	Abrir mapa conceitual	
+ja-centro	button.btn	div.dlg-foot	dialog.dlg.confirm	botao	center	cheio1	1	0	1	2	1	confirm	Cancelar	
+ja-centro	button.btn	div.ds-row	section.card.ds	botao	center	cheio1	1	0	1	8	1	design	Secundário	
+ja-centro	button.btn	div.hero-actions	section#home-hero.card.hero-card	botao	center	cheio1	1	0	1	3	1	home-rec	Pausar	
+ja-centro	button.btn.danger	div.ds-row	section.card.ds	botao	center	cheio1	1	0	1	8	1	design	Destrutivo	
+ja-centro	button.btn.danger.primary	div.ds-row	section.card.ds	botao	center	cheio1	1	0	1	8	1	design	Confirmar exclusão	
+ja-centro	button.btn.ghost	div#run-actions.actions	section#run.card.run	botao	center	cheio16	1	0	1	8	6	res-notion-fail	Gerar resumo em áudio	
+ja-centro	button.btn.ghost	div.ds-row	section.card.ds	botao	center	cheio1	1	0	1	8	1	design	Fantasma	
+ja-centro	button.btn.ghost	div.hero-actions	section#home-hero.card.hero-card	botao	center	cheio8	1	0	1	3	8	confirm	Ver a captura	
+ja-centro	button.btn.ghost.sm	div.card-actions	header.card-head	botao	center	cheio10	1	0	0	2	10	confirm	Integrações	
+ja-centro	button.btn.ghost.sm	header.card-head	section#home-recent.card	botao	center	cheio9	1	0	1	3	9	confirm	Biblioteca	
+ja-centro	button.btn.ghost.sm	span.lib-actions	div.lib-row	botao	center	cheio21	1	0	1	6	10	confirm	Salvar no Obsidian	
+ja-centro	button.btn.primary	div#run-actions.actions	section#run.card.run	botao	center	cheio2	1	0	1	7	2	res-notion-fail	Tentar de novo só o Notion	
+ja-centro	button.btn.primary	div.ds-row	section.card.ds	botao	center	cheio2	1	0	1	8	1	design	Desabilitado	
+ja-centro	button.btn.primary	div.empty	div#library-list.card.list-card	botao	center	cheio2	1	0	1	4	2	design	Nova aula	
+ja-centro	button.btn.primary	div.hero-actions	section#home-hero.card.hero-card	botao	center	cheio2	1	1	1	3	2	home-job	Ver o progresso	
+ja-centro	button.btn.primary	header.page-head	div#view-library.view	botao	center	cheio3	1	0	0	2	3	library	Nova aula	
+ja-centro	button.btn.primary.danger	div.dlg-foot	dialog.dlg.confirm	botao	center	cheio1	1	0	1	2	1	confirm	Descartar	
+ja-centro	button.btn.primary.lg	div.ds-row	section.card.ds	botao	center	cheio1	1	0	1	3	1	design	Grande	
+ja-centro	button.btn.primary.lg	div.hero-actions	section#home-hero.card.hero-card	botao	center	cheio8	1	1	1	2	8	confirm	Gravar ao assistir	
+ja-centro	button.btn.sm	div.ds-row	section.card.ds	botao	center	cheio1	1	0	1	3	1	design	Pequeno	
+ja-centro	button.btn.sm	div.lib-row	div#pending-list.rows	botao	center	cheio10	1	0	1	3	10	confirm	Ver análise	
+ja-centro	button.btn.sm	div.set-row	div.integ-sec	botao	center	cheio1	1	0	1	2	1	integrations	Criar capa	
+ja-centro	button.btn.sm	div.st-source-actions	div.integ-sec.vc-voices-sec	botao	center	cheio1	1	0	1	1	1	integ-vs	Criar voz para personagem	
+ja-centro	button.btn.sm	div.vc-voice-actions	li.vc-voice	botao	center	cheio5	1	0	1	4	3	ia-voice	Testar	
+ja-centro	button.btn.sm	figcaption	figure.v3d-preview	botao	center	centro1	1	109	1	4	1	res-notion-fail	Tentar visualização novamente	
+ja-centro	button.btn.sm	li	ul#checks.checks	botao	center	cheio4	1	0	1	2	1	home-first	Conectar	
+ja-centro	button.btn.sm	span.dest-line.v3d-message	div#result.result.ok	botao	center	cheio1	1	0	1	3	1	res-visual-fail	Tentar visualização novamente	
+ja-centro	button.btn.sm.diag-item-action	div.diag-item-row	div.diag-group-items	botao	center	cheio9	1	0	1	2	3	aj-diag	Conectar Notion	
+ja-centro	button.btn.sm.ghost	div.vc-voice-actions	li.vc-voice	botao	center	cheio2	1	0	1	4	1	integ-vs	Usar como padrão	
+ja-centro	button.btn.sm.ghost	header.integ-head	section#integ-voicestudio.card.integ	botao	center	cheio1	1	0	0	3	1	integ-vs	Abrir o app	
+ja-centro	button.btn.sm.primary	div.lib-row	div#pending-list.rows	botao	center	cheio12	1	0	1	3	10	confirm	Continuar	
+ja-centro	button.btn.sm.protection-button	div	section.protection-hero	botao	center	cheio2	1	0	0	4	2	aj-protection	Ver o que falta	
+ja-centro	button.btn.sm.protection-button	div.protection-actions	div.protection-panel	botao	center	cheio8	1	0	1	2	4	aj-protection	Recuperar minhas notas	
+ja-centro	button.btn.sm.protection-button	div.protection-place-text	section.protection-place	botao	center	cheio4	1	0	0	7	4	aj-protection	Ativar backup no Google Drive	
+ja-centro	button.btn.sm.protection-button	section.protection-place	div.protection-places	botao	center	centro2/cheio13	2	38	1	3	4	aj-protection	Conectar o Notion	
+ja-centro	button.pomo-link	div.pomo-sec	div.pomo-sheet	botao	center	cheio1	1	0	1	2	1	pomo-sheet	Encerrar foco	
+ja-centro	div.sys-engines-title	div.sys-engines-section	div#sys-monitor-pop.sys-monitor-pop	titulo	center	cheio2	1	0	0	2	2	mon-dados	MOTORES ATIVOS	
+ja-centro	div.sys-monitor-sub	div.sys-monitor-title-wrap	div.sys-monitor-hdr	texto	center	cheio2	1	0	0	2	2	mon-dados	Monitor de hardware em tempo real	
+ja-centro	div.sys-stat-value	div.sys-stat-head	div.sys-stat-card	texto	center	cheio6	1	0	1	3	2	mon-dados	9.4 / 15.8 GB	
+ja-centro	h1#a-title.t-h1	header.u-head	section#analysis.understand	titulo	center	cheio1	1	0	0	3	1	analysis	Análise concluída	
+ja-centro	h1#home-greet.t-display	div	header.page-head	titulo	center	cheio10	1	0	0	3	10	confirm	Bom dia	
+ja-centro	h1#integ-h.t-h1	div	header.page-head	titulo	center	cheio3	1	0	0	2	3	integ-obsidian	Integrações	
+ja-centro	h1#lib-h.t-h1	div	header.page-head	titulo	center	cheio3	1	0	0	2	3	library	Biblioteca	
+ja-centro	h1#set-h.t-h1	div	header.page-head	titulo	center	cheio20	1	0	0	2	20	aj-ai	Ajustes	
+ja-centro	h1#u-title.t-h1	header.u-head	section#understand.understand	titulo	center	cheio1	1	0	0	3	1	understand	Minha compreensão	
+ja-centro	h1.t-display	div	header.page-head	titulo	center	cheio1	1	0	0	3	1	design	Design system	
+ja-centro	h1.t-h1	div	header.page-head	titulo	center	cheio4	1	0	0	2	4	new	Nova aula	
+ja-centro	h2#confirm-h	div.dlg-head	dialog.dlg.confirm	titulo	center	cheio1	1	0	0	2	1	confirm	Tem certeza?	
+ja-centro	h2#notion-h.t-h2	div	header.integ-head	titulo	center	centro1	1	480	0	2	1	integrations	Notion	
+ja-centro	h2#obsidian-h.t-h2	div	header.integ-head	titulo	center	centro1	1	334	0	2	1	integ-obsidian	Obsidian	
+ja-centro	h2#org-dlg-h	div.org-dlg-title	div.dlg-head	titulo	center	centro1	1	351	0	2	1	sec-organizar	Organizar estudo	
+ja-centro	h2#set-ai-h.t-h2	section.card.set-panel	div.settings-panels	titulo	center	centro1	1	562	1	6	1	aj-ai	IA local (Ollama)	
+ja-centro	h2#set-capture-h.t-h2	section.card.set-panel	div.settings-panels	titulo	center	centro1	1	639	1	10	1	aj-capture	Captura	
+ja-centro	h2#set-cov-h.t-h2	section.card.set-panel.cov-panel	div.settings-panels	titulo	center	centro5	1	559	1	6	5	aj-covers	Capas do Notion	
+ja-centro	h2#set-diag-h.t-h2	div.diag-title-area	div.diag-header	titulo	center	cheio4	1	0	0	2	4	aj-diag	Diagnóstico do sistema	
+ja-centro	h2#set-general-h.t-h2	section.card.set-panel.desktop-settings	div.settings-panels	titulo	center	centro1	1	664	1	5	1	set-general	Geral	
+ja-centro	h2#set-pomo-h.t-h2	section.card.set-panel	div.settings-panels	titulo	center	centro1	1	617	1	3	1	aj-pomodoro	Pomodoro	
+ja-centro	h2#set-priv-h.t-h2	section.card.set-panel	div.settings-panels	titulo	center	centro1	1	524	1	4	1	aj-privacy	Privacidade e dados	
+ja-centro	h2#set-tr-h.t-h2	section.card.set-panel	div.settings-panels	titulo	center	centro1	1	553	1	5	1	aj-transcription	Transcrição local	
+ja-centro	h2.st-hero-title	div.st-hero	div.st-main.is-empty	titulo	center	centro2	1	659	0	1	2	cb-mode	O que vamos aprender hoje?	
+ja-centro	h2.t-h2	div	header.integ-head	titulo	center	centro1	1	252	0	2	1	integ-vs	Voice Studio	
+ja-centro	h2.t-h2	div.protection-panel	section.card.set-panel	titulo	center	centro4	1	524	0	24	4	aj-protection	Proteção do cérebro	
+ja-centro	h3	div	section.protection-hero	titulo	center	centro4	1	289	0	4	4	aj-protection	Vamos escolher onde guardar suas cópias	
+ja-centro	h3#notion-conn-h.eyebrow	div.integ-sec	section#integ-notion.card.integ	titulo	center	cheio1	1	0	1	4	1	integrations	CONEXÃO	
+ja-centro	h3#notion-cov-h.eyebrow	div.integ-sec	section#integ-notion.card.integ	titulo	center	cheio1	1	0	1	2	1	integrations	CAPAS	
+ja-centro	h3#notion-dest-h.eyebrow	div.integ-sec	section#integ-notion.card.integ	titulo	center	cheio1	1	0	1	5	1	integrations	PÁGINAS DE DESTINO	
+ja-centro	h3#obs-made-h.eyebrow	div.integ-sec	section#integ-obsidian.card.integ	titulo	center	cheio1	1	0	1	2	1	integ-obsidian	MATERIAIS GERADOS	
+ja-centro	h3#obs-review-h.eyebrow	div.integ-sec	section#integ-obsidian.card.integ	titulo	center	cheio1	1	0	1	5	1	integ-obsidian	REVISÕES	
+ja-centro	h3#vault-h.eyebrow	div.integ-sec	section#integ-obsidian.card.integ	titulo	center	cheio1	1	0	1	5	1	integ-obsidian	COFRE	
+ja-centro	h3.eyebrow	div.integ-sec.vc-machine-sec	section#integ-voicestudio.card.integ	titulo	center	cheio1	1	0	1	2	1	integ-vs	ESTA MÁQUINA	
+ja-centro	h3.eyebrow	div.integ-sec.vc-models-sec	section#integ-voicestudio.card.integ	titulo	center	cheio1	1	0	1	2	1	integ-vs	MODELOS DE VOZ	
+ja-centro	h3.eyebrow	div.integ-sec.vc-quality-sec	section#integ-voicestudio.card.integ	titulo	center	cheio1	1	0	1	2	1	integ-vs	QUALIDADE DA FALA DO LÚMEN	
+ja-centro	h3.eyebrow	div.integ-sec.vc-voices-sec	section#integ-voicestudio.card.integ	titulo	center	cheio1	1	0	1	3	1	integ-vs	VOZES	
+ja-centro	h3.eyebrow	section.card.set-panel	div.settings-panels	titulo	center	cheio3	1	0	1	10	2	aj-ai	PROFUNDIDADE DO MATERIAL	
+ja-centro	h3.eyebrow	section.card.set-panel.desktop-settings	div.settings-panels	titulo	center	cheio1	1	0	1	5	1	set-general	LUMEN SEMPRE POR PERTO	
+ja-centro	label	div#board-density.segmented.wide.board-density	div.set-item	rotulo	center	centro3	2	248	1	3	1	integ-obsidian	Equilibrado Até 10 imagens	
+ja-centro	label	div#dest-mode.segmented.wide	section#dest-settings.card.dest-settings	rotulo	center	centro9	2	65	1	3	3	integ-obsidian	Notion + Obsidian O mesmo material nos dois	
+ja-centro	label	div#org-types.segmented.wide.org-types	div.dlg-body	rotulo	center	centro1/cheio3	4	35	1	4	1	sec-organizar	Conteúdo gratuito Vídeos e materiais por tema	
+ja-centro	label	div#quality.segmented.wide	section.card.set-panel	rotulo	center	centro3	2	123	1	3	1	aj-transcription	Equilibrado large-v3-turbo · 1,6 GB	
+ja-centro	label	div#study-level.segmented.wide	section.card.set-panel	rotulo	center	centro3	2	97	1	3	1	aj-ai	Balanceado Material + conexões com o cofre	
+ja-centro	label	div#v3d-mode.segmented.wide	div.v3d-set	rotulo	center	centro6/cheio3	2	98	1	3	3	integ-obsidian	Animada GIF em laço, com PNG de reserva	
+ja-centro	label	div.segmented.wide	section.card.ds	rotulo	center	centro2	2	499	1	2	1	design	Profundo Uma 2ª passada	
+ja-centro	li	ol.flow	section#home-hero.card.hero-card	item	center	cheio3	3	0	1	3	1	home-first	A IA analisa e salva No Notion e no Obsidian, co	
+ja-centro	p	div.empty	div.st-mem-list	paragrafo	center	centro5/cheio1	3	54	1	4	6	cb-saved	Nenhuma memória ainda. Elas aparecem conforme vo	
+ja-centro	p#a-lesson.eyebrow	header.u-head	section#analysis.understand	paragrafo	center	cheio1	1	0	0	3	1	analysis	GRAVAÇÃO · COMPLEXIDADE DE ALGORITMOS E NOTAÇÃO 	
+ja-centro	p#a-sub.lead	header.u-head	section#analysis.understand	paragrafo	center	centro1	2	83	0	3	1	analysis	A IA comparou sua nota com a aula. Sua compreens	
+ja-centro	p#hero-sub.muted.t-sm	div.src-head	section.card.source-card	paragrafo	center	cheio4	2	2	0	2	4	new	Dê play na aula em qualquer site ou app e o Lume	
+ja-centro	p#home-date.eyebrow	div	header.page-head	paragrafo	center	cheio10	1	0	0	3	10	confirm	SÁBADO, 14 DE NOVEMBRO	
+ja-centro	p#home-lead.lead	div	header.page-head	paragrafo	center	cheio10	1	0	0	3	10	confirm	Grave ou escolha uma aula, escreva o que entende	
+ja-centro	p#hw.field-hint	section.card.set-panel	div.settings-panels	paragrafo	center	cheio1	1	0	1	5	1	aj-transcription	GPU NVIDIA com CUDA detectada: transcrição acele	
+ja-centro	p#music-status.field-hint	section.card.set-panel	div.settings-panels	paragrafo	center	cheio1	1	0	1	10	1	aj-capture	Desligado: a transcrição usa o áudio como ele é.	
+ja-centro	p#ollama-status.field-hint	section.card.set-panel	div.settings-panels	paragrafo	center	cheio1	1	0	1	6	1	aj-ai	Pronto. Modelos instalados: qwen3:8b, qwen3.5:4b	
+ja-centro	p#org-dlg-sub.muted.t-sm	div.org-dlg-title	div.dlg-head	paragrafo	center	cheio1	1	-21	0	2	1	sec-organizar	Vale para o Notion e para o Obsidian. Dá para mu	
+ja-centro	p#position-caption.position-caption	section	div#prefs-content.prefs-content	paragrafo	center	centro1	1	226	0	7	1	w-prefs-desktop	Em cima	
+ja-centro	p#rec-hint.rec-hint	div#recorder.recorder	div#panel-recording	paragrafo	center	cheio1	1	0	1	5	1	new-recording	Gravando o som da aula… · 6 telas novas, 3 com c	
+ja-centro	p#review-hint.faint.t-caption	div.review-actions	aside#review.card.review	paragrafo	center	centro1	1	32	1	3	1	analysis	Fica guardado em “Continuar aprendendo”.	
+ja-centro	p#u-lesson.eyebrow	header.u-head	section#understand.understand	paragrafo	center	cheio1	1	0	0	3	1	understand	GRAVAÇÃO · REDES NEURAIS CONVOLUCIONAIS	
+ja-centro	p#vision-status.field-hint	section.card.set-panel	div.settings-panels	paragrafo	center	cheio1	1	0	1	10	1	aj-capture	Modelo de visão qwen3.5:4b instalado (Apache 2.0	
+ja-centro	p#whisper-status.field-hint	section.card.set-panel	div.settings-panels	paragrafo	center	cheio1	1	0	1	5	1	aj-transcription	Modelo Equilibrado (large-v3-turbo) instalado.	
+ja-centro	p.card-note.faint.t-caption	section#home-reviews.card	div.home-grid	paragrafo	center	centro9	1	7	0	3	9	confirm	As revisões são marcadas na nota de estudo, no O	
+ja-centro	p.card-note.faint.t-caption	section.card.set-panel.diag-panel	div.settings-panels	paragrafo	center	cheio4	1	0	1	4	4	aj-diag	Todas as verificações rodam localmente neste com	
+ja-centro	p.diag-desc.muted	div.diag-title-area	div.diag-header	paragrafo	center	centro4	2	16	0	2	4	aj-diag	Verifique se todos os módulos, modelos de IA, dr	
+ja-centro	p.eyebrow	div	header.page-head	paragrafo	center	cheio1	1	0	0	3	1	design	LUMEN	
+ja-centro	p.eyebrow	div.st-effort-header	div.st-effort-widget	paragrafo	center	cheio1	1	0	1	2	1	cb-mode	ESFORÇO DE RACIOCÍNIO	
+ja-centro	p.eyebrow	div.st-mode-header	div.st-mode-section	paragrafo	center	cheio1	1	0	1	2	1	cb-mode	MODO DE RESPOSTA	
+ja-centro	p.field-hint	section.card.set-panel	div.settings-panels	paragrafo	center	centro2	2	16	1	4	2	aj-pomodoro	O áudio e o vídeo nunca saem do PC. Ao Notion va	
+ja-centro	p.field-hint	section.card.set-panel.cov-panel	div.settings-panels	paragrafo	center	centro5	2	7	1	6	5	aj-covers	Escolha a página, gere a imagem e aplique a capa	
+ja-centro	p.footnote.rec-note	div#panel-recording	section.card.source-card	paragrafo	center	centro4	1	86	0	2	4	new	Deixe o volume ligado (pode ser baixo, mas não n	
+ja-centro	p.hero-sub	section#home-hero.card.hero-card	div.home-grid	paragrafo	center	centro9/cheio1	2	49	0	5	10	confirm	Escrevendo o material a partir da sua compreensã	
+ja-centro	p.hero-time	section#home-hero.card.hero-card	div.home-grid	paragrafo	center	centro1	1	636	0	4	1	home-rec	12:34	
+ja-centro	p.hero-title	section#home-hero.card.hero-card	div.home-grid	titulo	center	centro9	1	526	0	5	9	confirm	Redes neurais convolucionais	
+ja-centro	p.lead	div	header.page-head	paragrafo	center	centro21/cheio10	3	34	0	3	31	aj-ai	O fluxo principal roda no seu PC. Nada é enviado	
+ja-centro	p.lead	header.u-head	section#understand.understand	paragrafo	center	centro1	2	48	0	3	1	understand	Escreva com suas próprias palavras o que você en	
+ja-centro	p.muted.t-sm	div	header.integ-head	paragrafo	center	cheio4	1	0	0	2	4	home-first	Cria a página de cada aula e, dentro dela, a sub	
+ja-centro	p.pomo-big	div.pomo-dial-text	div.pomo-dial	paragrafo	center	cheio1	1	0	0	2	1	pomo-sheet	18:42	
+ja-centro	p.pomo-ctx	div.pomo-sheet	div.pomo	paragrafo	center	centro1	1	164	0	8	1	pomo-sheet	Sessão de foco	
+ja-centro	p.pomo-msg	div.pomo-sheet	div.pomo	paragrafo	center	centro1	2	80	0	8	1	pomo-sheet	Independente da gravação: pausar aqui não pausa 	
+ja-centro	p.pomo-state	div.pomo-dial-text	div.pomo-dial	paragrafo	center	centro1	1	74	0	2	1	pomo-sheet	FOCO	
+ja-centro	p.prefs-label	section	div#prefs-content.prefs-content	paragrafo	center	centro1	1	191	0	7	1	w-prefs-desktop	Posição na tela	
+ja-centro	p.protection-footnote	div.protection-panel	section.card.set-panel	paragrafo	center	centro4	1	402	0	24	4	aj-protection	O Lúmen precisa estar aberto para guardar novas 	
+ja-centro	p.protection-intro	div.protection-panel	section.card.set-panel	paragrafo	center	centro4	1	411	0	24	4	aj-protection	Cópias das suas notas, para quando você precisar	
+ja-centro	p.protection-next	div	section.protection-hero	paragrafo	center	centro3	1	194	0	4	3	aj-protection	Escolha uma pasta para começar. Escolha seu cofr	
+ja-centro	p.st-effort-card-desc	div.st-effort-card	div.st-effort-widget	paragrafo	center	centro1	2	61	1	3	1	cb-mode	O Lúmen analisa a complexidade do pedido e ajust	
+ja-centro	p.st-empty-small	nav.st-conv-list	aside#st-side.st-side	paragrafo	center	centro2	1	17	1	1	2	cb-mode	Suas conversas aparecem aqui.	
+ja-centro	p.st-mode-card-desc	div.st-mode-card	div.st-mode-section	paragrafo	center	centro1	2	28	1	2	1	cb-mode	O Lúmen detecta o melhor formato sozinho pelo to	
+ja-centro	small	label	div#study-level.segmented.wide	rotulo	center	centro2/cheio31	2	50	0	2	7	aj-ai	Uma 2ª passada critica e melhora	
+ja-centro	span	button#btn-release-vram.sys-vram-btn	div#sys-monitor-pop.sys-monitor-pop	botao	center	cheio2	1	0	1	2	2	mon-dados	Liberar VRAM da GPU	
+ja-centro	span	button#nav-home.rail-item	nav.rail-nav	botao	center	cheio81	1	0	1	2	81	act-aberto	Início	
+ja-centro	span	button#nav-integrations.rail-item	nav.rail-nav	botao	center	cheio81	1	0	1	2	81	act-aberto	Integrações	
+ja-centro	span	button#nav-library.rail-item	nav.rail-nav	botao	center	cheio81	1	0	1	2	81	act-aberto	Biblioteca	
+ja-centro	span	button#nav-new.rail-item	nav.rail-nav	botao	center	cheio81	1	0	1	2	81	act-aberto	Nova aula	
+ja-centro	span	button#nav-study.rail-item	nav.rail-nav	botao	center	cheio81	1	0	1	2	81	act-aberto	Cérebro	
+ja-centro	span	button#open-monitor.rail-item	div.rail-foot	botao	center	cheio81	1	0	1	3	81	act-aberto	Monitor	
+ja-centro	span	button#open-settings.rail-item	div.rail-foot	botao	center	cheio81	1	0	1	2	81	act-aberto	Ajustes	
+ja-centro	span	button#prefs-exit	div.prefs-actions	botao	center	cheio1	1	0	1	2	1	w-prefs-desktop	Sair do Lumen	
+ja-centro	span	button#prefs-reset	div.prefs-actions	botao	center	cheio1	1	0	1	2	1	w-prefs-desktop	Restaurar	
+ja-centro	span	button.btn.ghost.sm	aside#st-side.st-side	botao	center	cheio2	1	0	1	2	2	cb-mode	Nova conversa	
+ja-centro	span	button.btn.primary.sm	div.st-source-actions	botao	center	cheio2	1	0	1	2	1	cb-sources	Abrir Integrações	
+ja-centro	span	button.btn.sm	div.st-source-actions.st-mem-tools	botao	center	cheio29	1	0	1	2	11	cat-meio	Importar do Claude Code (cofre)	
+ja-centro	span	button.btn.sm.danger	div.st-source-actions.st-mem-tools	botao	center	cheio2	1	0	1	2	2	ia-memory	Limpar todas as memórias	
+ja-centro	span	button.btn.sm.ghost	details.st-model-role	botao	center	cheio103	1	0	1	2	25	act-aberto	Configurar Chat principal (local)	
+ja-centro	span	button.btn.sm.primary	section.card.st-set-card	botao	center	cheio11	1	0	1	2	9	ev-aberto	Exportar conjunto de avaliação	
+ja-centro	span	button.pomo-main	div.pomo-sheet	botao	center	cheio1	1	0	1	2	1	pomo-sheet	Pausar	
+ja-centro	span	button.st-chip	div.st-suggestions	botao	center	cheio12	1	0	1	2	2	cb-mode	Comparar meus estudos	
+ja-centro	span	button.st-mode	div.st-composer-bar	botao	center	cheio2	1	0	1	4	2	cb-mode	Automático	
+ja-centro	span	button.st-mode-tile	div.st-mode-grid	botao	center	cheio6	1	0	1	2	1	cb-mode	Encontrar materiais	
+ja-centro	span	button.st-status-btn	div.st-status	botao	center	cheio30	1	0	1	3	30	act-aberto	IA local (Ollama)	
+ja-centro	span	div.rec-ctl.side	div.rec-controls	texto	center	cheio1	1	0	1	2	1	new-recording	Descartar	
+ja-centro	span	div.sys-monitor-title	div.sys-monitor-title-wrap	texto	center	cheio2	1	0	1	2	2	mon-dados	Lúmen & Sistema	
+ja-centro	span	div.sys-stat-label-wrap	div.sys-stat-head	texto	center	cheio6	1	0	1	2	2	mon-dados	Memória RAM	
+ja-centro	span	li	ol.stepper.mini	texto	center	cheio76	1	0	1	2	19	analysis	Compreensão	
+ja-centro	span	span.st-effort-metric	div.st-effort-metrics	texto	center	cheio4	1	0	1	2	1	cb-mode	Raciocínio adaptativo	
+ja-centro	span#cov-page-ico.cov-page-ico	div#cov-page.cov-page	div#cov-flow.cov-flow	texto	start	centro2	1	7	1	3	2	cov-2-pagina	💰	
+ja-centro	span#diag-run-label	button#diag-run-btn.btn.primary.lg	div.diag-hero-actions	botao	center	cheio4	1	0	1	2	4	aj-diag	Verificar tudo agora	
+ja-centro	span#global-status-text	button#global-status.status-pill	div.top-right	botao	center	cheio5	1	0	1	2	5	home-first	Configuração pendente	
+ja-centro	span#lib-n-course.count	button.lib-view	div#lib-filter.lib-views	botao	center	cheio2	1	0	1	1	2	library	3	
+ja-centro	span#lib-n-free.count	button.lib-view	div#lib-filter.lib-views	botao	center	cheio2	1	0	1	1	2	library	1	
+ja-centro	span#lib-n-inbox.count	button.lib-view	div#lib-filter.lib-views	botao	center	cheio2	1	0	1	1	2	library	1	
+ja-centro	span#lib-n-pending.count	button.lib-view	div#lib-filter.lib-views	botao	center	cheio2	1	0	1	1	2	library	3	
+ja-centro	span#lib-n-review.count	button.lib-view	div#lib-filter.lib-views	botao	center	cheio2	1	0	1	1	2	library	2	
+ja-centro	span#lib-n-saved.count	button.lib-view	div#lib-filter.lib-views	botao	center	cheio2	1	0	1	1	2	library	6	
+ja-centro	span#lib-n-single.count	button.lib-view	div#lib-filter.lib-views	botao	center	cheio2	1	0	1	1	2	library	1	
+ja-centro	span#rec-pause-label	div.rec-ctl.side	div.rec-controls	texto	center	cheio1	1	0	1	2	1	new-recording	Pausar	
+ja-centro	span#rec-recover-text	div#rec-recover.rec-recover	div#recorder.recorder	texto	center	cheio1	1	0	1	4	1	new-recover	Encontrei uma gravação que não terminou (00:25).	
+ja-centro	span#rec-start-label.rec-label	div.rec-ctl	div.rec-controls	texto	center	cheio4	1	0	1	2	4	new	Iniciar gravação	
+ja-centro	span#rec-time.rec-time	div.rec-clock	div#recorder.recorder	texto	center	cheio4	1	0	1	2	4	new	00:00	
+ja-centro	span#u-detach-label	button#u-detach.btn.sm.u-detach	div.u-strip	botao	center	cheio1	1	0	1	2	1	understand	Destacar	
+ja-centro	span.badge	button.course-card	div#course-grid.course-grid	botao	center	cheio1	1	0	0	4	1	library-courses	1 para revisar	
+ja-centro	span.badge	div.hero-top	section#home-hero.card.hero-card	selo	center	cheio10	1	0	1	1	10	confirm	Continue de onde parou	
+ja-centro	span.count	button	div.segmented	botao	center	cheio1	1	0	1	1	1	design	3	
+ja-centro	span.course-meta	button.course-card	div#course-grid.course-grid	botao	center	cheio2	1	0	0	4	1	library-courses	Hotmart · 2 aulas · 2 módulos	
+ja-centro	span.course-name	button.course-card	div#course-grid.course-grid	botao	center	cheio2	1	0	0	4	1	library-courses	Inteligência Artificial	
+ja-centro	span.pomo-clock	button.pomo-time	div.pomo	botao	center	cheio86	1	0	1	7	86	act-aberto	18:42	
+ja-centro	span.pomo-cycle	header.pomo-head	div.pomo-sheet	texto	center	cheio1	1	0	1	2	1	pomo-sheet	Sessão 2 de 4	
+ja-centro	span.pomo-label	button.pomo-time	div.pomo	botao	center	cheio81	1	0	1	7	81	act-aberto	Foco	
+ja-centro	span.pomo-name	button.pomo-time	div.pomo	botao	center	cheio81	1	0	1	7	81	act-aberto	Pomodoro	
+ja-centro	span.pomo-short	button.pomo-time	div.pomo	botao	center	cheio4	1	0	1	5	4	w-idle-left	Foco	
+ja-centro	span.st-effort-card-title	div.st-effort-card-title-row	div.st-effort-card	titulo	center	cheio1	1	0	1	2	1	cb-mode	Automático · Adaptativo	
+ja-centro	span.st-effort-tag	div.st-effort-header	div.st-effort-widget	selo	center	cheio1	1	0	1	2	1	cb-mode	Adaptativo	
+ja-centro	span.st-effort-tag	div.st-mode-header	div.st-mode-section	selo	center	cheio1	1	0	1	2	1	cb-mode	Inteligente	
+ja-centro	span.st-mode-card-title	div.st-mode-card-title-row	div.st-mode-card	titulo	center	cheio1	1	0	1	2	1	cb-mode	Automático · Inteligente	
+ja-centro	span.st-vault-label	button.st-vault-toggle	div.st-composer-bar	botao	center	cheio2	1	0	1	3	2	cb-mode	Notas	
+ja-centro	span.step-n	li	ol.stepper.mini	texto	center	centro76	1	20	1	2	19	analysis	1	
+ja-centro	span.sys-engine-name	div.sys-engine-head	div.sys-engine-badge	texto	center	cheio4	1	0	1	2	1	mon-dados	Raciocínio IA	
+ja-centro	span.sys-engine-tech	div.sys-engine-badge	div.sys-engines-grid	texto	center	cheio4	1	0	0	2	1	mon-dados	Criptografia local	
+ja-centro	span.sys-stat-app-badge	div.sys-stat-badge-row	div.sys-stat-card	selo	center	cheio4	1	0	1	1	2	mon-dados	Lúmen: 322 MB	
+ja-centro	span.sys-stat-sep	div.sys-stat-head	div.sys-stat-card	texto	center	cheio6	1	0	1	3	2	mon-dados	·	
+ja-centro	span.sys-stat-subline-detail	div.sys-stat-badge-row	div.sys-stat-card	texto	center	cheio1	1	0	1	1	1	mon-dados	Modelos VRAM: qwen3:8b	
+ja-centro	span.sys-stat-subline-detail	div.sys-stat-subline	div.sys-stat-card	texto	center	cheio6	1	0	1	1	2	mon-dados	Intel Core i5-11400F · 6C / 12T · 2.6 GHz	
+ja-centro	strong	div.empty	div#library-list.card.list-card	texto	center	cheio2	1	0	1	4	2	design	Nenhuma aula ainda	
+ja-centro	strong	header.pomo-head	div.pomo-sheet	texto	center	cheio1	1	0	1	2	1	pomo-sheet	Pomodoro	
+ja-centro	strong	li	ol.flow	texto	center	centro3	1	97	0	1	1	home-first	Escreva o que entendeu	
+manter	a.btn	div#run-actions.actions	section#run.card.run	botao	start	cheio3	1	0	1	8	3	res-visual	Abrir minha compreensão	rótulo à esquerda, controle à direita
+manter	a.btn.ghost.sm	span.lib-actions	div.lib-row	botao	start	cheio5	1	0	1	6	1	library	Notion	rótulo à esquerda, controle à direita
+manter	a.btn.primary	div#run-actions.actions	section#run.card.run	botao	start	cheio3	1	0	1	8	3	res-visual	Abrir no Notion	rótulo à esquerda, controle à direita
+manter	b	figcaption	figure.v3d-preview	texto	start	inicio3	1	240	1	4	3	res-notion-fail	Visualização 3D	rótulo à esquerda, controle à direita
+manter	button	nav#settings-nav.settings-nav	div.settings-layout	botao	left	cheio20/inicio180	1	130	1	10	20	aj-ai	Diagnóstico do sistema	rótulo à esquerda, controle à direita
+manter	button	nav.settings-nav.st-set-nav	div.settings-layout.st-set-layout	botao	left	cheio26/inicio364	1	161	1	15	26	act-aberto	Privacidade e permissões	rótulo à esquerda, controle à direita
+manter	button#lib-more.btn.ghost.sm	div.toolbar	div#view-library.view	botao	center	inicio3	1	8	1	3	3	library	Filtros	linha com ícone à esquerda e coluna de texto
+manter	button#prefs-off.prefs-button	section	div#prefs-content.prefs-content	botao	left	cheio1	1	0	0	7	1	w-prefs-desktop	Desativar barra	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	button#st-tab-learn	div.st-tabs	header.st-head	botao	center	inicio7	1	6	1	4	7	cb-learn	Estudar	rótulo à esquerda, controle à direita
+manter	button.btn.sm.protection-button	div.protection-schedule	div.protection-panel	botao	center	fim4	1	22	1	2	4	aj-protection	Backup automático: pausado	encostado no fim de uma linha (valor ou ação à direita)
+manter	button.lib-view	div#lib-filter.lib-views	div#view-library.view	botao	center	cheio14/inicio7	1	6	1	7	3	library	Conteúdo gratuito 1	rótulo à esquerda, controle à direita
+manter	button.link-btn	div.ds-row	section.card.ds	botao	start	cheio1	1	0	1	3	1	design	Link	página interna de amostras do design system (design.html)
+manter	button.link-btn	p.field-hint.vc-foot	section#integ-voicestudio.card.integ	botao	start	cheio1	1	0	1	3	1	integ-vs	Ajustes da voz	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	dd	div	dl.st-source-facts	texto	start	inicio9	1	185	0	2	2	cb-sources	0 docs · 0/0 vetores	par termo–valor, lido em colunas como tabela
+manter	dd	dl#covers-tech.cov-tech	details.disclosure	texto	start	inicio6	2	418	1	12	1	cov-4-detalhes	Depois de aplicar, o Lumen lê a página de novo e	par termo–valor, lido em colunas como tabela
+manter	dd	dl#org-preview.org-preview	div.dlg-body	texto	start	inicio2	1	106	1	4	1	sec-organizar	Estudos / Cursos / Inteligência Artificial / Dee	par termo–valor, lido em colunas como tabela
+manter	div	article.st-catalog-skill	details	texto	start	cheio48	2	0	0	3	4	cat-meio	/mapa-mental · sistema · <assunto> Mapa mental d	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	div	div.st-data-row	div.st-data-list	texto	start	cheio11	2	0	1	3	1	ia2-data	Documentos indexados Cópia local do texto, índic	rótulo à esquerda, controle à direita
+manter	div#confirm-text.dlg-body	dialog.dlg.confirm	body	texto	start	inicio1	2	19	0	3	1	confirm	Descartar esta gravação? Essa ação não pode ser 	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	div.diag-hero-text	div.diag-hero-info	div.diag-hero-card	texto	start	cheio4	3	0	1	2	4	aj-diag	INTEGRIDADE DO SISTEMA Pronto para escanear Cliq	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	div.st-catalog-integration	section.card.st-set-card	div.st-set-panel	texto	start	cheio24	5	0	1	8	4	cat-meio	Internet · Inativa ou indisponível Pesquisa guia	parágrafo longo (mais de 3 linhas)
+manter	dt	div	dl.st-source-facts	texto	start	inicio9	1	295	0	2	2	cb-sources	Trechos com significado	par termo–valor, lido em colunas como tabela
+manter	dt	dl#covers-tech.cov-tech	details.disclosure	texto	start	cheio1/inicio5	1	61	1	12	1	cov-4-detalhes	Tamanho da capa	par termo–valor, lido em colunas como tabela
+manter	dt	dl#org-preview.org-preview	div.dlg-body	texto	start	cheio1/inicio1	1	16	1	4	1	sec-organizar	Obsidian	par termo–valor, lido em colunas como tabela
+manter	h1#prefs-title	header	section#preferences.panel.preferences	titulo	start	inicio3	1	188	1	2	3	w-prefs-desktop	Barra flutuante	linha com ícone à esquerda e coluna de texto
+manter	h1#study-h	div.st-title	header.st-head	titulo	start	cheio30	1	0	1	2	30	act-aberto	Cérebro	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	h2#course-h.side-h	div.dest-head.dest-head2	section#dest-card.card.dest-card	titulo	left	cheio5	1	0	1	2	5	analysis	Destinos do estudo	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	h2#dest-h.t-h3	div.dest-settings-text	section#dest-settings.card.dest-settings	titulo	left	inicio3	1	182	1	2	3	integ-obsidian	Destinos do material	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	h2#lesson-link-h.side-h	section#lesson-reference.card	div.compose-side	titulo	start	inicio4	1	365	0	3	4	new	Vídeo da aula	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h2#opts-h.side-h	section.card	div.compose-side	titulo	start	inicio4	1	415	0	4	4	new	Opções	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h2#org-h.side-h	div.dest-head	section#dest-card.card.dest-card	titulo	left	cheio5	1	0	1	1	5	analysis	Organização	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	h2#pending-h	header.card-head	section#pending.card	titulo	start	inicio9	1	169	1	3	9	confirm	Continuar aprendendo	rótulo à esquerda, controle à direita
+manter	h2#recent-h	header.card-head	section#home-recent.card	titulo	start	inicio9	1	58	1	3	9	confirm	Salvas recentemente	rótulo à esquerda, controle à direita
+manter	h2#review-h.t-h2	aside#review.card.review	div.study-grid	titulo	start	inicio1	1	7	1	6	1	analysis	Salvar no Notion e no Obsidian	rótulo à esquerda, controle à direita
+manter	h2#reviews-h	header.card-head	section#home-reviews.card	titulo	start	inicio9	1	180	1	3	9	confirm	Revisões	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	h2#run-h.t-h2	div	header.run-head	titulo	start	cheio5/inicio1	1	282	0	3	6	res-notion-fail	Material salvo, com uma pendência	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h2#setup-h.t-h3	div	header.card-head	titulo	start	inicio1	1	228	0	2	1	home-first	Antes de começar	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	h2#st-lrn-h-home.t-h2	header.st-lrn-head	div.st-lrn-screen	titulo	start	cheio2	1	0	1	2	2	cb-learn	Estudar	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	h2#sys-h	header.card-head	section#home-system.card	titulo	start	inicio10	1	31	1	4	10	confirm	Sistema	rótulo à esquerda, controle à direita
+manter	h2.t-h1	header.st-set-head	section.st-settings	titulo	start	cheio23	1	0	1	3	23	act-aberto	Configurações da IA	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	h2.t-h2	div.st-section-head	section#st-panel-sources.st-panel	titulo	start	inicio3	1	1321	0	2	3	cb-saved	Fontes de conhecimento	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	h2.t-h2	section.card.ds	div.view	titulo	start	inicio6	1	1152	1	13	1	design	Vazio, aviso e confirmação	rótulo à esquerda, controle à direita
+manter	h3	section.ai-sec.acertos	article#ai.ai	titulo	start	inicio1	1	515	0	2	1	analysis	O que eu compreendi corretamente	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h3	section.ai-sec.complementos	article#ai.ai	titulo	start	inicio1	1	581	0	2	1	analysis	Complementos importantes	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h3	section.ai-sec.conexoes	article#ai.ai	titulo	start	inicio1	1	734	0	2	1	analysis	Conexões	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h3	section.ai-sec.confusoes	article#ai.ai	titulo	start	inicio1	1	643	0	2	1	analysis	Possíveis confusões	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h3	section.ai-sec.lacunas	article#ai.ai	titulo	start	inicio1	1	715	0	2	1	analysis	O que faltou	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h3	section.ai-sec.parciais	article#ai.ai	titulo	start	inicio1	1	619	0	2	1	analysis	O que entendi em parte	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h3#diag-summary-title.t-h2	div.diag-hero-text	div.diag-hero-info	titulo	start	inicio4	1	348	0	3	4	aj-diag	Pronto para escanear	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	h3#protection-types-title.protection-types-title	section.protection-types	div.protection-panel	titulo	start	inicio4	1	517	0	2	4	aj-protection	Para que serve cada cópia	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h3#st-lrn-s-goal.eyebrow	section.st-lrn-sec	div.st-lrn-screen	titulo	start	inicio2	1	736	1	2	2	cb-learn	ESCOLHA UM OBJETIVO	rótulo à esquerda, controle à direita
+manter	h3#st-lrn-s-next.eyebrow	section.st-lrn-sec	div.st-lrn-screen	titulo	start	inicio2	1	756	1	2	2	cb-learn	PRÓXIMA ATIVIDADE	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h3#st-lrn-s-recent.eyebrow	section.st-lrn-sec	div.st-lrn-screen	titulo	start	inicio2	1	748	1	2	2	cb-learn	MATERIAIS RECENTES	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h3#v3d-h.t-h3	div.dest-settings-text	div.v3d-set	titulo	left	inicio3	1	219	1	2	3	integ-obsidian	Visualização 3D	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	h3.protection-activity-title	section.protection-activity	div.protection-panel	titulo	start	inicio1	1	496	0	3	1	prot-andando	Backup pedido 31/10 às 10:20	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h3.protection-section-title	div.protection-panel	section.card.set-panel	titulo	start	inicio8	1	491	0	24	4	aj-protection	Notas para consultar no outro aplicativo	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h3.t-h3	div	div.st-source-head	titulo	start	inicio8	1	1108	0	2	4	cb-sources	Busca por significado	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	h3.t-h3	div.st-saved-text	article.st-saved-item	titulo	start	inicio7	1	1192	0	2	1	sav-itens	Mapa mental · Complexidade de algoritmos e a not	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	h3.t-h3	section.card.st-set-card	div.st-set-panel	titulo	start	inicio66	1	1027	1	21	23	act-aberto	Permissões e modelos por papel	rótulo à esquerda, controle à direita
+manter	h4	div.protection-place-text	section.protection-place	titulo	start	inicio16	1	559	0	7	4	aj-protection	Notion → Obsidian Páginas do Notion no seu cofre	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	h4	li	ul	titulo	start	inicio12	2	114	0	3	4	aj-protection	Espelhamento Notion ↔ Obsidian	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	input	div.input-row.vc-pron-add	section.card.st-set-card	campo	start	campo4	1	450	1	3	2	ia-voice	keyframe	campo de digitação
+manter	input	div.set-row	section.card.st-set-card	campo	start	campo5	1	354	1	3	4	ia-models	C04 Claude Obsidian/01 Outputs	campo de digitação
+manter	input	label.field	div.ds-grid	campo	start	campo4	1	206	0	2	1	design	Inteligência Artificial	campo de digitação
+manter	input	label.search-field	div.input-row.st-mem-filters	campo	start	campo1	1	345	0	2	1	ia-memory	Pesquisar memórias	campo de digitação
+manter	input	label.search-field.st-conv-search	aside#st-side.st-side	campo	start	campo2	1	212	0	2	2	cb-mode	Pesquisar conversas	campo de digitação
+manter	input	span	label	campo	right	campo4	1	40	1	2	1	aj-pomodoro	25	campo de digitação
+manter	input	span.input-row	div.set-row	campo	start	campo2	1	264	1	2	2	ia-voice	Crie um keyframe no Premiere e defina o CTA.	campo de digitação
+manter	input	span.search-field	label.field	campo	start	campo1	1	184	0	2	1	design	Buscar	campo de digitação
+manter	input#cov-q	span.search-field	label.field	campo	start	campo3	1	666	0	2	3	aj-covers	Buscar página ou colar link do Notion	campo de digitação
+manter	input#lesson-link	span.search-field	label.field	campo	start	campo4	1	434	0	2	4	new	Link do YouTube (opcional)	campo de digitação
+manter	input#lib-search	label.search-field.lib-search	div.toolbar	campo	start	campo3	1	372	0	2	3	library	Buscar por aula, curso, módulo, tema ou conceito	campo de digitação
+manter	input#org-lesson	label.field.org-lesson	div#org-course-fields.org-fields	campo	start	campo1	1	134	0	2	1	sec-organizar	7	campo de digitação
+manter	input#pal-input	div.pal-search	dialog#palette.dlg.palette	campo	start	campo1	1	495	1	3	1	palette	Buscar aulas, telas e ações…	campo de digitação
+manter	input#review-intervals	label.field.review-intervals	div.integ-sec	campo	start	campo1	1	334	0	1	1	integ-obsidian	1, 3, 7, 14, 30, 60	campo de digitação
+manter	input#review-link	label#review-link-row.field	aside#review.card.review	campo	start	campo1	1	268	0	3	1	analysis	https://www.youtube.com/watch?v=…	campo de digitação
+manter	input#token	span.input-row	label.field	campo	start	campo1	1	962	1	2	1	integrations	•••••••• (salvo no cofre do Windows)	campo de digitação
+manter	input.st-num	div.set-row	section.card.st-set-card	campo	start	campo16	1	84	1	3	7	ia-models	16000	campo de digitação
+manter	kbd	div.pal-search	dialog#palette.dlg.palette	texto	start	cheio1	1	0	1	3	1	palette	Esc	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	label	div.pomo-custom	div.pomo-panel	rotulo	left	cheio4	1	0	1	4	1	aj-pomodoro	Pausa longa a cada focos	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	label#review-link-row.field	aside#review.card.review	div.study-grid	rotulo	start	cheio1	4	0	1	6	1	analysis	Link da aula opcional No YouTube, o vídeo aparec	parágrafo longo (mais de 3 linhas)
+manter	label.field	div#cov-pick.cov-pick	div#cov-flow.cov-flow	rotulo	start	cheio3	3	0	0	5	3	aj-covers	Qual página?	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	label.field	div#org-course-fields.org-fields	div.dlg-body	rotulo	start	cheio2	3	0	1	6	1	sec-organizar	Curso Escolha o curso… Inteligência Artificial ·	rótulo à esquerda, controle à direita
+manter	label.field	div.ds-grid	section.card.ds	rotulo	start	cheio5	4	0	1	6	1	design	Com erro Token inválido. Copie de novo no Notion	parágrafo longo (mais de 3 linhas)
+manter	label.field	div.integ-sec	section#integ-notion.card.integ	rotulo	start	cheio3	3	0	1	5	1	integrations	Página de conteúdo gratuito um material por pági	parágrafo longo (mais de 3 linhas)
+manter	label.field.org-lesson	div#org-course-fields.org-fields	div.dlg-body	rotulo	start	inicio1	3	395	1	6	1	sec-organizar	Número da aula opcional	rótulo ou dica de campo: acompanha a borda do campo
+manter	label.field.review-intervals	div.integ-sec	section#integ-obsidian.card.integ	rotulo	start	inicio1	3	714	1	5	1	integ-obsidian	Intervalos das revisões (dias)	rótulo ou dica de campo: acompanha a borda do campo
+manter	label.field.st-wide	section.card.st-set-card	div.st-set-panel	rotulo	start	cheio3	7	0	1	14	2	ia2-adult	Instruções de estilo do perfil Ex.: tom, como tr	parágrafo longo (mais de 3 linhas)
+manter	li	ol	details.st-howto	item	start	inicio6	2	85	1	3	1	cb-sources	Volte aqui e clique em Sincronizar. O Lúmen lê s	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	li	ol.st-levels	section.card.st-set-card	item	start	inicio4	2	459	1	4	1	ia-privacy	Nível 4 · Risco (indisponível para a IA) Apagar,	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	li	ul	section.ai-sec.parciais	item	start	inicio7	2	454	0	2	1	analysis	As camadas profundas combinam padrões, mas a aul	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	li	ul.protection-origins	div.protection-place-text	item	start	inicio24	1	488	0	2	3	prot-andando	479 páginas organizadas em páginas e subpáginas	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	li	ul.st-list	details	item	start	cheio3	2	0	1	23	1	cat-meio	/temp Liga ou desliga a conversa temporária (não	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	li.pal-h	ul#pal-list.pal-list	dialog#palette.dlg.palette	item	start	inicio8	1	525	0	48	1	palette	EM ANDAMENTO	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	output.st-num.t-caption	span.input-row	div.set-row	texto	start	inicio4	1	77	1	2	2	ia-voice	1,00×	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p	details	section.card.st-set-card	paragrafo	start	inicio1	1	253	0	4	1	ev-aberto	Na pasta do projeto, execute o script com o conj	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p	div	article.st-catalog-skill	paragrafo	start	cheio4/inicio48	1	870	0	4	8	aj-protection	Explica um conceito com base nas suas notas, em 	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	p	div.conf	div	paragrafo	start	inicio1	1	225	0	2	1	analysis	Na aula: Vale para a camada; o campo receptivo e	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p	li	ul	paragrafo	start	cheio8/inicio7	5	887	0	3	5	aj-protection	Leitura e consulta das notas no dia a dia, nos d	parágrafo longo (mais de 3 linhas)
+manter	p	section.card.ds	div.view	paragrafo	start	inicio1	1	1035	1	13	1	design	Body 14 · texto principal	página interna de amostras do design system (design.html)
+manter	p	section.card.st-set-card	div.st-set-panel	paragrafo	start	inicio3	1	513	1	13	3	ev-aberto	0 caso(s). As fontes guardadas com a resposta ac	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p#cov-q-hint.field-hint	div#cov-pick.cov-pick	div#cov-flow.cov-flow	paragrafo	start	inicio3	1	157	0	5	3	aj-covers	Só aparecem as páginas compartilhadas com a inte	rótulo ou dica de campo: acompanha a borda do campo
+manter	p#dest-both.dest-both	div.dest-head.dest-head2	section#dest-card.card.dest-card	paragrafo	start	cheio4	1	0	1	2	4	new	Um processamento, dois destinos	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	p#dest-desc.field-hint	div.dest-settings-text	section#dest-settings.card.dest-settings	paragrafo	left	cheio3	2	2	1	2	3	integ-obsidian	Ao salvar uma aula, o Lumen escreve o material u	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	p#dest-feats.dest-feats	div.dest-main	div#dest-obsidian.dest-row	paragrafo	left	inicio5	1	272	1	3	5	analysis	Nota + 2 Canvas · Cérebro	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	p#detail	div#stage-now.stage-now	section#run.card.run	paragrafo	start	inicio1	1	319	1	2	1	run	Escrevendo o material a partir da sua compreensã	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p#diag-summary-desc.diag-summary-sub.muted	div.diag-hero-text	div.diag-hero-info	paragrafo	start	cheio4	1	0	0	3	4	aj-diag	Clique no botão para iniciar a varredura complet	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	p#eta.muted.t-sm	div	header.run-head	paragrafo	start	cheio1	1	0	0	3	1	run	Faltam cerca de 1 min 30 s · Página pronta por v	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	p#go-hint.action-hint	div.action-bar	div#compose	paragrafo	right	fim4	1	908	1	2	4	new	Pare a gravação (Parar e usar) para continuar.	rótulo à esquerda, controle à direita
+manter	p#lesson-link-hint.field-hint	section#lesson-reference.card	div.compose-side	paragrafo	start	inicio4	2	27	0	3	4	new	Com um link do YouTube, a página ganha o player 	rótulo ou dica de campo: acompanha a borda do campo
+manter	p#obs-review-scope.field-hint	div.integ-sec	section#integ-obsidian.card.integ	paragrafo	start	inicio1	1	473	1	5	1	integ-obsidian	Vale para novas notas e notas atualizadas. As no	rótulo ou dica de campo: acompanha a borda do campo
+manter	p#protection-backup-reason.protection-reason	div.protection-panel	section.card.set-panel	paragrafo	start	inicio1	1	469	0	24	1	aj-protection	Escolha uma pasta antes do primeiro backup.	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p#review-desc.muted.t-sm	aside#review.card.review	div.study-grid	paragrafo	start	inicio1	3	24	1	6	1	analysis	A página da aula no Notion e a nota de estudo co	rótulo à esquerda, controle à direita
+manter	p#review-intervals-hint.field-hint.review-intervals	div.integ-sec	section#integ-obsidian.card.integ	paragrafo	start	inicio1	1	57	1	5	1	integ-obsidian	Dias em ordem crescente, de 1 a 365, separados p	rótulo ou dica de campo: acompanha a borda do campo
+manter	p#root-hint.field-hint	div.integ-sec	section#integ-notion.card.integ	paragrafo	start	inicio1	1	604	1	5	1	integrations	Cada curso vira uma página dentro dela, e os mód	rótulo à esquerda, controle à direita
+manter	p#token-status.field-hint	div.integ-sec	section#integ-notion.card.integ	paragrafo	start	inicio1	1	654	1	4	1	integrations	Conectado. O token fica no Gerenciador de Creden	rótulo ou dica de campo: acompanha a borda do campo
+manter	p#u-hint.u-hint	div.u-actions	section#understand.understand	paragrafo	start	fim1	2	29	1	3	1	understand	Pronto para analisar. A IA só lê a sua nota quan	rótulo à esquerda, controle à direita
+manter	p#v3d-desc.field-hint	div.dest-settings-text	div.v3d-set	paragrafo	left	cheio3	3	5	1	2	3	integ-obsidian	Um esquema em 3D com os conceitos da aula, logo 	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	p#vault-status.field-hint	div.integ-sec	section#integ-obsidian.card.integ	paragrafo	start	inicio1	1	249	1	5	1	integ-obsidian	Os estudos ficam em “B02 Estudos”, uma pasta por	rótulo à esquerda, controle à direita
+manter	p#watch-status.field-hint.watch-status	div#watch-row.watch	section.card.source-card	paragrafo	start	inicio4	1	49	0	3	4	new	A tela é capturada enquanto você grava e lida no	rótulo ou dica de campo: acompanha a borda do campo
+manter	p.ai-label	article#ai.ai	section#analysis.understand	paragrafo	start	inicio1	1	617	0	8	1	analysis	ANÁLISE DA IA LOCAL · QWEN3:8B	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p.eyebrow	header.st-set-head	section.st-settings	paragrafo	start	cheio23	1	0	1	3	23	act-aberto	LUMEN AI SETTINGS	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	p.eyebrow	section.card.ds	div.view	paragrafo	start	inicio1	1	1068	1	13	1	design	MICRO 11 · MAIÚSCULAS	página interna de amostras do design system (design.html)
+manter	p.faint	article.card.st-folders	section#st-panel-sources.st-panel	paragrafo	start	inicio1	1	1133	1	3	1	cb-sources	Nenhuma pasta autorizada.	rótulo à esquerda, controle à direita
+manter	p.faint	details.st-model-role	section.card.st-set-card	paragrafo	start	inicio1	1	776	0	5	1	cat-fim	Tamanho: 3.10 GB · VRAM em uso: Não informado	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	p.faint	div	div.st-data-row	paragrafo	start	inicio11	1	674	0	2	1	ia2-data	Cópia local do texto, índice de palavras, embedd	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p.faint	div.st-saved-text	article.st-saved-item	paragrafo	start	inicio7	1	978	0	2	1	sav-itens	Mapa de conhecimento · 01 de nov. às 15:30	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	p.faint	section.card.st-set-card	div.st-set-panel	paragrafo	start	inicio9	2	941	1	5	5	ia-models	A decisão automática usa só o texto da sua mensa	parágrafo longo (mais de 3 linhas)
+manter	p.faint.t-sm	section.card.ds	div.view	paragrafo	start	inicio1	1	1063	1	13	1	design	Terciário · metadados	página interna de amostras do design system (design.html)
+manter	p.field-hint	div#notion-foot.integ-foot	section#integ-notion.card.integ	paragrafo	start	inicio1	1	345	1	2	1	integrations	Desconectar tira o token deste PC e apaga o hist	rótulo à esquerda, controle à direita
+manter	p.field-hint	div.integ-sec	section#integ-notion.card.integ	paragrafo	start	inicio1	1	608	1	5	1	integrations	O Lumen só vê as páginas liberadas para a integr	rótulo ou dica de campo: acompanha a borda do campo
+manter	p.field-hint	section.card.st-set-card	div.st-set-panel	paragrafo	start	inicio2	1	864	1	9	2	ia-voice	Isto muda também no Voice Studio.	rótulo ou dica de campo: acompanha a borda do campo
+manter	p.group-h	div#library-list.card.list-card	div#view-library.view	paragrafo	start	inicio2	1	1167	0	11	1	library	EM ANDAMENTO	título ou subtítulo de página, seção ou grupo: segue a borda esquerda do conteúdo que nomeia
+manter	p.muted	details	section.card.st-set-card	paragrafo	start	inicio3	3	430	0	4	2	cat-meio	Conta as últimas 200 trocas manuais. Uma maioria	parágrafo longo (mais de 3 linhas)
+manter	p.muted	div	div.st-source-head	paragrafo	start	cheio3/inicio5	2	667	0	2	4	cb-sources	Ler páginas públicas funciona com a IA local. /w	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p.muted	div.st-catalog-integration	section.card.st-set-card	paragrafo	start	inicio24	1	812	0	4	4	cat-meio	Pesquisa guiada no Edge e leitura de páginas púb	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	p.muted	div.st-section-head	section#st-panel-sources.st-panel	paragrafo	start	inicio3	2	88	0	2	3	cb-saved	O Lúmen indexa suas fontes aqui no seu PC e pesq	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	p.muted	section.card.ds	div.view	paragrafo	start	inicio1	1	1033	1	13	1	design	Secundário · descrições	página interna de amostras do design system (design.html)
+manter	p.muted	section.card.st-set-card	div.st-set-panel	paragrafo	start	cheio1/inicio59	3	418	1	21	22	act-aberto	O Lúmen usa essas informações para compreender m	rótulo à esquerda, controle à direita
+manter	p.muted.st-lrn-hint	header.st-lrn-head	div.st-lrn-screen	paragrafo	start	cheio2	1	0	1	2	2	cb-learn	Revise, pratique, planeje e visualize a partir d	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	p.muted.t-sm	div.vc-pron	section.card.st-set-card	paragrafo	start	inicio2	1	890	0	1	2	ia-voice	Nenhuma pronúncia ainda.	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p.prefs-note	section	div#prefs-content.prefs-content	paragrafo	start	inicio1	2	11	0	7	1	w-prefs-desktop	Com a barra desativada, abra o Lumen pela bandej	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p.protection-group-note	div.protection-panel	section.card.set-panel	paragrafo	start	inicio8	1	170	0	24	4	aj-protection	Cópias para ler e navegar. Elas não substituem o	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p.protection-last	div.protection-panel	section.card.set-panel	paragrafo	start	inicio2	1	443	0	24	2	prot-em-dia	Último backup pedido: não concluído (31/10 às 10	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p.protection-note	section.protection-activity	div.protection-panel	paragrafo	start	inicio1	1	329	0	3	1	prot-andando	Cada etapa só aparece como concluída depois de c	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p.st-lrn-calm.muted	section.st-lrn-sec	div.st-lrn-screen	paragrafo	start	inicio4	1	615	1	2	2	cb-learn	Nada criado ainda. Escolha um objetivo para come	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p.st-sub	div.st-title	header.st-head	paragrafo	start	cheio30	1	0	1	2	30	act-aberto	Central de inteligência e base de conhecimento.	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	p.t-caption.faint	section.card.ds	div.view	paragrafo	start	inicio1	1	1150	1	13	1	design	Caption 12	página interna de amostras do design system (design.html)
+manter	p.t-caption.muted	div.vc-machine	div.integ-sec.vc-machine-sec	paragrafo	start	inicio1	1	813	1	5	1	integ-vs	Último: a voz ainda não falou nesta sessão.	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	p.t-display	section.card.ds	div.view	paragrafo	start	inicio1	1	1050	1	13	1	design	Display 30	página interna de amostras do design system (design.html)
+manter	p.t-h1	section.card.ds	div.view	titulo	start	inicio1	1	1038	1	13	1	design	Heading 1 · 24	página interna de amostras do design system (design.html)
+manter	p.t-h2	section.card.ds	div.view	titulo	start	inicio1	1	1082	1	13	1	design	Heading 2 · 18	página interna de amostras do design system (design.html)
+manter	p.t-h3	section.card.ds	div.view	titulo	start	inicio1	1	1094	1	13	1	design	Heading 3 · 15	página interna de amostras do design system (design.html)
+manter	p.t-label	section.card.ds	div.view	paragrafo	start	inicio1	1	1148	1	13	1	design	Label 12,5	página interna de amostras do design system (design.html)
+manter	p.t-label.muted	section.card.ds	div.view	paragrafo	start	inicio3	1	1136	1	10	1	design	Indeterminado (sem percentual confiável)	página interna de amostras do design system (design.html)
+manter	p.vc-lead.t-sm.muted	div.vc-status	section#integ-voicestudio.card.integ	paragrafo	start	inicio1	1	203	1	5	1	integ-vs	A voz liga sozinha quando o Lúmen precisa, sem a	rótulo à esquerda, controle à direita
+manter	p.writing	section.card.ds	div.view	escrita	start	inicio1	1	654	1	13	1	design	A escrita do estudante fica em serifa: dá para v	texto que o usuário escreve, código ou transcrição
+manter	pre.st-submission	details	section.card.st-set-card	escrita	start	inicio1	2	43	0	4	1	ev-aberto	.venv\Scripts\python.exe bench/study_eval.py "D:	texto que o usuário escreve, código ou transcrição
+manter	q	div.conf	div	texto	start	inicio1	1	537	0	2	1	analysis	cada neurônio só olha uma região local	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	select	div.input-row.st-mem-filters	section.card.st-set-card	campo	start	campo3	1	173	1	4	1	ia-memory		campo de digitação
+manter	select	div.set-row	section.card.st-set-card	campo	start	campo58	1	332	1	3	6	ia-models	voicestudio	campo de digitação
+manter	select	label.field	div.ds-grid	campo	start	campo1	1	184	0	1	1	design	Automático	campo de digitação
+manter	select#free-root	label.field	div.integ-sec	campo	start	campo1	1	1026	0	2	1	integrations	p-free	campo de digitação
+manter	select#lang	div.opt-row	section.card	campo	start	campo4	1	110	1	2	4	new	pt	campo de digitação
+manter	select#lib-sort.lib-sort	div.toolbar	div#view-library.view	campo	start	campo3	1	122	1	3	3	library	recent	campo de digitação
+manter	select#org-course	span.input-row	label.field	campo	start	campo1	1	380	1	2	1	sec-organizar	c-ia	campo de digitação
+manter	select#org-module	span.input-row	label.field	campo	start	campo1	1	368	1	2	1	sec-organizar	m-dl	campo de digitação
+manter	select#root	span.input-row	label.field	campo	start	campo1	1	986	1	2	1	integrations	root-1	campo de digitação
+manter	select#speed	div#speed-setting.opt-row	section.card	campo	start	campo4	1	102	1	2	4	new	auto	campo de digitação
+manter	select#vault	span.input-row	label.field	campo	start	campo1	1	843	1	2	1	integ-obsidian	C:\Users\Estudante\Cérebro	campo de digitação
+manter	select#widget-position	span.input-row.narrow	div.set-row	campo	start	campo1	1	172	1	2	1	set-general	left	campo de digitação
+manter	select.st-project-sel	label.st-proj-filter	aside#st-side.st-side	campo	start	campo2	1	199	1	2	2	cb-mode		campo de digitação
+manter	small	li#pal-13	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Lumen Study AI	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-14	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Lumen Study AI	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-15	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Lumen Study AI	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-16	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Lumen Study AI	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-17	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Conectado	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-18	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Conectado	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-31	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Compreensão escrita · falta processar	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-32	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Análise pronta · falta salvar o material	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-33	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Aguardando compreensão	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-34	ul#pal-list.pal-list	botao	start	cheio1	1	-80	1	3	1	palette	Cursos › Inteligência Artificial › Deep Learning	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-35	ul#pal-list.pal-list	botao	start	cheio1	1	-71	1	3	1	palette	Cursos › Inteligência Artificial › Fundamentos ·	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-36	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Conteúdo gratuito › História	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-37	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	A organizar	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-38	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Cursos › Matemática	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-39	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Aulas avulsas › Economia	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-5	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	qualquer página	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	li#pal-6	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	não afeta a gravação	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small	span	div.sys	texto	start	cheio1/inicio43	1	197	1	2	11	aj-pomodoro	Falta o modelo qwen3:8b	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	small	span.set-text	div.set-row	texto	start	cheio5/inicio143	3	977	1	2	26	aj-capture	Apaga o histórico, as transcrições guardadas, as	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	small	span.ui-style-text	label.ui-style-opt	rotulo	start	cheio1/inicio1	2	13	1	2	1	settings	Vidro escuro, barra lateral com nomes e controle	rótulo ou dica de campo: acompanha a borda do campo
+manter	small#board-hint	span.set-text	label.set-row	rotulo	start	inicio1	1	284	1	2	1	integ-obsidian	Um segundo .canvas com as telas e os gráficos da	rótulo ou dica de campo: acompanha a borda do campo
+manter	small#cov-page-where	span.cov-page-text	div#cov-page.cov-page	texto	start	inicio2	1	74	1	2	2	cov-2-pagina	No topo do workspace · editada em 14 de nov. de 	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	small#covers-status	span.set-text	div#covers-state.cov-state	texto	start	inicio1	2	33	1	2	1	cov-4-detalhes	Sem ele, a capa é desenhada com emojis e cores, 	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	small#desktop-hint	span.set-text	div.set-row	texto	start	inicio1	1	125	1	2	1	set-general	Ao fechar a janela, o Lumen continua na barra fl	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	small#obs-review-hint	span.set-text	label.set-row	rotulo	start	inicio1	1	578	1	2	1	integ-obsidian	Adiciona datas e um checklist de revisão às nota	rótulo ou dica de campo: acompanha a borda do campo
+manter	small#speed-hint.faint	label	div#speed-setting.opt-row	rotulo	start	cheio4	1	0	1	2	4	new	Vale a velocidade do áudio do arquivo, não a do 	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	small#watch-sub	span.prefs-watch-text	section.prefs-watch	texto	start	inicio1	1	18	0	2	1	w-prefs-left	Ativado · lido no seu PC	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	small.protection-date	div.protection-place-text	section.protection-place	texto	start	inicio12	1	450	0	7	3	prot-andando	Última confirmação: 30/10 às 13:12	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	small.protection-drive-note	div.protection-place-text	section.protection-place	texto	start	inicio4	2	34	0	7	4	aj-protection	O espaço gratuito do Google Drive é limitado, e 	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	span	button	nav.prefs-menu	botao	left	cheio2/inicio14	1	126	1	3	2	w-prefs-left	Proteção do cérebro	linha com ícone à esquerda e coluna de texto
+manter	span	button.link-btn	div.st-side-actions	botao	start	cheio2	1	0	1	2	2	cb-mode	Arquivadas	linha com ícone à esquerda e coluna de texto
+manter	span	button.st-effort-label-btn	div.st-effort-labels-row	botao	start	cheio5	1	0	1	1	1	cb-mode	Equilibrado	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span	div.diag-group-title	div.diag-group-head	texto	start	cheio27	1	0	1	2	3	aj-diag	Voice Studio & Síntese de Voz	linha com ícone à esquerda e coluna de texto
+manter	span	div.sys	div#side-status.sys-list	texto	start	cheio40	2	0	1	4	10	confirm	IA local Falta o modelo qwen3:8b	linha com ícone à esquerda e coluna de texto
+manter	span	figcaption	figure.v3d-preview	texto	start	inicio6	2	140	1	4	3	res-notion-fail	Imagem estática (PNG) · Sistema · 3 componentes 	rótulo à esquerda, controle à direita
+manter	span	label	div#speed-setting.opt-row	rotulo	start	cheio4/inicio4	1	164	1	2	4	new	Velocidade da fala	rótulo ou dica de campo: acompanha a borda do campo
+manter	span	label.st-switch	div.st-source-head	rotulo	start	cheio1	1	0	1	2	1	cb-sources	Permitir	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span	li#pal-0	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Iniciar gravação	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-1	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Escolher arquivo de aula	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-10	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Biblioteca	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-11	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Cérebro	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-12	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Integrações	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-13	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Conversa por voz	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-14	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Nova conversa de estudo	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-15	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Revisar flashcards	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-16	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Configurações da IA de estudos	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-17	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Notion	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-18	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Obsidian	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-19	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Google Drive	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-2	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Adicionar capturas de tela	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-20	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Voice Studio	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-21	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Proteção do cérebro	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-22	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Diagnóstico do sistema	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-23	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Geral	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-24	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Aparência	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-25	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Captura	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-26	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Pomodoro	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-27	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Transcrição	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-28	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	IA local	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-29	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Capas do Notion	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-3	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Abrir Estudos no Obsidian	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-30	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Privacidade e dados	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-31	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Redes neurais convolucionais	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-32	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Complexidade de algoritmos e notação O	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-33	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Kant: Crítica da razão pura, introdução	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-34	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Transformers e atenção	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-35	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Gradiente descendente na prática	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-36	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Revolução Francesa: causas econômicas	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-37	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Estruturas de dados: árvores B	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-38	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Cálculo II: integrais por partes	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-39	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Introdução à economia comportamental	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-4	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Organizar a próxima aula	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-5	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Criar capa no Notion	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-6	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	3	1	palette	Pausar o Pomodoro	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-7	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Abrir o Pomodoro	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-8	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Início	linha com ícone à esquerda e coluna de texto
+manter	span	li#pal-9	ul#pal-list.pal-list	botao	start	cheio1	1	0	1	2	1	palette	Nova aula	linha com ícone à esquerda e coluna de texto
+manter	span	li.callout	ul.vc-advice	texto	start	cheio1	1	0	1	2	1	integ-vs	O C: está quase cheio: mova a pasta dos modelos 	linha com ícone à esquerda e coluna de texto
+manter	span	p#cov-state.cover-state	div#cov-flow.cov-flow	texto	start	cheio2	1	0	1	2	2	cov-2-pagina	Ilustração com IA local, gerada em 41 s neste PC	linha com ícone à esquerda e coluna de texto
+manter	span	p.field-error	article.card.st-source-card	texto	start	cheio2	1	0	1	2	1	cb-sources	Conecte o Notion em Integrações (token da integr	linha com ícone à esquerda e coluna de texto
+manter	span	p.field-hint.vc-foot	section#integ-voicestudio.card.integ	texto	start	inicio1	2	20	1	3	1	integ-vs	O Lúmen lê as vozes e pede fala por aqui; pacote	parágrafo longo (mais de 3 linhas)
+manter	span	p.protection-status	div.protection-place-text	texto	start	cheio16	1	0	1	2	4	aj-protection	Falta conectar o Notion e o cofre	linha com ícone à esquerda e coluna de texto
+manter	span	p.vc-disks.t-sm	div.vc-machine	texto	start	cheio2	1	0	1	2	1	integ-vs	C: 6,9 GB livres	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span	span.dest-line	div#result.result.ok	texto	start	cheio6/inicio4	2	65	1	2	5	res-notion-fail	Notion (salvo): Página “Complexidade de algoritm	linha com ícone à esquerda e coluna de texto
+manter	span	span.dest-line.v3d-message	div#result.result.ok	texto	start	inicio1	2	101	1	3	1	res-visual-fail	Visualização 3Dnão saiu (o desenho falhou (Runti	linha com ícone à esquerda e coluna de texto
+manter	span	span.vc-avatar	li.vc-voice.is-default	texto	start	cheio6	1	0	1	2	3	ia-voice	JS	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#cov-page-badge.badge	span.cov-page-top	span.cov-page-text	selo	start	cheio2	1	0	1	2	2	cov-2-pagina	Sem capa	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#dest-notion-badge.badge	div.dest-top	div.dest-main	selo	left	cheio5	1	0	1	2	5	analysis	Conectado	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#dest-obs-badge.badge	div.dest-top	div.dest-main	selo	left	cheio5	1	0	1	3	5	analysis	Conectado	linha com ícone à esquerda e coluna de texto
+manter	span#dest-path.dest-path	span.dest-meta.notion-ok	div.dest-line2	texto	left	cheio5	1	0	1	1	5	analysis	Estudos›Sem curso	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#diag-last-scan.diag-last-scan.muted.t-caption	div.diag-hero-actions	div.diag-hero-card	texto	start	cheio3	1	0	1	2	3	aj-diag	Última conferência: às 10:13:35	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#diag-score-val	span#diag-score-badge.badge.lg.diag-score-badge	div#diag-score-wrap.diag-score-container	texto	start	cheio4	1	0	1	2	4	aj-diag	100%	linha com ícone à esquerda e coluna de texto
+manter	span#drive-badge.integ-state	span.integ-tab-text	button#itab-drive.integ-tab	botao	left	cheio3	1	0	1	2	3	integ-obsidian	Não configurado	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#eye-text	span#eye.eye	footer	texto	start	cheio4	1	0	1	3	4	w-idle-left	Assistir ativado	linha com ícone à esquerda e coluna de texto
+manter	span#mine-label.eyebrow	div.mine-head	article.paper.mine	texto	start	cheio1	1	0	1	3	1	analysis	VOCÊ ESCREVEU	rótulo à esquerda, controle à direita
+manter	span#mine-when.faint.t-caption	div.mine-head	article.paper.mine	texto	start	cheio1	1	0	1	3	1	analysis	em 14 de novembro	rótulo à esquerda, controle à direita
+manter	span#notion-badge.integ-state	span.integ-tab-text	button#itab-notion.integ-tab	botao	left	cheio3	1	0	1	2	3	integ-obsidian	Conectado	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#nw-count	div.u-foot	div.paper.nw-paper	texto	start	cheio1	1	0	1	2	1	w-note	56 palavras	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#nw-ready	div#nw-status.nw-status	main.nw-body	texto	start	inicio1	1	168	1	2	1	w-note	Pronto para analisar	rótulo à esquerda, controle à direita
+manter	span#obsidian-badge.integ-state	span.integ-tab-text	button#itab-obsidian.integ-tab	botao	left	cheio3	1	0	1	2	3	integ-obsidian	Conectado	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#org-path.dest-path	span.dest-meta	div.dest-line2	texto	left	cheio5	1	0	1	1	5	analysis	Organizar depois	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#pomo-auto-l1	div.pomo-row	div.pomo-panel	texto	left	cheio1	1	0	1	2	1	aj-pomodoro	Iniciar a próxima etapa sozinho	rótulo à esquerda, controle à direita
+manter	span#pomo-sound-l1	div.pomo-row	div.pomo-panel	texto	left	cheio1	1	0	1	2	1	aj-pomodoro	Som ao terminar (nunca durante a gravação)	rótulo à esquerda, controle à direita
+manter	span#reviews-count.badge	header.card-head	section#home-reviews.card	selo	start	cheio9	1	0	1	3	9	confirm	2 para revisar	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#startup-label	div.prefs-row	section	texto	start	cheio1	1	0	1	2	1	w-prefs-desktop	Iniciar com o Windows	rótulo à esquerda, controle à direita
+manter	span#status.status	span.w-status	header	texto	start	cheio4	1	0	1	2	4	w-idle-left	Gravando	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#time.time	div.timer	section#recording-panel.panel	texto	start	cheio4	1	0	0	2	4	w-idle-left	00:00	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#u-count	div.u-foot	div#u-paper.paper	texto	start	cheio1	1	0	1	2	1	understand	56 palavras	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span#u-save.u-save	div.u-foot	div#u-paper.paper	texto	start	fim1	1	13	1	2	1	understand	Rascunho salvo	encostado no fim de uma linha (valor ou ação à direita)
+manter	span#vs-badge.integ-state	span.integ-tab-text	button#itab-voicestudio.integ-tab	botao	left	inicio1	1	33	1	2	1	integ-vs	Pronto	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	span#watch-label	span.prefs-watch-text	section.prefs-watch	texto	start	inicio2	1	72	0	2	2	w-prefs-left	Assistir a tela junto	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	span#where-sub.where-sub	p#where.where	header.topbar	texto	start	fim31	1	13	1	2	31	aj-ai	Diagnóstico do sistema	encostado no fim de uma linha (valor ou ação à direita)
+manter	span#where-view	p#where.where	header.topbar	texto	start	cheio81	1	0	1	2	81	act-aberto	Integrações	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.badge	div.diag-group-head	div.diag-group-card	selo	start	cheio27	1	0	1	2	3	aj-diag	Pronto	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.badge	div.ds-row	section.card.ds	selo	start	cheio6	1	0	1	6	1	design	Processando	página interna de amostras do design system (design.html)
+manter	span.badge	div.sys	div#side-status.sys-list	selo	start	cheio40	2	0	1	4	10	confirm	Pendente	rótulo à esquerda, controle à direita
+manter	span.badge	div.vc-status-top	div.vc-status	selo	start	cheio1	1	0	1	2	1	integ-vs	Pronto	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.badge	span.vc-voice-meta.t-caption	div.vc-voice-main	selo	start	cheio8	1	0	1	2	3	ia-voice	Clonada	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.check-label	li	ul#checks.checks	texto	start	inicio6	1	1032	1	2	1	home-first	Modelo de transcrição (Equilibrado, 1,6 GB)	rótulo à esquerda, controle à direita
+manter	span.dest-path	span#dest-vault.dest-meta	div.dest-line2	texto	left	cheio5	1	0	1	1	5	analysis	Estudos›A organizar	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.diag-item-detail	div.diag-item-text	div.diag-item-main	texto	start	cheio96/inicio6	1	109	0	2	3	aj-diag	VoiceStudio (k2-fsa/OmniVoice, 600+ languages) c	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	span.diag-item-name	div.diag-item-text	div.diag-item-main	texto	start	cheio9/inicio93	1	381	0	2	3	aj-diag	Integração Voice Studio & Notion	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	span.ds-icon	div#ds-icons.ds-icons	section.card.ds	texto	start	inicio77	1	81	1	77	1	design	chevron-right	página interna de amostras do design system (design.html)
+manter	span.integ-tab-name	span.integ-tab-text	button#itab-drive.integ-tab	botao	left	cheio3/inicio9	1	36	1	2	3	integ-obsidian	Google Drive	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	span.lib-meta	span.lib-text	div.lib-row	texto	start	cheio55/inicio27	1	728	1	2	10	confirm	Cursos › Inteligência Artificial › Deep Learning	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	span.lib-title	span.lib-text	div.lib-row	titulo	start	cheio55/inicio27	1	852	1	2	10	confirm	Kant: Crítica da razão pura, introdução	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	span.opt	summary#review-title	details#review-more.card.disclosure.review-more	botao	start	cheio1	1	0	1	1	1	analysis	opcional	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.protection-card-badge	span.protection-card-title	span.protection-card-text	botao	start	cheio12	1	0	1	2	4	aj-protection	Criptografia	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.protection-card-hint	span.protection-card-text	summary	botao	start	inicio12	1	252	1	2	4	aj-protection	Restaure cópias anteriores em uma nova pasta, se	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	span.protection-card-name	span.protection-card-title	span.protection-card-text	botao	start	cheio12	1	0	1	2	4	aj-protection	Detalhes técnicos e pasta	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.protection-place-hint	h4	div.protection-place-text	texto	start	cheio8	1	0	1	1	4	aj-protection	Páginas do Notion no seu cofre	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.protection-schedule-note	div.protection-schedule	div.protection-panel	texto	start	cheio4	1	0	1	2	4	aj-protection	Só copia quando você pede. As cópias guardadas c	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.protection-step-name	div	li.protection-step	texto	start	cheio6	1	0	1	4	1	prot-andando	Atualizar Notion → Obsidian	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.protection-step-state	div	li.protection-step	texto	start	cheio6	1	0	1	4	1	prot-andando	Desativado nas configurações (não consome cota)	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.ps-label	li	ol#stages.pipeline	texto	start	cheio6	1	0	1	2	2	design	Escrever o material a partir da sua compreensão	página interna de amostras do design system (design.html)
+manter	span.ps-label	li.done	ol#stages.pipeline	texto	start	cheio31	1	0	1	2	7	design	Escrever o material a partir da sua compreensão	página interna de amostras do design system (design.html)
+manter	span.ps-label	li.done.skip	ol#stages.pipeline	texto	start	inicio1	1	124	1	2	1	run	Transcrever no PC	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	span.ps-label	li.failed	ol.pipeline	texto	start	cheio1	1	0	1	2	1	design	Etapa que falhou	página interna de amostras do design system (design.html)
+manter	span.st-data-n	div.st-data-row	div.st-data-list	texto	start	cheio11	1	0	1	3	1	ia2-data	0	rótulo à esquerda, controle à direita
+manter	span.st-lrn-goal-hint	button.st-lrn-goal	div.st-lrn-goals	botao	left	inicio8	1	247	1	3	2	cb-learn	Teste o que você sabe e receba correção.	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	span.st-lrn-goal-list.faint	button.st-lrn-goal	div.st-lrn-goals	botao	left	cheio2/inicio6	2	169	1	3	2	cb-learn	Questionário · Prática com correção · Explique c	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	span.st-state	div.st-source-head	article.card.st-source-card	texto	start	cheio3	1	0	1	3	1	cb-sources	Não conectado	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.status-pill	div.ds-row	section.card.ds	texto	start	cheio5	1	0	1	5	1	design	Transcrevendo · 42%	página interna de amostras do design system (design.html)
+manter	span.sw.sw-base	div.ds-swatches	section.card.ds	texto	start	inicio1	1	51	1	6	1	design	bg-base	página interna de amostras do design system (design.html)
+manter	span.sw.sw-elev	div.ds-swatches	section.card.ds	texto	start	inicio1	1	32	1	6	1	design	bg-elevated	página interna de amostras do design system (design.html)
+manter	span.sw.sw-paper	div.ds-swatches	section.card.ds	texto	start	inicio1	1	64	1	6	1	design	paper	página interna de amostras do design system (design.html)
+manter	span.sw.sw-s1	div.ds-swatches	section.card.ds	texto	start	inicio1	1	46	1	6	1	design	surface-1	página interna de amostras do design system (design.html)
+manter	span.sw.sw-s2	div.ds-swatches	section.card.ds	texto	start	inicio1	1	44	1	6	1	design	surface-2	página interna de amostras do design system (design.html)
+manter	span.sw.sw-s3	div.ds-swatches	section.card.ds	texto	start	inicio1	1	44	1	6	1	design	surface-3	página interna de amostras do design system (design.html)
+manter	span.toast-text	div#toast.toast	body	texto	start	cheio1	1	0	1	3	1	toast	Ajustes salvos. Este é um aviso de exemplo.	linha com ícone à esquerda e coluna de texto
+manter	span.vc-meter-label.t-sm	div.vc-meter-row	div.vc-machine	texto	start	inicio2	1	31	1	3	1	integ-vs	Placa	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	span.vc-meter-num.t-caption	div.vc-meter-row	div.vc-machine	texto	start	cheio2	1	0	1	3	1	integ-vs	2,5/12 GB (Ollama 0,0 · Voz 1,9)	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.vc-status-meta.t-caption.muted	div.vc-status-top	div.vc-status	texto	start	cheio1	1	0	1	2	1	integ-vs	v0.5.7 · NVIDIA GeForce RTX 3060 · VoiceStudio	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	span.vc-voice-meta.t-caption	div.vc-voice-main	li.vc-voice.is-default	texto	start	inicio5	1	574	0	2	3	ia-voice	Clonada idioma automático Padrão	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	strong	div#result.result.ok	section#run.card.run	texto	start	inicio4	1	470	1	5	4	res-obsidian-only	Material processado	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	strong	div#result.result.partial	section#run.card.run	texto	start	inicio1	1	237	1	5	1	res-notion-fail	Material processado, com um destino pendente	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	strong	div.dest-top	div.dest-main	texto	left	cheio10	1	0	1	3	5	analysis	Obsidian	rótulo à esquerda, controle à direita
+manter	strong	div.nw-title	header#nw-bar.nw-bar	texto	start	cheio1	1	0	1	2	1	w-note	Minha compreensão	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	strong	div.set-row	section.card.st-set-card	texto	start	cheio1	1	0	1	3	1	ia-models	IA local (Ollama)	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	strong	span.set-text	div.set-row	texto	start	inicio176	1	1115	1	2	27	aj-capture	Gerar o resumo em áudio no fim de cada aula	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	strong	span.st-lrn-goal-top	button.st-lrn-goal	botao	left	cheio8	1	0	1	2	2	cb-learn	Visualizar	linha com ícone à esquerda e coluna de texto
+manter	strong	span.ui-style-text	label.ui-style-opt	rotulo	start	inicio2	1	181	1	2	1	settings	Lúmen Glass 2026	rótulo ou dica de campo: acompanha a borda do campo
+manter	strong#cov-page-title	span.cov-page-top	span.cov-page-text	texto	start	cheio2	1	0	1	2	2	cov-2-pagina	Orçamento doméstico 2026	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	strong#covers-title	span.set-text	div#covers-state.cov-state	texto	start	inicio1	1	484	1	2	1	cov-4-detalhes	Gerador não instalado	coluna de texto de uma linha com ícone, ladrilho ou controle ao lado
+manter	strong#org-type	div.dest-top	div.dest-main	texto	left	cheio5	1	0	1	1	5	analysis	A organizar	ocupa a própria largura (selo, botão ou linha do tamanho do texto): não há folga para alinhar
+manter	strong.vc-voice-name	div.vc-voice-main	li.vc-voice.is-default	texto	start	inicio5	1	688	0	2	3	ia-voice	Jhonny Sirverhand	texto de leitura ou nota ligada a uma lista, cartão ou controle alinhado à esquerda
+manter	summary	details	li	botao	start	inicio30	1	1008	0	14	8	cat-fim	Boa · Qual a diferença entre a fase clara e a fa	linha de abrir/fechar: seta e rótulo dependem da borda esquerda
+manter	summary	details.disclosure	section.card.set-panel.cov-panel	botao	start	inicio8	1	965	0	4	8	aj-ai	Gerador e detalhes técnicos	linha de abrir/fechar: seta e rótulo dependem da borda esquerda
+manter	summary	details.disclosure.privacy-note	section.card	botao	start	inicio4	1	228	0	2	4	new	O que acontece com seus dados	linha de abrir/fechar: seta e rótulo dependem da borda esquerda
+manter	summary	details.disclosure.v3d-tech	div.v3d-set	botao	start	inicio3	1	948	0	2	3	integ-obsidian	Detalhes técnicos	linha de abrir/fechar: seta e rótulo dependem da borda esquerda
+manter	summary	details.pomo-more	div.pomo-sheet	botao	left	inicio1	1	155	0	2	1	pomo-sheet	Durações e som	linha de abrir/fechar: seta e rótulo dependem da borda esquerda
+manter	summary	details.protection-disclosure.protection-issues	div.protection-panel	botao	start	inicio4	1	575	0	5	4	aj-protection	O que precisa de atenção · 1 precisa de ação	linha de abrir/fechar: seta e rótulo dependem da borda esquerda
+manter	summary	details.st-howto	article.card.st-source-card	botao	start	inicio2	1	530	0	2	1	cb-sources	Como conectar	linha de abrir/fechar: seta e rótulo dependem da borda esquerda
+manter	summary	details.st-model-role	section.card.st-set-card	botao	start	inicio59	1	943	0	5	5	cat-fim	Diagramas e 3D · Renderizador do Lúmen na CPU (s	linha de abrir/fechar: seta e rótulo dependem da borda esquerda
+manter	summary	details.st-policy	section.card.st-set-card	botao	start	inicio1	1	939	0	2	1	ia2-data	Política de exclusão	linha de abrir/fechar: seta e rótulo dependem da borda esquerda
+manter	summary#review-title	details#review-more.card.disclosure.review-more	div.study-main	botao	start	inicio1	1	508	0	5	1	analysis	Revisar a transcrição e as telas opcional	linha de abrir/fechar: seta e rótulo dependem da borda esquerda
+manter	td	tr	tbody	tabela	left	cheio27/inicio313	3	366	0	6	3	act-aberto	4 ajustes realizados · chave apagada; provedor t	coluna de tabela
+manter	textarea	div.vc-test-main	div.vc-test	campo	start	campo2	1	1000	1	2	2	ia-voice	Olá! Eu sou a voz dos seus estudos no Lúmen. Vam	campo de digitação
+manter	textarea	form.st-composer	div.st-dock	campo	center	campo2	1	778	0	4	2	cb-mode	Pergunte qualquer coisa…	campo de digitação
+manter	textarea	label.field.st-wide	section.card.st-set-card	campo	start	campo3	1	1052	0	2	2	ia2-adult		campo de digitação
+manter	textarea#mine-text.writing	article.paper.mine	section#analysis.understand	campo	start	campo1	1	830	0	4	1	analysis	A convolução passa um filtro pequeno pela imagem	campo de digitação
+manter	textarea#nw-text.writing	div.paper.nw-paper	main.nw-body	campo	start	campo1	1	358	0	2	1	w-note	A convolução passa um filtro pequeno pela imagem	campo de digitação
+manter	textarea#u-text.writing	div#u-paper.paper	section#understand.understand	campo	start	campo1	1	790	0	2	1	understand	A convolução passa um filtro pequeno pela imagem	campo de digitação
+manter	th	tr	thead	tabela	left	cheio1/inicio11	1	319	0	6	2	act-aberto	Documento ou alvo	coluna de tabela

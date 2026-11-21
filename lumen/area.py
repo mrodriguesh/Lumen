@@ -18,8 +18,6 @@ import json
 import logging
 import os
 import re
-import shutil
-import unicodedata
 import zipfile
 from datetime import date, datetime
 from pathlib import Path
@@ -313,6 +311,10 @@ def _remap_history(remap, only=None, extra=None):
                     ob[k] = remap(ob[k])
             if isinstance(ob.get("files"), dict):
                 ob["files"] = {remap(r): s for r, s in ob["files"].items()}
+            if isinstance(ob.get("file_hashes"), dict):
+                ob["file_hashes"] = {remap(r): s for r, s in ob["file_hashes"].items()}
+            if (ob.get("visual") or {}).get("file"):
+                ob["visual"]["file"] = remap(ob["visual"]["file"])
             if isinstance(ob.get("images"), dict):
                 ob["images"] = {i: remap(r) for i, r in ob["images"].items()}
             if extra and key in extra:
@@ -396,6 +398,10 @@ def relocate(root, home, note, cls, title, lid, ob):
             ob[k] = new
     if isinstance(ob.get("files"), dict):
         ob["files"] = {remap(r): s for r, s in ob["files"].items()}
+    if isinstance(ob.get("file_hashes"), dict):
+        ob["file_hashes"] = {remap(r): s for r, s in ob["file_hashes"].items()}
+    if (ob.get("visual") or {}).get("file"):
+        ob["visual"]["file"] = remap(ob["visual"]["file"])
     if isinstance(ob.get("images"), dict):
         ob["images"] = {i: remap(r) for i, r in ob["images"].items()}
     _prune(home, src if src.exists() else src.parent)
@@ -490,7 +496,7 @@ def _plural(n, one, many):
     return f"{n} {one if n == 1 else many}"
 
 
-def _course_block(c, mine, today):
+def _course_block(c, mine, today, review=True):
     by_mod = {}
     for l in sorted(mine, key=lambda x: (x["lesson"] or 999, x["name"].casefold())):
         by_mod.setdefault(l["module_id"], []).append(l)
@@ -503,7 +509,7 @@ def _course_block(c, mine, today):
     acc.append("- **Login e senha:** no seu gerenciador de senhas. O Lumen não guarda credenciais.")
     s.append("## Acesso\n" + "\n".join(acc))
     s.append("## Progresso\n" + (f"- {_plural(len(mine), 'aula processada', 'aulas processadas')} · "
-                                 f"{_plural(done, 'concluída', 'concluídas')} · {due} para revisar hoje"
+                                 f"{_plural(done, 'concluída', 'concluídas')}" + (f" · {due} para revisar hoje" if review else "")
                                  if mine else "- Nenhuma aula processada ainda."))
     mods = sorted(c.get("modules") or [], key=lambda m: (m.get("order") or 999, m["name"].casefold()))
     if mods:
@@ -518,6 +524,8 @@ def _course_block(c, mine, today):
         s.append("## Módulos\n" + "\n\n".join(body))
     elif mine:
         s.append("## Aulas\n" + "\n".join(_lesson_line(l) for ls in by_mod.values() for l in ls))
+    if not review:  # revisões desligadas: nada cobrado por next-review antigo
+        return "\n\n".join(s)
     s.append(f"""## Para revisar
 ```base
 filters:
@@ -551,21 +559,23 @@ views:
 
 COURSE_INFO = """> [!info]- Como usar esta nota
 > Página inicial do curso, mantida pelo Lumen: acesso, progresso, módulos e aulas em ordem e o que revisar. As aulas ficam nas pastas abaixo desta. Escreva o que quiser a partir de "Sobre": o Lumen nunca altera essa parte."""
+COURSE_INFO_OFF = COURSE_INFO.replace("módulos e aulas em ordem e o que revisar.", "módulos e aulas em ordem.")
 
 HOME_INFO = """> [!info]- Como usar esta nota
 > Central dos estudos. As listas vêm da base [[Estudos.base|Estudos]] (Bases, nativo do Obsidian) e se atualizam sozinhas; sem Bases, os links de cursos e temas abaixo e as pastas continuam servindo. O Lumen mantém o bloco de cima; o que você escrever em "Minhas anotações" nunca é alterado."""
 
 
-def _home_block(cat, lessons, today, names):
+def _home_block(cat, lessons, today, names, review=True):
     by_course = {}
     for l in lessons:
         by_course.setdefault(l["course_id"], []).append(l)
     courses = sorted(cat["courses"], key=lambda c: c["name"].casefold())
     s = ["# Estudos",
          "> [!summary] Central de estudos\n> Tudo o que o Lumen processou, organizado por tipo: cursos (curso, módulo e "
-         "aula), conteúdo gratuito (por tema), aulas avulsas e o que ainda falta organizar.",
-         "## Para revisar hoje\n![[Estudos.base#Para revisar]]",
-         "## Continuar estudando\n![[Estudos.base#Continuar estudando]]"]
+         "aula), conteúdo gratuito (por tema), aulas avulsas e o que ainda falta organizar."]
+    if review:  # as duas visões vêm de review-stage/next-review: sem revisões, nem o título fica
+        s += ["## Para revisar hoje\n![[Estudos.base#Para revisar]]",
+              "## Continuar estudando\n![[Estudos.base#Continuar estudando]]"]
     lines = [f"- {_link(names.get(c['id']) or '00 - ' + clean(c['name'], 40), c['name'])} · "
              f"{_plural(len(by_course.get(c['id'], [])), 'aula', 'aulas')}" + (f" · {md(c['platform'])}" if c.get("platform") else "")
              for c in courses]
@@ -590,55 +600,15 @@ def _home_block(cat, lessons, today, names):
     return "\n\n".join(s)
 
 
-def base_text(home_rel):
+def base_text(home_rel, review=True):
     folder = home_rel.replace('"', '\\"')
-    return f"""filters:
-  and:
-    - file.inFolder("{folder}")
-    - 'file.ext == "md"'
-    - not:
-        - 'file.name.startsWith("00 - ")'
-formulas:
-  onde: 'if(note.module, note.course + " › " + note.module, if(note.course, note.course, if(note.category, note.category, if(note["study-type"] == "inbox", "A organizar", ""))))'
-  tipo: 'if(note["study-type"] == "course", "Curso", if(note["study-type"] == "free", "Conteúdo gratuito", if(note["study-type"] == "single", "Aula avulsa", if(note["study-type"] == "inbox", "A organizar", ""))))'
-properties:
-  formula.onde:
-    displayName: Onde
-  formula.tipo:
-    displayName: Tipo
-  file.name:
-    displayName: Aula
-  note.course:
-    displayName: Curso
-  note.module:
-    displayName: Módulo
-  note.lesson:
-    displayName: Nº
-  note.category:
-    displayName: Tema
-  note.study-type:
-    displayName: Tipo
+    nr = "\n      - next-review" if review else ""
+    props = """
   note.next-review:
     displayName: Próxima revisão
   note.review-stage:
-    displayName: Revisões feitas
-  note.created:
-    displayName: Processada em
-views:
-  - type: cards
-    name: Biblioteca
-    filters:
-      and:
-        - 'type == "ai-study"'
-    order:
-      - file.name
-      - formula.onde
-      - next-review
-    sort:
-      - property: created
-        direction: DESC
-    image: note.cover
-    imageAspectRatio: 0.56
+    displayName: Revisões feitas""" if review else ""
+    views = """
   - type: table
     name: Para revisar
     filters:
@@ -664,7 +634,49 @@ views:
       - next-review
     sort:
       - property: next-review
-        direction: ASC
+        direction: ASC""" if review else ""
+    return f"""filters:
+  and:
+    - file.inFolder("{folder}")
+    - 'file.ext == "md"'
+    - not:
+        - 'file.name.startsWith("00 - ")'
+formulas:
+  onde: 'if(note.module, note.course + " › " + note.module, if(note.course, note.course, if(note.category, note.category, if(note["study-type"] == "inbox", "A organizar", ""))))'
+  tipo: 'if(note["study-type"] == "course", "Curso", if(note["study-type"] == "free", "Conteúdo gratuito", if(note["study-type"] == "single", "Aula avulsa", if(note["study-type"] == "inbox", "A organizar", ""))))'
+properties:
+  formula.onde:
+    displayName: Onde
+  formula.tipo:
+    displayName: Tipo
+  file.name:
+    displayName: Aula
+  note.course:
+    displayName: Curso
+  note.module:
+    displayName: Módulo
+  note.lesson:
+    displayName: Nº
+  note.category:
+    displayName: Tema
+  note.study-type:
+    displayName: Tipo{props}
+  note.created:
+    displayName: Processada em
+views:
+  - type: cards
+    name: Biblioteca
+    filters:
+      and:
+        - 'type == "ai-study"'
+    order:
+      - file.name
+      - formula.onde{nr}
+    sort:
+      - property: created
+        direction: DESC
+    image: note.cover
+    imageAspectRatio: 0.56{views}
   - type: cards
     name: Recentes
     limit: 12
@@ -684,8 +696,7 @@ views:
     order:
       - file.name
       - module
-      - lesson
-      - next-review
+      - lesson{nr}
     sort:
       - property: module
         direction: ASC
@@ -701,8 +712,7 @@ views:
         - 'note["study-type"] == "free"'
     order:
       - file.name
-      - created
-      - next-review
+      - created{nr}
     groupBy:
       property: category
       direction: ASC
@@ -713,8 +723,7 @@ views:
         - 'note["study-type"] == "single"'
     order:
       - file.name
-      - created
-      - next-review
+      - created{nr}
     groupBy:
       property: category
       direction: ASC
@@ -748,8 +757,7 @@ views:
       - file.name
       - formula.tipo
       - formula.onde
-      - status
-      - next-review
+      - status{nr}
       - created
     sort:
       - property: created
@@ -757,7 +765,7 @@ views:
 """
 
 
-def _managed(path, fm_new, block, info, user, owned):
+def _managed(path, fm_new, block, info, user, owned, other=None):
     """Cria a nota (callout, bloco do Lumen, área do usuário) ou atualiza só o que é do Lumen: o bloco, se ninguém o
     editou, e as chaves `owned` do frontmatter. Nada é gravado se nada mudou."""
     if not path.exists():
@@ -769,6 +777,7 @@ def _managed(path, fm_new, block, info, user, owned):
         return False  # perdeu as marcas: é do usuário agora
     fm, before, old, saved, after = p
     keep = old if saved != block_hash(old) else block  # editado à mão: o bloco fica
+    before = before.replace(other, info) if other else before  # “Como usar”: só o texto exato do Lumen
     calm = {k: v for k, v in fm_new.items() if k != "updated"}
     out = compose(merge_fields(fm, calm, owned=owned), before, keep, after)
     if out == text:
@@ -796,9 +805,9 @@ def refresh(cfg):
     root, home = obsidian.folders(cfg)
     home.mkdir(parents=True, exist_ok=True)
     cat, today = catalog.load(), date.today().isoformat()
-    lessons = _lessons(home)
+    lessons, review = _lessons(home), bool(cfg["obsidian_review"])
     # Estudos.base: o Obsidian regrava o arquivo quando o usuário ajusta uma visão; só o que o Lumen gravou é trocado
-    bpath, btext = home / BASE, base_text(home.relative_to(root).as_posix())
+    bpath, btext = home / BASE, base_text(home.relative_to(root).as_posix(), review)
     cur = _read(bpath) if bpath.exists() else None
     if cur != btext and (cur is None or _hash(cur) == cat["meta"].get("base_hash")):
         obsidian._write(bpath, btext)
@@ -822,10 +831,11 @@ def refresh(cfg):
               "cover": cover}
         path.parent.mkdir(parents=True, exist_ok=True)
         names[c["id"]] = path.stem
-        _managed(path, fm, _course_block(c, mine, today), COURSE_INFO, USER_COURSE,
-                 {"course", "course-id", "platform", "url", "lessons", "completed", "updated"})
+        _managed(path, fm, _course_block(c, mine, today, review), COURSE_INFO if review else COURSE_INFO_OFF, USER_COURSE,
+                 {"course", "course-id", "platform", "url", "lessons", "completed", "updated"},
+                 COURSE_INFO_OFF if review else COURSE_INFO)
     fm = {"type": "system", "author": "lumen-ai", "status": "active", "created": today, "updated": today}
-    _managed(home / HOME, fm, _home_block(cat, lessons, today, names), HOME_INFO, USER, {"updated"})
+    _managed(home / HOME, fm, _home_block(cat, lessons, today, names, review), HOME_INFO, USER, {"updated"})
 
 
 # --- Migração da pasta antiga ----------------------------------------------------------------------------------

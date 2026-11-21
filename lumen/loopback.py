@@ -139,29 +139,119 @@ def _activate(pid, timeout=5):
 _keep = []
 
 
-def recorder(pid, samplerate, channels):
-    """Gravador do soundcard (mesma interface de record()) sobre o cliente de process loopback."""
+def _float_recorder(ptr, samplerate, channels, flags):
+    """Gravador do soundcard (mesma interface de record()) com formato fixo float32 e sem GetMixFormat: o Windows
+    converte o formato do aparelho (AUTOCONVERTPCM)."""
     from soundcard import mediafoundation as mf
 
     class _Recorder(mf._Recorder):
-        def __init__(self, ptr):  # sem GetMixFormat (não existe no process loopback): formato fixo float32
+        def __init__(self):
             self._ptr, self.channelmap, self.samplerate, self._idle_start_time = ptr, list(range(channels)), samplerate, None
             fmt = mf._ffi.new("WAVEFORMATEXTENSIBLE*")
             f = fmt[0].Format
             f.wFormatTag, f.nChannels, f.nSamplesPerSec, f.wBitsPerSample, f.cbSize = 3, channels, samplerate, 32, 0
             f.nBlockAlign = channels * 4
             f.nAvgBytesPerSec = samplerate * channels * 4
-            flags = 0x00020000 | 0x80000000  # loopback | autoconvert (outras flags dão AUDCLNT_E_INVALID_STREAM_FLAG)
             mf._com.check_error(ptr[0][0].lpVtbl.Initialize(ptr[0], 0, flags, 5_000_000, 0, fmt, mf._ffi.NULL))
 
         @property
         def deviceperiod(self):  # o process loopback não informa; 10 ms é o período típico do Windows
             return 0.01, 0.003
 
-    ptr = mf._ffi.new("IAudioClient**")
-    ptr[0] = mf._ffi.cast("IAudioClient*", _activate(pid))
     try:
-        return _Recorder(ptr)
+        return _Recorder()
     except Exception:
         mf._com.release(ptr)
         raise
+
+
+def recorder(pid, samplerate, channels):
+    """Gravador sobre o cliente de process loopback (não tem GetMixFormat)."""
+    from soundcard import mediafoundation as mf
+    ptr = mf._ffi.new("IAudioClient**")
+    ptr[0] = mf._ffi.cast("IAudioClient*", _activate(pid))
+    # loopback | autoconvert (outras flags dão AUDCLNT_E_INVALID_STREAM_FLAG)
+    return _float_recorder(ptr, samplerate, channels, 0x00020000 | 0x80000000)
+
+
+def _ensure_com():
+    """O COM do Windows (MediaFoundation / WASAPI) é por thread: garante inicialização antes de abrir microfone ou saída."""
+    import os
+    if os.name == "nt":
+        ctypes.windll.ole32.CoInitializeEx(None, 0)
+
+
+def microphones():
+    """Lista os microfones do Windows sem abrir fluxo nem gravar nada (só enumera os aparelhos)."""
+    try:
+        import soundcard as sc
+        _ensure_com()
+        default = sc.default_microphone()
+        def_id = str(default.id) if default else ""
+        return [{"id": str(m.id), "name": str(m.name), "default": str(m.id) == def_id}
+                for m in sc.all_microphones(include_loopback=False)]
+    except Exception:  # noqa: BLE001 — PC sem microfone ligado ou serviço de áudio parado
+        return []
+
+
+def microphone(samplerate, channels, mic_id=""):
+    """O microfone escolhido (ou o padrão do Windows). O recorder() do soundcard exige que o aparelho informe o formato
+    "extensible"; microfones USB mono (o USB AUDIO do estudante) informam PCM simples e ele falha num assert (02/11)."""
+    import soundcard as sc
+    _ensure_com()
+    dev = None
+    if mic_id:
+        try:
+            dev = sc.get_microphone(mic_id, include_loopback=False)
+        except Exception:  # noqa: BLE001 — aparelho desligado: volta para o padrão do sistema
+            dev = None
+    dev = dev or sc.default_microphone()
+    # autoconvert | conversão de taxa com a qualidade padrão do Windows
+    return _float_recorder(dev._audio_client(), samplerate, channels, 0x80000000 | 0x08000000)
+
+
+def _float_player(ptr, samplerate, channels, flags, buffer_ms=80):
+    """Saída de áudio do soundcard com formato fixo float32 e sem GetMixFormat (a mesma proteção do microfone contra
+    aparelhos USB que informam PCM simples). O buffer curto (~80 ms) deixa a interrupção imediata."""
+    from soundcard import mediafoundation as mf
+
+    class _Player(mf._Player):
+        def __init__(self, ch):
+            self._ptr, self.channelmap, self.samplerate, self._idle_start_time = ptr, list(range(ch)), samplerate, None
+            fmt = mf._ffi.new("WAVEFORMATEXTENSIBLE*")
+            f = fmt[0].Format
+            f.wFormatTag, f.nChannels, f.nSamplesPerSec, f.wBitsPerSample, f.cbSize = 3, ch, samplerate, 32, 0
+            f.nBlockAlign = ch * 4
+            f.nAvgBytesPerSec = samplerate * ch * 4
+            dur = max(200_000, int(buffer_ms * 10_000))  # unidades de 100 ns
+            mf._com.check_error(ptr[0][0].lpVtbl.Initialize(ptr[0], 0, flags, dur, 0, fmt, mf._ffi.NULL))
+
+        def flush(self):
+            """Descarta o que ainda estava na fila da placa depois da descida suave."""
+            try:
+                self._ptr[0][0].lpVtbl.Stop(self._ptr[0])
+                self._ptr[0][0].lpVtbl.Reset(self._ptr[0])
+                self._ptr[0][0].lpVtbl.Start(self._ptr[0])
+            except Exception:  # noqa: BLE001
+                pass
+
+    try:
+        return _Player(channels)
+    except Exception:
+        mf._com.release(ptr)
+        raise
+
+
+def speaker(samplerate=24000, channels=1, buffer_ms=80):
+    """A saída padrão do Windows (fone ou caixa de som), em float32, para a conversa por voz."""
+    import soundcard as sc
+    _ensure_com()
+    flags = 0x80000000 | 0x08000000 | 0x00080000  # autoconvert | SRC qualidade padrão | nopersist
+    spk = sc.default_speaker()
+    try:
+        return _float_player(spk._audio_client(), samplerate, channels, flags, buffer_ms)
+    except Exception:
+        if channels != 1:
+            raise
+        # alguns drivers só aceitam estéreo mesmo com AUTOCONVERTPCM; o play() duplica o canal mono
+        return _float_player(spk._audio_client(), samplerate, 2, flags, buffer_ms)

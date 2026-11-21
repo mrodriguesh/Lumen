@@ -289,6 +289,44 @@ class Home(Area):
         self.put(prev=out)
         self.assertIn("Minhas metas do mês.", p.read_text("utf-8"))
 
+    def test_reviews_off_leave_the_dashboards_without_schedules(self):
+        c = self.course(platform="Hotmart")
+        out = self.put({"type": "course", "course_id": c["id"]})  # com revisões
+        moc, home = "Estudos/01 - Cursos/Edição de Vídeos/00 - Edição de Vídeos.md", "Estudos/00 - Estudos.md"
+        (self.root / moc).write_text(self.read(moc) + "\nMeu login fica no cofre de senhas.\n", "utf-8")
+        on = {f: self.read(f) for f in (moc, home, "Estudos/Estudos.base")}
+        self.cfg["obsidian_review"] = False
+        self.put({"type": "course", "course_id": c["id"]}, prev=out)
+        text = self.read(moc)
+        self.assertNotIn("## Para revisar", text)
+        self.assertNotIn("para revisar hoje", text)
+        self.assertNotIn("e o que revisar", text)  # o “Como usar” do curso, sem a parte das revisões
+        self.assertIn("- 1 aula processada · 0 concluídas\n", text)
+        self.assertIn("Meu login fica no cofre de senhas.", text)
+        h = self.read(home)
+        self.assertNotIn("Para revisar", h)
+        self.assertNotIn("Continuar estudando", h)
+        self.assertIn("## Adicionados recentemente", h)
+        base = self.read("Estudos/Estudos.base")
+        for gone in ("name: Para revisar", "name: Continuar estudando", "next-review", "review-stage"):
+            self.assertNotIn(gone, base)
+        for view in ("Biblioteca", "Recentes", "Cursos", "Conteúdo gratuito", "Aulas avulsas", "A organizar", "Gerados pelo Lumen", "Todos"):
+            self.assertIn(f"    name: {view}\n", base)
+        known = {f.name.casefold() for f in self.root.rglob("*")} | {f.stem.casefold() for f in self.root.rglob("*")}
+        for f in (moc, home):
+            self.assertEqual([p for p in obsidian.check(self.read(f), known) if "link" in p], [])
+        # ligadas de novo: Home e Base voltam exatamente como eram; o curso volta a ter a seção (a aula, atualizada
+        # sem revisões, perdeu a agenda: nada é cobrado dela até ganhar o checklist de novo)
+        self.cfg["obsidian_review"] = True
+        area.refresh(self.cfg)
+        self.assertEqual(self.read(home), on[home])
+        self.assertEqual(self.read("Estudos/Estudos.base"), on["Estudos/Estudos.base"])
+        text = self.read(moc)
+        self.assertIn("## Para revisar\n```base", text)
+        self.assertIn("0 para revisar hoje", text)
+        self.assertIn("módulos e aulas em ordem e o que revisar.", text)
+        self.assertIn("Meu login fica no cofre de senhas.", text)
+
     @unittest.skipUnless(os.name == "nt" and Path(r"D:\downloads\cerebro\Cerebro Oficial\.claude\scripts\vault-check.mjs").exists(),
                          "checker do cofre do usuário")
     def test_vault_checker_accepts_the_whole_area(self):

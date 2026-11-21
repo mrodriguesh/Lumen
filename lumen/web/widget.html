@@ -1,24 +1,35 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-ui="{{UI_STYLE}}">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="lumen-token" content="{{TOKEN}}">
   <title>Lumen · barra flutuante</title>
+<link rel="icon" href="/favicon.ico" sizes="16x16 24x24 32x32 48x48 64x64 128x128 256x256">
   <link rel="stylesheet" href="/ui.css">
   <link rel="stylesheet" href="/widget.css">
+  <link rel="stylesheet" href="/chat.css">
   <script defer src="/ui.js"></script>
+  <script defer src="/md.js"></script>
+  <script defer src="/chat.js"></script>
   <script defer src="/understanding-editor.js"></script>
   <script defer src="/pomodoro.js"></script>
   <script defer src="/widget.js"></script>
+  <link rel="stylesheet" href="/protection.css">
+  <script defer src="/protection.js"></script>
 </head>
 <body data-side="left" data-state="idle">
   <button id="peek" aria-label="Mostrar controles do Lumen"><span></span></button>
   <main class="notch" aria-label="Controles rápidos do Lumen">
     <div class="rail">
       <button id="drag" class="grip" aria-label="Arrastar barra flutuante"><span></span></button>
-      <button id="open" class="orb brand" aria-label="Abrir Lumen" data-tip="" data-tip-pos="right"><svg class="i"><use href="/icons.svg#lumen"/></svg></button>
-      <button id="action" class="action" aria-label="Iniciar gravação" data-tip="" data-tip-pos="right"><span class="record-symbol" aria-hidden="true"></span><span id="action-label">Gravar</span></button>
+      <button id="open" class="orb brand" aria-label="Abrir Lumen" data-tip="" data-tip-pos="right"><img class="i" src="/lumen.png" width="24" height="24" alt=""></button>
+      <div id="rec-group" class="rec-group" data-paused="false">
+        <i class="rec-pill" aria-hidden="true"></i>
+        <button id="action" class="action" type="button" aria-label="Iniciar gravação" data-tip="" data-tip-pos="right"><span class="record-symbol" aria-hidden="true"></span><span id="action-label">Gravar</span><i class="busy-ring" aria-hidden="true"></i></button>
+        <button id="pause" class="rec-pause" type="button" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="/icons.svg#pause"/></svg><span id="pause-label" class="sr">Pausar gravação</span><i class="busy-ring" aria-hidden="true"></i></button>
+      </div>
+      <button id="chat-btn" class="orb chat-orb" aria-label="Conversa rápida" aria-controls="chat-panel" aria-expanded="false" data-tip="Conversa rápida" data-tip-pos="right"><svg class="i"><use href="/icons.svg#chat"/></svg></button>
       <button id="note-btn" class="orb note-orb" aria-label="Minha compreensão" aria-controls="note-panel" aria-expanded="false" data-tip="" data-tip-pos="right" hidden><svg class="i"><use href="/icons.svg#pen"/></svg></button>
       <button id="settings" class="orb settings" aria-label="Abrir ajustes" aria-controls="preferences" aria-expanded="false" data-tip="Ajustes" data-tip-pos="right"><svg class="i"><use href="/icons.svg#gear"/></svg></button>
     </div>
@@ -27,10 +38,10 @@
       <div class="timer">
         <span id="time" class="time" aria-label="Tempo de gravação">00:00</span>
         <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        <button id="pause" class="pause-pill" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#pause"/></svg><span id="pause-label">Pausar captura</span></button>
       </div>
       <p id="detail" class="detail"></p>
       <footer>
+        <button id="listen-chip" class="listen-chip" type="button" aria-label="Modo escuta" aria-controls="listen-panel" aria-expanded="false" data-tip="Modo escuta: transcrever uma chamada" data-tip-pos="top"><svg class="i" aria-hidden="true"><use href="/icons.svg#headset"/></svg><span id="listen-chip-time" class="listen-chip-time"></span></button>
         <span id="eye" class="eye" role="status" hidden><span class="eye-icon" aria-hidden="true"><svg viewBox="0 0 18 16"><rect x="1" y="1" width="16" height="11" rx="2.5"/><path d="M6 14.6h6"/></svg><i></i></span><span id="eye-text"></span><b id="eye-n" hidden></b></span>
         <span id="music" class="music-chip" role="img" hidden><svg class="i"><use href="/icons.svg#music"/></svg></span>
         <span id="job" role="status" hidden></span>
@@ -49,6 +60,84 @@
       <div class="note-foot"><span id="note-save" aria-live="polite"></span><span id="note-count"></span></div>
       <div id="note-status" class="note-status" data-tone="wait" role="status" aria-live="polite"><i aria-hidden="true"></i><span id="note-ready"></span><button id="note-go" type="button" hidden>Processar</button></div>
     </section>
+    <section id="listen-panel" class="panel listen-panel" aria-labelledby="listen-title" hidden>
+      <header class="note-head">
+        <button id="listen-back" class="prefs-back" aria-label="Voltar à gravação"><svg class="i"><use href="/icons.svg#chevron-left"/></svg></button>
+        <h1 id="listen-title">Modo escuta</h1>
+        <span id="listen-time" class="listen-time" role="timer" aria-label="Tempo de escuta">00:00</span>
+      </header>
+      <div class="listen-sources" role="group" aria-label="O que está sendo ouvido">
+        <span class="listen-src" data-src="mic" data-tip="Seu microfone" data-tip-pos="bottom"><svg class="i" aria-hidden="true"><use href="/icons.svg#mic"/></svg><span>Você</span><i class="listen-meter" aria-hidden="true"><b></b><b></b><b></b><b></b></i></span>
+        <span class="listen-src" data-src="system" data-tip="O som do PC (a outra pessoa)" data-tip-pos="bottom"><svg class="i" aria-hidden="true"><use href="/icons.svg#volume"/></svg><span>Chamada</span><i class="listen-meter" aria-hidden="true"><b></b><b></b><b></b><b></b></i></span>
+      </div>
+      <ol id="listen-lines" class="listen-lines" aria-label="Transcrição ao vivo" aria-live="polite"></ol>
+      <ul class="listen-dests" aria-label="Para onde o texto vai">
+        <li data-dest="notion"><svg class="i" aria-hidden="true"><use href="/icons.svg#page"/></svg><span class="listen-dest-name">Notion</span><span class="listen-dest-state" role="status"></span><button class="note-tool" type="button" data-open="notion" aria-label="Abrir a página no Notion" data-tip="Abrir no Notion" data-tip-pos="left" hidden><svg class="i"><use href="/icons.svg#external"/></svg></button></li>
+        <li data-dest="obsidian"><svg class="i" aria-hidden="true"><use href="/icons.svg#obsidian"/></svg><span class="listen-dest-name">Obsidian</span><span class="listen-dest-state" role="status"></span><button class="note-tool" type="button" data-open="obsidian" aria-label="Abrir a nota no Obsidian" data-tip="Abrir no Obsidian" data-tip-pos="left" hidden><svg class="i"><use href="/icons.svg#external"/></svg></button></li>
+      </ul>
+      <p id="listen-error" class="listen-error" role="alert"></p>
+      <button id="listen-toggle" class="listen-toggle" type="button"><span class="listen-glyph" aria-hidden="true"></span><span id="listen-toggle-label">Começar a escutar</span></button>
+      <p class="listen-note">Avise quem está na chamada que ela será transcrita.</p>
+    </section>
+    <section id="chat-panel" class="panel chat-panel" aria-labelledby="chat-title" hidden>
+      <header class="chat-head">
+        <h1 id="chat-title">Conversa</h1>
+        <span id="chat-rec" class="chat-rec" role="img" aria-label="Gravação em andamento" data-tip="Gravação em andamento" data-tip-pos="bottom" hidden><i aria-hidden="true"></i><span id="chat-rec-text" aria-hidden="true"></span></span>
+        <span class="chat-head-gap"></span>
+        <button id="chat-more" class="chat-tool" type="button" aria-label="Mais opções da conversa" aria-haspopup="menu" aria-expanded="false" data-tip="Nova conversa, Cérebro, tamanho e ajustes" data-tip-pos="bottom"><svg class="i"><use href="/icons.svg#more"/></svg></button>
+        <button id="chat-collapse" class="chat-tool" type="button" aria-label="Recolher a barra" data-tip="Recolher (a resposta continua)" data-kbd="Esc" data-tip-pos="bottom"><svg class="i chat-collapse-ico"><use href="/icons.svg#chevron-left"/></svg></button>
+      </header>
+      <div class="chat-modebar">
+        <div id="chat-mode" class="chat-seg" role="radiogroup" aria-label="Fontes da resposta">
+          <button type="button" role="radio" aria-checked="false" data-mode="free" data-tip="Responde sem consultar suas notas do Notion e do Obsidian">Livre</button>
+          <button type="button" role="radio" aria-checked="true" data-mode="notes" data-tip="Consulta suas notas do Notion e do Obsidian e mostra as fontes">Notas</button>
+        </div>
+        <span id="chat-scope" class="chat-scope" hidden></span>
+        <span class="chat-tags"><span id="chat-temp" class="chat-chip" hidden data-tip="Não entra no histórico e não cria memórias. Fica só na memória do Lumen: some ao fechá-lo ou depois de 24 h sem uso"><svg class="i" aria-hidden="true"><use href="/icons.svg#clock"/></svg><span>Temporária</span></span></span>
+      </div>
+      <div class="chat-body">
+        <div id="chat-thread" class="chat-thread" role="log" aria-label="Mensagens da conversa" aria-relevant="additions" tabindex="0">
+          <div id="chat-empty" class="chat-empty"><p id="chat-empty-title">O que você quer saber?</p><p id="chat-empty-hint" class="chat-empty-hint"></p></div>
+        </div>
+        <button id="chat-bottom" class="chat-bottom" type="button" aria-label="Ir para a última mensagem" data-tip="Ir para o fim" hidden><svg class="i"><use href="/icons.svg#arrow-down"/></svg></button>
+      </div>
+      <form id="chat-form" class="chat-composer" autocomplete="off">
+        <textarea id="chat-input" rows="1" maxlength="8000" spellcheck="true" autocapitalize="sentences" aria-label="Mensagem para o Lumen. Também consulta suas notas no modo Notas." placeholder="Pergunte…"></textarea>
+        <button id="chat-send" class="chat-send" type="submit" aria-label="Enviar" data-tip="Enviar (Enter)"><svg class="i"><use href="/icons.svg#arrow-up"/></svg></button>
+      </form>
+      <section id="chat-set" class="chat-set" aria-labelledby="chat-set-title" hidden>
+        <header class="chat-head">
+          <button id="chat-set-back" class="chat-tool chat-back" type="button" aria-label="Voltar à conversa"><svg class="i"><use href="/icons.svg#arrow-left"/></svg><span>Voltar</span></button>
+        </header>
+        <div id="chat-set-body" class="chat-set-body" tabindex="-1">
+          <h2 id="chat-set-title">Ajustes desta conversa</h2>
+          <section class="chat-set-group" aria-labelledby="set-model-h">
+            <h3 id="set-model-h">Modelo</h3>
+            <p id="set-model-note" class="chat-set-note chat-set-lead"></p>
+            <div id="set-model" class="chat-opts" role="radiogroup" aria-labelledby="set-model-h"></div>
+          </section>
+          <section class="chat-set-group" aria-labelledby="set-new-h">
+            <h3 id="set-new-h">Novas conversas</h3>
+            <div id="set-new" class="chat-seg" role="radiogroup" aria-labelledby="set-new-h">
+              <button type="button" role="radio" aria-checked="true" data-value="normal">Normal</button>
+              <button type="button" role="radio" aria-checked="false" data-value="temporary">Temporária</button>
+            </div>
+            <p class="chat-set-note">Só vale ao começar uma conversa. A atual não muda.</p>
+          </section>
+          <section class="chat-set-group" aria-labelledby="set-size-h">
+            <h3 id="set-size-h">Tamanho</h3>
+            <div id="set-size" class="chat-seg" role="radiogroup" aria-labelledby="set-size-h">
+              <button type="button" role="radio" aria-checked="true" data-value="compact">Compacto</button>
+              <button type="button" role="radio" aria-checked="false" data-value="wide">Ampliado</button>
+            </div>
+          </section>
+          <p id="chat-set-status" class="chat-set-note chat-set-status" role="status" aria-live="polite"></p>
+          <button id="set-reset" class="chat-set-reset" type="button">Restaurar ajustes deste chat</button>
+        </div>
+      </section>
+      <p id="chat-live" class="sr" role="status" aria-live="polite"></p>
+    </section>
+    <p id="rec-live" class="sr" role="status" aria-live="polite"></p>
     <section id="preferences" class="panel preferences" aria-label="Ajustes da barra flutuante" hidden>
       <header><button id="prefs-back" class="prefs-back" aria-label="Voltar à gravação"><svg class="i"><use href="/icons.svg#chevron-left"/></svg></button><h1 id="prefs-title">Ajustes</h1></header>
       <div id="prefs-content" class="prefs-content">
@@ -58,11 +147,12 @@
         <button id="prefs-watch" class="switch" role="switch" aria-labelledby="watch-label" aria-checked="false"><span></span></button>
       </section>
       <nav data-page="menu" class="prefs-menu" aria-label="Categorias de ajustes">
+        <button data-category="protection"><svg class="i"><use href="/icons.svg#shield"/></svg><span>Proteção do cérebro</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
         <button data-category="desktop"><svg class="i"><use href="/icons.svg#sidebar"/></svg><span>Barra flutuante</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
         <button data-category="notion"><svg class="i"><use href="/icons.svg#page"/></svg><span>Notion</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
         <button data-category="transcription"><svg class="i"><use href="/icons.svg#wave"/></svg><span>Transcrição</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
         <button data-category="ai"><svg class="i"><use href="/icons.svg#cpu"/></svg><span>IA local</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
-        <button data-category="covers"><svg class="i"><use href="/icons.svg#image"/></svg><span>Capas com IA</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
+        <button data-category="covers"><svg class="i"><use href="/icons.svg#image"/></svg><span>Capas do Notion</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
         <button data-category="privacy"><svg class="i"><use href="/icons.svg#shield"/></svg><span>Privacidade e dados</span><svg class="i chev"><use href="/icons.svg#chevron-right"/></svg></button>
       </nav>
       <section data-page="desktop" hidden>
@@ -80,6 +170,7 @@
       <div class="prefs-actions"><button id="prefs-reset" aria-label="Restaurar posição"><svg class="i"><use href="/icons.svg#reset"/></svg><span>Restaurar</span></button><button id="prefs-exit"><svg class="i"><use href="/icons.svg#power"/></svg><span>Sair do Lumen</span></button></div>
       <p class="prefs-note">Com a barra desativada, abra o Lumen pela bandeja do Windows.</p>
       </section>
+            <section data-page="protection" hidden><div class="protection-panel" data-protection></div></section>
       <section data-page="notion" hidden>
         <p id="prefs-token-status" class="prefs-note"></p>
         <label class="prefs-field">Token da integração<span class="prefs-input-row"><input id="prefs-token" type="password" autocomplete="off" spellcheck="false" placeholder="ntn_…"><button id="prefs-token-save" class="prefs-button">Salvar</button></span></label>

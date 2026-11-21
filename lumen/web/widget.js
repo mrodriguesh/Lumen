@@ -3,6 +3,7 @@ const token = document.querySelector('meta[name="lumen-token"]').content;
 const host = window.chrome?.webview;
 const $ = (s) => document.querySelector(s);
 let state = null, pending = false, collapse, errorUntil = 0;
+let busy = "", errorKind = "", lastCommandDone = 0, armedUntil = 0, capsule = null;  // capsule: o que a cápsula de gravação mostra agora (null = ainda não desenhada)
 let preferences = null, settingsBusy = false, settingsState = null, settingsPage = "menu", hasToken = false, confirmAction = null;
 const clock = (s) => { s = Math.floor(s || 0); return [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].slice(s >= 3600 ? 0 : 1).map((n) => String(n).padStart(2, "0")).join(":"); };
 async function api(path, body) {
@@ -27,6 +28,7 @@ function render(d) {
   state = d;
   pickNote(d);
   const r = d.recording, j = d.job;
+  window.QuickChat?.recording(r);  // a conversa mostra, discreta, a gravação que continua
   const eye = eyeSensor(d);
   document.body.dataset.eye = eye?.mode || "off";
   $("#eye").hidden = !eye;
@@ -46,14 +48,9 @@ function render(d) {
   document.body.dataset.heard = String(!!r.heard);
   const paused = !!(r.active && r.paused && !r.error);
   document.body.dataset.paused = String(paused);
-  $("#pause").hidden = !r.active || !!r.error;
-  $("#pause-label").textContent = paused ? "Retomar captura" : "Pausar captura";
-  ui.setIcon($("#pause"), paused ? "play" : "pause");
-  $("#pause").dataset.tip = `${paused ? "Retomar" : "Pausar"} a captura do som e da tela. O vídeo não é pausado.`;
-  $("#pause").dataset.kbd = Shortcuts.capture.label;
+  renderCapsule(r);
+  renderListenChip(d.listening);
   Pomodoro.feed(d.pomodoro);
-  const label = r.active ? "Parar e usar gravação" : "Iniciar gravação";
-  $("#action").setAttribute("aria-label", label);
   $("#action-label").textContent = r.active ? "Parar" : "Gravar";
   $("#time").textContent = clock(r.active ? r.seconds : 0);
   document.body.dataset.job = j.status === "running" ? "running" : "";
@@ -77,60 +74,121 @@ function render(d) {
     b.style.height = `${2 + 30 * level * envelope * (.3 + .7 * Math.abs(Math.sin(i * .8 + (r.seconds || 0) * 3)))}px`;
   });
 }
+// A cápsula (Gravar/Encerrar + Pausar/Retomar) mostra SEMPRE o estado do servidor, e a animação roda quando esse estado MUDA, não a cada leitura.
+// `r` é o `recording` do servidor; vale também durante o aviso de erro de um comando (o texto do painel fica, o estado real não).
+function renderCapsule(r) {
+  const on = !!(r.active && !r.error), paused = on && !!r.paused, first = capsule === null, body = document.body;
+  const pause = $("#pause"), action = $("#action"), want = paused ? "play" : "pause", before = pause.querySelector("svg.i")?.dataset.icon;
+  $("#rec-group").dataset.paused = String(paused);
+  $("#pause-label").textContent = paused ? "Retomar gravação" : "Pausar gravação";
+  ui.setIcon(pause, want);
+  if (before && before !== want && !first) { pause.dataset.swap = ""; setTimeout(() => delete pause.dataset.swap, 260); }  // o ícone troca com um esmaecer curto
+  pause.dataset.tip = `${paused ? "Retomar" : "Pausar"} gravação (o vídeo continua)`;  // curta: a dica não cobre os controles vizinhos
+  pause.dataset.kbd = Shortcuts.capture.label;
+  if (!busy) action.setAttribute("aria-label", on ? "Encerrar gravação" : "Iniciar gravação");
+  if (first) body.dataset.capsule = "init";  // página recém-carregada (ou barra que abriu já gravando): aparece pronta, sem animar
+  if (body.dataset.rec !== (on ? "on" : "off")) {
+    if (!on && pause.contains(document.activeElement)) action.focus();  // a pausa vai sair de cena: o foco não se perde
+    body.dataset.rec = on ? "on" : "off";
+  }
+  if (first) requestAnimationFrame(() => requestAnimationFrame(() => delete body.dataset.capsule));
+  else if (capsule.on !== on) say(on ? "Gravação iniciada." : "Gravação encerrada.");
+  else if (capsule.paused !== paused) say(paused ? "Gravação pausada." : "Gravação retomada.");
+  capsule = { on, paused };
+}
+const say = (text) => { const l = $("#rec-live"); l.textContent = ""; setTimeout(() => { l.textContent = text; }, 30); };  // leitor de tela: só quando o estado muda
+// Espera REAL de um comando ao servidor (iniciar, encerrar, pausar, retomar): um anel gira no botão certo, os dois botões recusam cliques
+// (aria-disabled, para o foco do teclado não se perder) e o painel diz o que está acontecendo. Sem comando, nada anima.
+const BUSY = { start: ["Iniciando…", "Iniciando gravação…"], stop: ["Encerrando…", "Encerrando gravação…"], pause: ["Pausando…"], resume: ["Retomando…"] };
+function setBusy(kind) {
+  busy = kind;
+  document.body.dataset.busy = kind;
+  const action = $("#action"), pause = $("#pause");
+  for (const b of [action, pause]) b.setAttribute("aria-disabled", String(!!kind));
+  const spin = (b, on) => (on ? b.setAttribute("aria-busy", "true") : b.removeAttribute("aria-busy"));
+  spin(action, kind === "start" || kind === "stop");
+  spin(pause, kind === "pause" || kind === "resume");
+  if (kind) { $("#status").textContent = BUSY[kind][0]; if (BUSY[kind][1]) action.setAttribute("aria-label", BUSY[kind][1]); }
+}
 async function poll() {
+  const asked = performance.now();
   try {
     const d = await api("/api/widget");
-    if (!pending && Date.now() >= errorUntil) render(d);
+    delete document.body.dataset.conn;
+    if (d.ui === "glass" || d.ui === "classic") document.documentElement.dataset.ui = d.ui;  // idem para o estilo da interface (Ajustes → Aparência)
+    // uma leitura pedida ANTES de um comando que já terminou é velha: descartá-la evita a cápsula "voltar atrás" por um instante
+    if (!pending && asked >= lastCommandDone) {
+      if (errorKind === "start" && d.recording.active) errorUntil = 0;  // outra janela começou a gravar: o aviso de falha não vale mais
+      if (Date.now() >= errorUntil) render(d); else { state = d; renderCapsule(d.recording); }
+    }
     renderSettingsJob(d.job);
   }
-  catch { document.body.dataset.state = "error"; $("#status").textContent = "Sem conexão com o Lumen."; }
+  catch { document.body.dataset.state = "error"; document.body.dataset.conn = "lost"; $("#status").textContent = "Sem conexão com o Lumen."; }
   setTimeout(poll, state?.recording.active ? 250 : 1000);
 }
+// Depois de uma falha, o estado mostrado volta a ser o do servidor (o comando pode ter valido ou não): uma leitura, sem polling a mais
+async function reconcile() { try { const d = await api("/api/widget"); state = d; renderCapsule(d.recording); } catch { /* o poll tenta de novo */ } }
 async function toggleRecording() {
   if (pending || !state) return;
-  showPreferences(false);
+  const stopping = !!state.recording.active && !state.recording.error;
+  if (stopping && performance.now() < armedUntil) return;  // um duplo clique logo depois de iniciar não encerra a gravação que acabou de começar
   pending = true;
   errorUntil = 0;
-  $("#action").disabled = true;
+  setBusy(stopping ? "stop" : "start");
   try {
-    const r = (await api("/api/widget")).recording;
-    if (r.active) {
+    const fresh = await api("/api/widget"), r = fresh.recording;
+    if (!!r.active !== stopping) {  // o estado mudou enquanto a pessoa olhava (outra janela): mostra o real e NÃO age (nunca encerra o que ela não viu gravando)
+      render(fresh);
+      return;
+    }
+    if (stopping) {
       const file = await api("/api/record/stop", {});
       host?.postMessage("record:ready:" + JSON.stringify({ file, seconds: r.seconds }));
     } else {
       await api("/api/record/start", {});
       host?.postMessage("record:started");
+      armedUntil = performance.now() + 700;
     }
     render(await api("/api/widget"));
+    lastCommandDone = performance.now();
   } catch (e) {
     $("#status").textContent = "Não foi possível gravar.";
     $("#detail").textContent = e.message;
     document.body.dataset.state = "error";
     errorUntil = Date.now() + 8000;
+    errorKind = stopping ? "stop" : "start";
+    await reconcile();  // o aviso fica no painel, mas a cápsula mostra o que o servidor realmente está fazendo
+    lastCommandDone = performance.now();
+  } finally {
     pending = false;
-    $("#action").disabled = false;
-    return;
+    setBusy("");
+    syncActionLabel();
   }
-  pending = false;
-  $("#action").disabled = false;
 }
+const syncActionLabel = () => $("#action").setAttribute("aria-label", capsule?.on ? "Encerrar gravação" : "Iniciar gravação");
 $("#action").addEventListener("click", toggleRecording);
 // Pausar captura: a mesma gravação continua depois; o vídeo e os outros programas não são tocados.
 async function togglePause() {
-  if (pending || !state?.recording.active) return;
+  if (pending || !state?.recording.active || state.recording.error) return;
+  const resume = !!state.recording.paused;
   pending = true;
   errorUntil = 0;
-  $("#pause").disabled = true;
+  setBusy(resume ? "resume" : "pause");
   try {
-    await api(state.recording.paused ? "/api/record/resume" : "/api/record/pause", {});
+    await api(resume ? "/api/record/resume" : "/api/record/pause", {});
     render(await api("/api/widget"));
+    lastCommandDone = performance.now();
   } catch (e) {
-    $("#status").textContent = "Não foi possível pausar.";
+    $("#status").textContent = resume ? "Não foi possível retomar." : "Não foi possível pausar.";
     $("#detail").textContent = e.message;
     errorUntil = Date.now() + 6000;
+    errorKind = "pause";
+    await reconcile();
+    lastCommandDone = performance.now();
   } finally {
     pending = false;
-    $("#pause").disabled = false;
+    setBusy("");
+    syncActionLabel();
   }
 }
 $("#pause").addEventListener("click", togglePause);
@@ -140,10 +198,15 @@ Pomodoro.mount($("#pomo-note"));
 $("#open").addEventListener("click", () => host?.postMessage("window:open"));
 function showPreferences(open) {
   if (open && noteOpen) showNote(false);
+  if (open && chatOpen) showChat(false);
+  if (open && listenOpen) showListen(false);
   $("#preferences").hidden = !open;
-  $("#recording-panel").hidden = open || noteOpen;
+  $("#recording-panel").hidden = open || noteOpen || chatOpen || listenOpen;
   $("#settings").setAttribute("aria-expanded", String(open));
   if (!open) $("#prefs-token").value = "";
+  if (!open && document.body.dataset.panel === "protection") {
+    document.body.dataset.panel = "main"; host?.postMessage("widget:panel:main");
+  }
 }
 function settingsFeedback(message, error = false) {
   $("#prefs-feedback").textContent = message;
@@ -161,7 +224,7 @@ function renderPreferences() {
   $("#prefs-model").value = preferences?.ollama_model || "";
   $("#prefs-language").value = preferences?.page_language || "pt";
   if (!$("#prefs-root").options.length) $("#prefs-root").add(new Option(preferences?.root_page_title || "Escolha uma página", preferences?.root_page_id || ""));
-  document.querySelectorAll("#prefs-content button, #prefs-content input, #prefs-content select").forEach((b) => b.disabled = settingsBusy || !preferences);
+  document.querySelectorAll("#prefs-content button, #prefs-content input, #prefs-content select").forEach((b) => { if (!b.closest('[data-protection]')) b.disabled = settingsBusy || !preferences; });
   $("#prefs-root").disabled ||= !hasToken;
   $("#prefs-root-load").disabled ||= !hasToken;
   $("#prefs-quality").disabled = settingsBusy || !preferences || !settingsState;
@@ -172,8 +235,12 @@ function renderPreferences() {
 }
 function navigatePreferences(page) {
   settingsPage = page;
+  if (page === "protection" || document.body.dataset.panel === "protection") {
+    document.body.dataset.panel = page === "protection" ? "protection" : "main";
+    host?.postMessage("widget:panel:" + document.body.dataset.panel);
+  }
   document.querySelectorAll("[data-page]").forEach((p) => p.hidden = p.dataset.page !== page);
-  $("#prefs-title").textContent = ({menu:"Ajustes",desktop:"Barra flutuante",notion:"Notion",transcription:"Transcrição",ai:"IA local",covers:"Capas com IA",privacy:"Privacidade",confirm:"Confirmar"})[page];
+  $("#prefs-title").textContent = ({menu:"Ajustes",protection:"Proteção do cérebro",desktop:"Barra flutuante",notion:"Notion",transcription:"Transcrição",ai:"IA local",covers:"Capas do Notion",privacy:"Privacidade",confirm:"Confirmar"})[page];
   $("#prefs-back").setAttribute("aria-label", page === "menu" ? "Voltar à gravação" : "Voltar aos ajustes");
   $("#prefs-content").scrollTop = 0;
 }
@@ -332,7 +399,7 @@ $("#drag").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key =
 let noteKey = null, noteOpen = false;
 const noteEditor = new UnderstandingEditor({ text: $("#note-text"), save: $("#note-save"), count: $("#note-count"), mode: "side",
   onChange: (d) => { $("#note-lesson").textContent = d.view?.title || ""; } });
-const writing = () => noteOpen && document.hasFocus() && document.activeElement === $("#note-text");
+const writing = () => (noteOpen && document.hasFocus() && document.activeElement === $("#note-text")) || (chatOpen && QuickChat.writing());
 // A nota é a da aula em foco no Lumen (a mesma da janela principal e da flutuante). Se essa aula já não está na lista
 // (salva no Notion), vale a mais recente, e ela passa a ser a aula em foco para as outras janelas também.
 let missed = 0;
@@ -363,10 +430,12 @@ $("#note-go").addEventListener("click", async () => {
 });
 function showNote(open) {
   if (open && !noteKey) return;
+  if (open && chatOpen) showChat(false);
+  if (open && listenOpen) showListen(false);
   noteOpen = open;
   if (open) { $("#preferences").hidden = true; $("#settings").setAttribute("aria-expanded", "false"); }
   $("#note-panel").hidden = !open;
-  $("#recording-panel").hidden = open || !$("#preferences").hidden;
+  $("#recording-panel").hidden = open || !$("#preferences").hidden || chatOpen || listenOpen;
   $("#note-btn").setAttribute("aria-expanded", String(open));
   document.body.dataset.panel = open ? "note" : "";
   host?.postMessage(open ? "widget:panel:note" : "widget:panel:main");  // a barra cresce para caber a nota
@@ -381,33 +450,151 @@ async function detachNote() {  // a mesma nota numa janela flutuante, maior e po
   host?.postMessage("note:float:" + noteKey);
   conceal(); host?.postMessage("widget:collapse");
 }
+// ---------- Conversa rápida (chat.js) ----------
+// O mesmo cérebro do Lumen, sem abrir a janela principal. Abre no tamanho compacto de sempre (a mesma janela de 304×252 da gravação:
+// widget:panel:chat) ou, se a pessoa pediu no menu, ampliada (widget:panel:chat-wide). A página não escolhe pixels: só diz ao Lumen.exe
+// qual das duas quer, e o painel ocupa o que a janela entregar (widget.css). O texto, as mensagens e a resposta em andamento vivem em
+// chat.js: trocar de painel, recolher e reabrir não perdem nada.
+let chatOpen = false;
+const chatPanelMessage = () => (QuickChat.wide() ? "widget:panel:chat-wide" : "widget:panel:chat");
+function showChat(open) {
+  if (open === chatOpen) return;
+  if (open) { if (noteOpen) showNote(false); if (listenOpen) showListen(false); showPreferences(false); }
+  chatOpen = open;
+  $("#chat-panel").hidden = !open;
+  $("#recording-panel").hidden = open || noteOpen || listenOpen || !$("#preferences").hidden;
+  $("#chat-btn").setAttribute("aria-expanded", String(open));
+  document.body.dataset.panel = open ? "chat" : "";
+  host?.postMessage(open ? chatPanelMessage() : "widget:panel:main");  // a barra só cresce se a conversa foi ampliada (ou volta ao tamanho de antes)
+  QuickChat.setOpen(open);
+}
+$("#chat-btn").addEventListener("click", () => showChat(!chatOpen));
+document.addEventListener("quickchat:collapse", () => { conceal(); host?.postMessage("widget:collapse"); });
+document.addEventListener("quickchat:size", () => { if (chatOpen) host?.postMessage(chatPanelMessage()); });  // "Ampliar" / "Reduzir" no menu
 $("#note-btn").addEventListener("click", () => showNote(!noteOpen));
 $("#note-back").addEventListener("click", () => { showNote(false); $("#note-btn").focus(); });
 $("#note-detach").addEventListener("click", detachNote);
 $("#note-detach").dataset.kbd = Notes.shortcutLabel;
 document.addEventListener("keydown", (e) => { if (noteOpen && Notes.isShortcut(e)) { e.preventDefault(); detachNote(); } });
+// ---------- Modo escuta (lumen/listening.py) ----------
+// Microfone + som do PC transcritos ao vivo numa página do Notion e numa nota do Obsidian. O painel usa o tamanho da nota (360×440:
+// widget:panel:note); o servidor guarda tudo num diário e cada destino copia dele, então fechar o painel ou recolher a barra não para nada.
+let listenOpen = false, listenTimer = 0, listenData = null, listenBusy = false, listenSession = "", listenLast = -1;
+const LISTEN_STATE = { live: ["ok", "Ao vivo"], done: ["ok", "Completo"], setup: ["warn", "Configurar"], error: ["warn", "Tentando de novo"] };
+function renderListenChip(L) {
+  const on = !!L?.active, finishing = L?.phase === "finishing", chip = $("#listen-chip");
+  document.body.dataset.listening = on ? "live" : finishing ? "finishing" : "";
+  $("#listen-chip-time").textContent = on || finishing ? clock(L.seconds) : "";
+  chip.setAttribute("aria-label", on ? `Modo escuta ligado, ${clock(L.seconds)}` : finishing ? "Modo escuta finalizando" : "Modo escuta");
+  chip.dataset.tip = on ? "Escutando a chamada: abrir o modo escuta" : finishing ? "Terminando de gravar o texto" : "Modo escuta: transcrever uma chamada";
+}
+function renderListen(d) {
+  listenData = d;
+  const phase = d.phase || "idle", on = !!d.active, panel = $("#listen-panel");
+  panel.dataset.phase = phase;
+  $("#listen-time").textContent = clock(d.seconds || 0);
+  $("#listen-toggle-label").textContent = on ? "Parar escuta" : phase === "finishing" ? "Terminando…" : "Começar a escutar";
+  $("#listen-toggle").setAttribute("aria-disabled", String(phase === "finishing" || listenBusy));
+  for (const src of document.querySelectorAll(".listen-src")) {
+    const k = src.dataset.src, st = d.sources?.[k] || "idle";
+    src.dataset.state = on ? st : "idle";
+    src.style.setProperty("--lvl", on && st === "on" ? Math.min(1, Math.sqrt(Math.max(0, d.levels?.[k] || 0)) * 2) : 0);
+  }
+  if ((d.title || "") !== listenSession) { listenSession = d.title || ""; listenLast = -1; $("#listen-lines").replaceChildren(); }
+  const list = $("#listen-lines"), stick = list.scrollHeight - list.scrollTop - list.clientHeight < 24;
+  for (const l of d.lines || []) {
+    if (l.n <= listenLast) continue;
+    listenLast = l.n;
+    const li = document.createElement("li"), meta = document.createElement("span"), text = document.createElement("p");
+    meta.className = "listen-meta"; meta.textContent = `${l.t} · ${l.who}`; li.dataset.who = l.who === "Você" ? "me" : "them";
+    text.textContent = l.text; li.append(meta, text); list.append(li);
+  }
+  while (list.children.length > 40) list.firstElementChild.remove();
+  list.dataset.empty = String(!list.children.length);
+  list.dataset.hint = on ? "Ouvindo… o texto aparece aqui quando alguém fala." : "O texto da chamada aparece aqui, ao vivo, e vai para o Notion e o Obsidian.";
+  if (stick) list.scrollTop = list.scrollHeight;
+  for (const name of ["notion", "obsidian"]) {
+    const row = document.querySelector(`.listen-dests [data-dest="${name}"]`), s = d[name], el = row.querySelector(".listen-dest-state");
+    const [tone, label] = !s ? ["", name === "notion" ? "Uma página por chamada" : "Pasta Chamadas"]
+      : s.state === "sending" ? ["busy", `${s.pending} na fila`] : LISTEN_STATE[s.state] || ["", ""];
+    row.dataset.tone = tone; el.textContent = label;
+    if (s?.message) { row.dataset.tip = s.message; el.setAttribute("aria-description", s.message); } else { delete row.dataset.tip; el.removeAttribute("aria-description"); }
+    row.querySelector("[data-open]").hidden = !(name === "notion" ? s?.url : s?.path);
+  }
+  $("#listen-error").textContent = d.error || "";
+}
+async function pollListen() {
+  clearTimeout(listenTimer);
+  try { renderListen(await api("/api/listen")); } catch (e) { $("#listen-error").textContent = e.message; }
+  if (listenOpen) listenTimer = setTimeout(pollListen, listenData?.active || listenData?.phase === "finishing" ? 400 : 1500);
+}
+function showListen(open) {
+  if (open === listenOpen) return;
+  if (open) { if (noteOpen) showNote(false); if (chatOpen) showChat(false); showPreferences(false); }
+  listenOpen = open;
+  $("#listen-panel").hidden = !open;
+  $("#recording-panel").hidden = open || noteOpen || chatOpen || !$("#preferences").hidden;
+  $("#listen-chip").setAttribute("aria-expanded", String(open));
+  document.body.dataset.panel = open ? "listen" : "";
+  host?.postMessage(open ? "widget:panel:note" : "widget:panel:main");  // o mesmo tamanho da nota: o Lumen.exe não precisa mudar
+  clearTimeout(listenTimer);
+  if (open) { pollListen(); requestAnimationFrame(() => $("#listen-toggle").focus()); }
+}
+async function toggleListen() {
+  if (listenBusy || listenData?.phase === "finishing") return;
+  const stopping = !!listenData?.active, b = $("#listen-toggle");
+  listenBusy = true; b.setAttribute("aria-busy", "true"); b.setAttribute("aria-disabled", "true");
+  $("#listen-toggle-label").textContent = stopping ? "Parando…" : "Abrindo o som…";
+  $("#listen-error").textContent = "";
+  try { renderListen(await api(stopping ? "/api/listen/stop" : "/api/listen/start", {})); say(stopping ? "Escuta parada." : "Escuta ligada."); }
+  catch (e) { $("#listen-error").textContent = e.message; }
+  finally { listenBusy = false; b.removeAttribute("aria-busy"); if (listenData) renderListen(listenData); pollListen(); }
+}
+async function openListen(target) {
+  try {
+    const r = await api("/api/listen/open", { target });
+    if (r.url) { if (host) host.postMessage("window:external:" + r.url); else window.open(r.url, "_blank", "noopener"); }
+  } catch (e) { $("#listen-error").textContent = e.message; }
+}
+$("#listen-chip").addEventListener("click", () => showListen(!listenOpen));
+$("#listen-back").addEventListener("click", () => { showListen(false); $("#listen-chip").focus(); });
+$("#listen-toggle").addEventListener("click", toggleListen);
+document.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => openListen(b.dataset.open)));
 function syncPresentation() {
   if (!host) return;
   document.body.dataset.expanded = String(innerWidth > 100 || innerHeight > 100);
-  if (document.body.dataset.expanded === "false" && !writing()) { document.activeElement?.blur(); showPreferences(false); }
+  if (document.body.dataset.expanded === "false" && !writing()) { document.activeElement?.blur(); showPreferences(false); if (chatOpen) showChat(false); if (listenOpen) showListen(false); }
+  else if (document.body.dataset.expanded === "true") QuickChat.expanded();
 }
-function expand() { clearTimeout(collapse); if (!host) document.body.dataset.expanded = "true"; host?.postMessage("widget:expand"); }
-function conceal() { clearTimeout(collapse); if (!host) document.body.dataset.expanded = "false"; document.activeElement?.blur(); showPreferences(false); if (noteOpen) showNote(false); }
+function expand() { clearTimeout(collapse); if (!host) document.body.dataset.expanded = "true"; host?.postMessage("widget:expand"); QuickChat.expanded(); }
+// Recolher só esconde a barra: o texto e as mensagens da conversa (e uma resposta em andamento) continuam onde estão.
+function conceal() { clearTimeout(collapse); if (!host) document.body.dataset.expanded = "false"; document.activeElement?.blur(); showPreferences(false); if (noteOpen) showNote(false); if (chatOpen) showChat(false); if (listenOpen) showListen(false); }
 function retract() {
   clearTimeout(collapse);
-  if (writing()) return;  // escrevendo a nota: a barra não se recolhe embaixo do cursor
+  if (writing()) return;  // escrevendo a nota ou a mensagem: a barra não se recolhe embaixo do cursor
+  if (chatOpen && QuickChat.engaged()) return;  // conversando: com o foco aqui, o mouse sair não recolhe (recolhe ao clicar em outro programa)
   collapse = setTimeout(() => { conceal(); host?.postMessage("widget:collapse"); }, 450);
 }
-window.addEventListener("blur", () => { if (noteOpen && !document.documentElement.matches(":hover")) retract(); });
+window.addEventListener("blur", () => { if ((noteOpen || chatOpen) && !document.documentElement.matches(":hover")) retract(); });
 $("#peek").addEventListener("click", expand);
 document.documentElement.addEventListener("pointerenter", expand);
 document.documentElement.addEventListener("pointerleave", retract);
 document.addEventListener("focusin", expand);
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (!$("#preferences").hidden) backPreferences(); else { conceal(); host?.postMessage("widget:collapse"); } } });
+// Esc: fecha primeiro o que estiver aberto por cima (ajustes, menu da conversa); depois recolhe a barra.
+// Nunca encerra o Lumen, nunca interrompe a gravação nem uma resposta; o Esc que fecha uma composição (IME) não conta.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || e.isComposing) return;
+  if (!$("#preferences").hidden) backPreferences();
+  else if (chatOpen && QuickChat.escape()) return;
+  else { conceal(); host?.postMessage("widget:collapse"); }
+});
 host?.addEventListener("message", (e) => {
   if (e.data === "side:left" || e.data === "side:right") document.body.dataset.side = e.data.slice(5);
   else if (["edge:left", "edge:right", "edge:top", "edge:bottom", "edge:free"].includes(e.data)) {
     document.body.dataset.edge=e.data.slice(5);
+    // na barra deitada a dica abre para o lado de dentro do painel (à direita ela cobriria os controles vizinhos, como a pausa ao lado do Gravar)
+    const tipSide = { top: "bottom", bottom: "top" }[document.body.dataset.edge] || "right";
+    document.querySelectorAll(".rail [data-tip-pos]").forEach((b) => { b.dataset.tipPos = tipSide; });
     if (preferences && !settingsBusy) { preferences.widget = document.body.dataset.edge; renderPreferences(); }
   }
 });

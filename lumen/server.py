@@ -1,4 +1,5 @@
 """Servidor local (somente 127.0.0.1) que serve a interface e a API usada por ela."""
+import hashlib
 import json
 import logging
 import os
@@ -7,23 +8,39 @@ import secrets
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (AppError, area, catalog, cover, eta, imagegen, jobs, llm, music, notion, obsidian, package, pomodoro,
-               record, sources, store, transcribe, understanding, vault, vision)
+from . import (AppError, area, catalog, cover, diagnostics, eta, gdrive, hardware, hyperbooklm, imagegen, jobs, llm, music, notion, obsidian, onlocal,
+               opennotebook, package, pomodoro, protection, record, repair, sources, store, transcribe, understanding, vault, vision, visual3d)
+
+from .study import api as study_api  # noqa: E402 — Lúmen Study AI (rotas /api/study/*)
+from .study import listen as study_voice  # noqa: E402 — a voz dos Estudos (/api/study/voice/*, fase 6)
+from .study import practice as study_practice  # noqa: E402 — Treino falado (/api/study/practice, fase 6)
+from .study import voice_admin as study_voice_admin  # noqa: E402 — modelos, máquina, pronúncias e vozes (fase 6)
+from .study import call as study_call  # noqa: E402 — conversa por voz em tempo real (/api/study/call*, fase 6 parte 3)
+from . import listening  # noqa: E402 — modo escuta: chamada transcrita ao vivo no Notion e no Obsidian (/api/listen*)
 
 log = logging.getLogger("lumen")
 WEB = Path(__file__).parent / "web"
-STATIC = {"/": ("index.html", "text/html"), "/app.css": ("app.css", "text/css"),
+STATIC = {"/lumen.png": ("lumen.png", "image/png"), "/lumen-meteor.png": ("lumen-meteor.png", "image/png"), "/lumen-meteor-new.png": ("lumen-meteor-new.png", "image/png"), "/lumen-meteor-lib.png": ("lumen-meteor-lib.png", "image/png"), "/lumen-meteor-integ.png": ("lumen-meteor-integ.png", "image/png"), "/lumen-meteor-settings.png": ("lumen-meteor-settings.png", "image/png"), "/lumen-meteor-widget.png": ("lumen-meteor-widget.png", "image/png"), "/favicon.ico": ("favicon.ico", "image/x-icon"),
+          "/protection.js": ("protection.js", "text/javascript"), "/protection.css": ("protection.css", "text/css"),
+          "/": ("index.html", "text/html"), "/app.css": ("app.css", "text/css"),
           "/app.js": ("app.js", "text/javascript"), "/widget": ("widget.html", "text/html"),
           "/widget.css": ("widget.css", "text/css"), "/widget.js": ("widget.js", "text/javascript"),
           "/note": ("note.html", "text/html"), "/note.js": ("note.js", "text/javascript"),
           "/understanding-editor.js": ("understanding-editor.js", "text/javascript"),
           "/pomodoro.js": ("pomodoro.js", "text/javascript"),
+          "/study.js": ("study.js", "text/javascript"), "/study.css": ("study.css", "text/css"),
+          "/md.js": ("md.js", "text/javascript"), "/chat.js": ("chat.js", "text/javascript"), "/chat.css": ("chat.css", "text/css"),
+    "/voice.js": ("voice.js", "text/javascript"), "/opennotebook.js": ("opennotebook.js", "text/javascript"), "/hyperbooklm.js": ("hyperbooklm.js", "text/javascript"), "/study-call.js": ("study-call.js", "text/javascript"),
+          "/study-learn.js": ("study-learn.js", "text/javascript"), "/study-diagram.js": ("study-diagram.js", "text/javascript"), "/study-settings.js": ("study-settings.js", "text/javascript"),
           "/ui.css": ("ui.css", "text/css"), "/ui.js": ("ui.js", "text/javascript"),
+          "/glass.css": ("glass.css", "text/css"), "/glass.js": ("glass.js", "text/javascript"),
+          "/cursor.js": ("cursor.js", "text/javascript"),
           "/icons.svg": ("icons.svg", "image/svg+xml"), "/design": ("design.html", "text/html"),
           "/design.js": ("design.js", "text/javascript"),
           "/fonts/inter-latin.woff2": ("fonts/inter-latin.woff2", "font/woff2"),
@@ -31,6 +48,39 @@ STATIC = {"/": ("index.html", "text/html"), "/app.css": ("app.css", "text/css"),
 TOKEN = secrets.token_urlsafe(24)
 last_seen = time.monotonic()
 bye_at = None
+
+# Interface em memória: o WebView2 pede app.js/app.css/fontes a cada recarga. O arquivo só é relido quando muda
+# (mtime + tamanho), e o ETag evita reenviar o corpo quando o navegador já tem a mesma versão (304).
+_STATIC_CACHE = {}
+_STATIC_LOCK = threading.Lock()
+
+
+def _static(path):
+    """(bytes, content-type, etag) de um item de STATIC, com cache invalidado pelo próprio arquivo."""
+    name, ctype = STATIC[path]
+    file = WEB / name
+    st = file.stat()
+    key = (st.st_mtime_ns, st.st_size)
+    with _STATIC_LOCK:
+        hit = _STATIC_CACHE.get(path)
+    if hit and hit[0] == key:
+        return hit[1], ctype, hit[2]
+    body = file.read_bytes()
+    if name.endswith(".html"):
+        body = body.replace(b"{{TOKEN}}", TOKEN.encode())
+    etag = '"%s"' % hashlib.sha1(body).hexdigest()
+    with _STATIC_LOCK:
+        _STATIC_CACHE[path] = (key, body, etag)
+    return body, ctype, etag
+
+
+def _page_marks(body):
+    """A janela principal, a barra e a nota com o estilo da interface (classic | glass) no atributo do <html>.
+    Só um valor fixo entra na página: o estilo vem de store.UI_STYLES."""
+    cfg = store.load_config()
+    style = cfg.get("ui_style") if cfg.get("ui_style") in store.UI_STYLES else "classic"
+    body = body.replace(b"{{UI_STYLE}}", style.encode())
+    return body, '"%s"' % hashlib.sha1(body).hexdigest()
 
 _PICK = """import sys, tkinter as t
 from tkinter import filedialog as f
@@ -69,6 +119,14 @@ def pick_images():
     return {"paths": paths, "names": [Path(p).name.split("_", 1)[1] for p in paths]}
 
 
+def _pick_one(title, label, exts, start=""):
+    """Um arquivo escolhido no diálogo do Windows (o caminho fica no servidor quando quem chama não o devolve)."""
+    r = subprocess.run([sys.executable, "-c", _PICK, title, label, " ".join("*" + e for e in exts), start],
+                       capture_output=True, text=True, encoding="utf-8", env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    return r.stdout.strip()
+
+
 def pick_file(kind):
     if kind == "images":
         return pick_images()
@@ -84,10 +142,7 @@ def pick_file(kind):
         title, label, exts = "Escolher vídeo ou áudio", "Vídeo e áudio", tuple(sources.MEDIA)
         tg = Path.home() / "Downloads" / "Telegram Desktop"
         start = str(tg) if kind == "telegram" and tg.is_dir() else ""
-    r = subprocess.run([sys.executable, "-c", _PICK, title, label, " ".join("*" + e for e in exts), start],
-                       capture_output=True, text=True, encoding="utf-8", env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    path = r.stdout.strip()
+    path = _pick_one(title, label, exts, start)
     if not path:
         return {}
     if kind != "captions":
@@ -113,7 +168,8 @@ def state():
         "formats": sources.MEDIA, "images": sources.IMAGES, "job": job_view(), "recording": record.status(),
         "pending": understanding.pending(),
         "covers": {"ready": imagegen.ready(), "label": imagegen.ENGINES[imagegen.DEFAULT_ENGINE]["label"],
-                   "size": imagegen.ENGINES[imagegen.DEFAULT_ENGINE]["size"]},
+                   "size": imagegen.ENGINES[imagegen.DEFAULT_ENGINE]["size"],
+                   "license": imagegen.ENGINES[imagegen.DEFAULT_ENGINE]["license"], "folder": str(imagegen.folder())},
         "vision": {"model": vision.MODEL, "size": vision.SIZE,
                    "installed": om is not None and any(x in (vision.MODEL, vision.MODEL + ":latest") for x in om)},
         "music": {"ready": music.ready(), "size": music.SIZE},  # só confere os arquivos; nenhum modelo é carregado
@@ -165,23 +221,108 @@ def inspect(spec):
 
 
 class Handler(BaseHTTPRequestHandler):
+    # HTTP/1.1 mantém a conexão aberta: o WebView2 deixa de abrir um TCP novo a cada /api/job (a cada 800 ms).
+    # POST fecha depois da resposta (o corpo pode não ser lido por todas as rotas); GET reaproveita.
+    protocol_version = "HTTP/1.1"
+    timeout = 60  # conexão ociosa fecha sozinha; sem isto, cada aba deixaria uma thread presa para sempre
+    disable_nagle_algorithm = True  # respostas pequenas (polling/NDJSON) saem sem o atraso do Nagle
+
     def log_message(self, *a):  # não registra URLs nem corpos
         pass
 
-    def _send(self, code, body, ctype="application/json"):
+    def _send(self, code, body, ctype="application/json", headers=None, cache="no-store"):
         data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype + "; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Security-Policy",
                          "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self'")
+        for k, v in (headers or {}).items():
+            self.send_header(k, v)
+        if self.close_connection:
+            self.send_header("Connection", "close")
         self.end_headers()
         try:
             self.wfile.write(data)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             pass  # a janela foi fechada enquanto a resposta estava sendo enviada
+
+    def _not_modified(self, etag):
+        """304: a interface já tem esta versão em cache; nenhum byte de corpo volta."""
+        self.send_response(304)
+        self.send_header("ETag", etag)
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        if self.close_connection:
+            self.send_header("Connection", "close")
+        self.end_headers()
+
+    def _stream(self, stream):
+        """Resposta em NDJSON, um evento por linha, enviada conforme é gerada (a conversa do Lúmen Study AI).
+        Conexão fechada pela janela = cancelar a geração."""
+        self.close_connection = True  # sem Content-Length: o fim é o fim da conexão
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy",
+                         "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self'")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        try:
+            for event in stream.events:
+                self.wfile.write((json.dumps(event, ensure_ascii=False, default=str) + "\n").encode())
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            stream.on_close()
+        except Exception as e:  # noqa: BLE001 — depois do cabeçalho, o erro vira um evento
+            log.error("erro no streaming: %s", type(e).__name__)
+            try:
+                self.wfile.write((json.dumps({"type": "error", "message": f"Erro inesperado ({type(e).__name__})."}) + "\n").encode())
+            except OSError:
+                pass
+        finally:
+            close = getattr(stream.events, "close", None)
+            if close:
+                close()
+
+    def _file(self, f):
+        """Um arquivo com Range (bytes=a-b, a- ou -n): o <audio> pede pedaços para pular de capítulo."""
+        try:
+            size = f.path.stat().st_size
+        except OSError:
+            return self._send(404, {"error": {"message": "Arquivo não encontrado."}})
+        start, end = 0, size - 1
+        m = re.fullmatch(r"bytes=(\d*)-(\d*)", self.headers.get("Range") or "")
+        partial = bool(m and (m[1] or m[2]))
+        if partial:
+            start, end = (int(m[1]), min(int(m[2] or size - 1), size - 1)) if m[1] else (max(size - int(m[2]), 0), size - 1)
+            if start > end:
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+        self.send_response(206 if partial else 200)
+        self.send_header("Content-Type", f.ctype)
+        self.send_header("Content-Length", str(end - start + 1))
+        self.send_header("Accept-Ranges", "bytes")
+        if partial:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        try:
+            with open(f.path, "rb") as fh:
+                fh.seek(start)
+                left = end - start + 1
+                while left > 0 and (chunk := fh.read(min(left, 1 << 16))):
+                    self.wfile.write(chunk)
+                    left -= len(chunk)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            pass  # o player pediu outro pedaço e fechou este
 
     def _allowed(self):
         # Protege contra DNS rebinding e outras páginas abertas no navegador.
@@ -207,17 +348,25 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle(self, method):
         global last_seen, bye_at
+        if method == "POST":
+            # O corpo nem sempre é lido (ex.: /api/bye por sendBeacon). Fechar depois da resposta evita que os
+            # bytes restantes sejam lidos como o próximo pedido na mesma conexão.
+            self.close_connection = True
         if not self._allowed():
             return self._send(403, {"error": {"message": "Acesso negado."}})
         last_seen = time.monotonic()
         path = urllib.parse.urlsplit(self.path).path
         try:
             if method == "GET" and path in STATIC:
-                name, ctype = STATIC[path]
-                body = (WEB / name).read_bytes()
-                if name.endswith(".html"):
-                    body = body.replace(b"{{TOKEN}}", TOKEN.encode())
-                return self._send(200, body, ctype)
+                try:
+                    body, ctype, etag = _static(path)
+                except OSError:
+                    return self._send(404, {"error": {"message": "Arquivo não encontrado."}})
+                if path in ("/", "/widget", "/note"):  # estilo da interface já no <html>: a janela abre no visual certo, sem piscar
+                    body, etag = _page_marks(body)
+                if self.headers.get("If-None-Match") == etag:
+                    return self._not_modified(etag)
+                return self._send(200, body, ctype, {"ETag": etag}, cache="no-cache")
             if (method, path) == ("POST", "/api/bye"):  # janela fechada (sendBeacon)
                 bye_at = time.monotonic()
                 return self._send(200, {})
@@ -225,9 +374,16 @@ class Handler(BaseHTTPRequestHandler):
             if not fn:
                 return self._send(404, {"error": {"message": "Não encontrado."}})
             out = fn(self)
+            if isinstance(out, study_api.Stream):
+                return self._stream(out)
+            if isinstance(out, study_api.File):
+                return self._file(out)
+            if isinstance(out, tuple):  # (bytes, tipo): imagem que não é JPEG (a visualização 3D)
+                return self._send(200, *out)
             return self._send(200, out, "image/jpeg" if isinstance(out, bytes) else "application/json")
         except AppError as e:
-            return self._send(400, {"error": {"message": str(e), "action": e.action}})
+            err = {"message": str(e), "action": e.action}
+            return self._send(400, {"error": err})
         except (ValueError, KeyError, TypeError):
             return self._send(400, {"error": {"message": "Pedido inválido.", "action": "Recarregue a janela."}})
         except Exception as e:
@@ -287,10 +443,16 @@ def _apply_settings(body):
     if "notion_free_page" in body:  # “Conteúdo gratuito” no Notion
         cfg["notion_free_page_id"] = notion.page_id(body["notion_free_page"]) if body["notion_free_page"] else ""
         cfg["notion_free_page_title"] = str(body.get("notion_free_page_title") or "")[:200] if body["notion_free_page"] else ""
+    if body.get("visual_3d") in visual3d.MODES:
+        cfg["visual_3d"] = body["visual_3d"]
+    if "ui_style" in body:  # Ajustes → Aparência → Estilo da interface: só a apresentação muda (nenhum dado, rota ou comportamento)
+        if body["ui_style"] not in store.UI_STYLES:
+            raise AppError("Estilo da interface inválido.", "Escolha Clássico ou Lúmen Glass 2026.")
+        cfg["ui_style"] = body["ui_style"]
     if body.get("obsidian_board_density") in ("compacto", "equilibrado", "visual"):
         cfg["obsidian_board_density"] = body["obsidian_board_density"]
     for k in ("obsidian_canvas", "obsidian_board", "obsidian_connections", "obsidian_review", "obsidian_attachments",
-              "obsidian_open"):
+              "obsidian_open", "notion_open", "opennotebook_auto"):
         if k in body:
             cfg[k] = body[k] is True
     if "review_intervals" in body:
@@ -349,7 +511,8 @@ def _widget(h):
     writing = understanding.pending(extra=j.get("key") if j.get("status") == "running" else None)  # escrevendo, analisando ou analisada (ainda não salva no Notion): a nota segue visível
     cfg = store.load_config()
     return {"job": job, "recording": record.status(), "watch": bool(cfg["watch_screen"]), "music": cfg["music_filter"],
-            "notes": writing, "pomodoro": pomodoro.view()}
+            "notes": writing, "pomodoro": pomodoro.view(), "listening": listening.brief(),
+            "ui": cfg.get("ui_style") if cfg.get("ui_style") in store.UI_STYLES else "classic"}
 
 
 def _need_token():
@@ -365,7 +528,11 @@ def _courses(h):
     return {"courses": pages, "root": root, "root_ok": any(p["id"] == root for p in pages)}
 
 
-_previews = {}  # id → (enfeite, png); guarda só as últimas prévias
+# Prévias de capa (só no PC, nada vai ao Notion): id → enfeite, PNG, tipo e o contexto para o qual foi feita.
+# Ficam na memória (as últimas 6, por até 1 h: o upload do Notion também expira em 1 h sem uso).
+_previews = {}
+PREVIEW_TTL = 3600
+_preview_busy = threading.Lock()  # uma prévia por vez (o gerador já serializa a GPU; isto evita a fila do clique duplo)
 
 
 def _cover_png(decor, title, seed):
@@ -374,26 +541,127 @@ def _cover_png(decor, title, seed):
         png = imagegen.generate(decor.get("image_prompt") or title, seed=seed)
         if png:
             return png, "ia"
-    return cover.render(decor, seed=seed), "emojis"
+    png = cover.render(decor, seed=seed)
+    return (png, "emojis") if png else (None, "notion")  # nem o desenho saiu: fica a capa de cor do próprio Notion
+
+
+def _draw(title, parent, variant):
+    """A IA local escolhe ícone, paleta, frase e o pedido da ilustração; a capa é desenhada no PC. Uma por vez."""
+    if not _preview_busy.acquire(blocking=False):
+        raise AppError("Já estou gerando uma capa.", "Espere a prévia atual terminar.")
+    try:
+        t0 = time.monotonic()
+        decor = llm.decorate(title, parent, store.load_config()["ollama_model"], variant=variant)
+        png, kind = _cover_png(decor, title, seed=secrets.randbelow(2**31))
+        secs = round(time.monotonic() - t0)
+    finally:
+        _preview_busy.release()
+    why = "A ilustração com IA não ficou pronta neste PC" if imagegen.ready() else "O gerador de capas com IA não está instalado"
+    note = {"ia": "", "emojis": f"{why}; esta é a capa alternativa, desenhada com emojis.",
+            "notion": f"{why} e o desenho com emojis também falhou; a página vai usar uma capa de cor do Notion, "
+                      "com o ícone e a frase da prévia."}[kind]
+    return decor, png, kind, secs, note
+
+
+def _keep(entry):
+    """Guarda uma prévia (as últimas 6) e devolve o id dela."""
+    pid = secrets.token_hex(8)
+    _previews[pid] = {**entry, "at": time.monotonic()}
+    for old in list(_previews)[:-6]:
+        _previews.pop(old, None)
+    return pid
+
+
+def _data_url(png):
+    import base64
+    return "data:image/png;base64," + base64.b64encode(png).decode() if png else None
 
 
 def _preview(h):
-    """Prévia do enfeite: IA escolhe ícone/paleta/emojis e a capa é desenhada no PC."""
-    import base64
+    """Prévia da capa e do enfeite de um curso novo. Nenhum pedido ao Notion: a publicação só acontece ao criar a
+    página, com esta mesma imagem (preview_id)."""
     body = h._json()
     title = str(body.get("title") or "").strip()[:200]
     if not title:
-        raise AppError("Digite o nome da página.", "")
-    variant = int(body.get("variant") or 0)
-    decor = llm.decorate(title, str(body.get("parent_path") or "")[:300], store.load_config()["ollama_model"],
-                         variant=variant)
-    png, kind = _cover_png(decor, title, seed=secrets.randbelow(2**31))
-    pid = secrets.token_hex(6)
-    _previews[pid] = (decor, png)
-    for old in list(_previews)[:-6]:
-        _previews.pop(old, None)
-    return {"preview_id": pid, "decor": decor, "kind": kind,
-            "image": "data:image/png;base64," + base64.b64encode(png).decode() if png else None}
+        raise AppError("Digite o nome do curso.", "A capa é feita para esse nome.")
+    parent = str(body.get("parent_path") or store.load_config().get("root_page_title") or "")[:300]
+    decor, png, kind, secs, note = _draw(title, parent, int(body.get("variant") or 0))
+    pid = _keep({"decor": decor, "png": png, "kind": kind, "title": package.norm(title), "parent": parent})
+    return {"preview_id": pid, "decor": decor, "kind": kind, "note": note, "seconds": secs, "title": title,
+            "parent": parent, "image": _data_url(png)}
+
+
+def _conn(token):
+    """A conexão do Notion em uso (trocar ou tirar o token invalida as prévias feitas com a anterior)."""
+    return hashlib.sha256((token or "").encode()).hexdigest()[:16]
+
+
+_theme = lambda v: " ".join(str(v or "").split())[:300]  # noqa: E731
+
+
+def _page_preview(h):
+    """Capas do Notion: a prévia para uma página que já existe. Só no PC, nenhum pedido ao Notion; fica presa à
+    página, ao tema e à conexão, e “Aplicar” usa exatamente esta imagem. Do enfeite, só a imagem é usada."""
+    tok, _ = _need_token()
+    body = h._json()
+    page, theme = notion.page_id(body.get("page_id")), _theme(body.get("theme"))
+    subject = theme or str(body.get("title") or "").strip()[:200]
+    if not subject:
+        raise AppError("Escolha a página primeiro.", "A capa é feita a partir do título dela.")
+    _, png, kind, secs, note = _draw(subject, "", int(body.get("variant") or 0))
+    if not png:
+        raise AppError("Não foi possível desenhar a capa neste PC.",
+                       "Tente de novo. Se continuar, confira o gerador em Detalhes técnicos.")
+    pid = _keep({"png": png, "kind": kind, "page": page, "theme": theme, "conn": _conn(tok)})
+    return {"preview_id": pid, "kind": kind, "note": note, "seconds": secs, "theme": theme, "image": _data_url(png)}
+
+
+_applying = threading.Lock()  # uma aplicação por vez: o clique duplo não envia a imagem duas vezes
+
+
+def _cover_apply(h):
+    """Aplica a prévia aprovada como capa da página (só o campo cover) e confere lendo a página de novo."""
+    tok, _ = _need_token()
+    body = h._json()
+    page, key = notion.page_id(body.get("page_id")), str(body.get("preview_id") or "")
+    p = _previews.get(key)
+    why = (("A prévia da capa expirou ou não está mais neste PC.", "Gere a capa de novo.")
+           if not p or "page" not in p or time.monotonic() - p["at"] > PREVIEW_TTL else
+           ("Esta prévia foi feita para outra página.", "Gere a capa de novo para a página escolhida.") if p["page"] != page else
+           ("A conexão com o Notion mudou depois da prévia.", "Escolha a página e gere a capa de novo.") if p["conn"] != _conn(tok) else
+           ("O tema mudou depois da prévia.", "Gere a capa de novo com o tema atual.") if p["theme"] != _theme(body.get("theme")) else
+           ("Há uma prévia mais nova para esta página.", "Aplique a prévia mais recente.")
+           if any(v.get("page") == page and v["at"] > p["at"] for v in _previews.values()) else None)
+    if why:
+        return {"state": "regenerate", "message": why[0], "action": why[1]}
+    if not _applying.acquire(blocking=False):
+        raise AppError("Já estou aplicando uma capa.", "Espere a confirmação do Notion.")
+    try:
+        now = notion.page_info(tok, page)  # de novo: ainda existe, fora da lixeira e com acesso
+        state = None
+        if p.get("upload"):  # tentativa anterior sem resposta: confere antes de repetir
+            ok = notion.cover_is(tok, page, p["png"])
+            state = "confirmed" if ok else "unconfirmed" if ok is None else None
+        if not state and now["cover"] != body.get("cover"):
+            return {"changed": True, "page": now}
+        if not state:
+            p["upload"], state = notion.apply_cover(tok, page, p["png"], p.get("upload"), f"capa-{key}.png")
+        log.info("capa: página %s, envio %s, antes %s, %s", page, p.get("upload"), now["cover"] or "sem capa", state)
+        return {"state": state, "page": notion.page_info(tok, page) if state == "confirmed" else now}
+    finally:
+        _applying.release()
+
+
+def _approved(pid, title):
+    """A prévia que o usuário viu, para este nome. Expirada, de outro nome ou desconhecida: recusa (nunca troca por
+    outra imagem sem avisar)."""
+    p = _previews.get(str(pid or ""))
+    if not p or time.monotonic() - p["at"] > PREVIEW_TTL:
+        _previews.pop(str(pid or ""), None)
+        raise AppError("A prévia da capa expirou ou não está mais neste PC.", "Gere a prévia de novo antes de criar.")
+    if p.get("title") != package.norm(title):
+        raise AppError("A prévia foi feita para outro nome.", "Gere a prévia de novo com o nome atual.")
+    return p
 
 
 def _new_course(h):
@@ -405,8 +673,9 @@ def _new_course(h):
         raise AppError("Escolha a página raiz dos cursos.", "Abra Integrações e escolha a página raiz do Notion.")
     decor, png, note = None, None, None
     if body.get("decorate") and str(body.get("title") or "").strip():
-        if body.get("preview_id") in _previews:  # usa exatamente a prévia que o usuário viu
-            decor, png = _previews[body["preview_id"]]
+        if body.get("preview_id"):  # usa exatamente a prévia que o usuário viu (expirada: recusa)
+            p = _approved(body["preview_id"], str(body["title"]).strip())
+            decor, png = p["decor"], p["png"]
         else:
             try:
                 decor = llm.decorate(str(body["title"]).strip()[:200], str(body.get("parent_path") or "")[:300],
@@ -500,6 +769,22 @@ def _screen(h):
         raise AppError("Tela não encontrada.", "") from None
 
 
+def _visual_file(h):
+    """A visualização 3D de uma aula já salva (a prévia no resultado), do cache do Lumen; kind=png: a imagem
+    estática (para quem pediu menos movimento no sistema)."""
+    q = h._query()
+    e = store.history().get(str(q.get("key") or "")) or {}
+    v = e.get("visual") or {}
+    name = v.get("png") if q.get("kind") == "png" else v.get("file")
+    if not (isinstance(name, str) and re.fullmatch(r"[0-9a-f]{16}\.(gif|png)", name)):
+        raise AppError("Visualização não encontrada.", "")
+    try:
+        data = (visual3d._folder(e.get("lumen_id")) / name).read_bytes()
+    except (OSError, ValueError):
+        raise AppError("Visualização não encontrada.", "") from None
+    return data, "image/gif" if name.endswith(".gif") else "image/png"
+
+
 def _captures_add(body):  # o corpo do pedido só pode ser lido uma vez
     return jobs.add_captures(body.get("key"), body.get("paths"))
 
@@ -571,8 +856,9 @@ def _history():
     review = {}
     if cfg["destinations"] != "notion" and cfg["obsidian_vault"]:
         try:
-            review = {l["lid"]: {"next": str(l["next"] or ""), "stage": str(l["stage"] or ""), "status": l["status"]}
-                      for l in area._lessons(obsidian.folders(cfg)[1]) if l["lid"]}
+            on = cfg["obsidian_review"]  # desligadas: só o status; next-review antigo não cobra revisão na Biblioteca
+            review = {l["lid"]: {"next": str(l["next"] or "") if on else "", "stage": str(l["stage"] or "") if on else "",
+                                 "status": l["status"]} for l in area._lessons(obsidian.folders(cfg)[1]) if l["lid"]}
         except (AppError, OSError):
             pass
     items = []
@@ -616,27 +902,26 @@ def _catalog(h):
     return out
 
 
-def _notion_course(cfg, name, decorate=False, parent=None):
-    """Página do curso (ou módulo) no Notion: a filha de mesmo nome se houver exatamente uma, senão uma nova (com os
-    enfeites da IA, se pedido). None quando o Notion não está em uso ou falha (o curso fica só no Lumen)."""
+def _notion_course(cfg, name, parent=None, preview=None):
+    """Página do curso (ou módulo) no Notion: a filha de mesmo nome se houver exatamente uma (adotada como está, sem
+    mexer em título, ícone, capa ou conteúdo), senão uma nova — com a capa e o enfeite da prévia aprovada, se houver
+    (a mesma imagem, sem gerar outra). Devolve (id ou None, aviso, resultado da capa)."""
     tok = store.get_token()
     parent = parent or cfg["root_page_id"]
     if not (tok and parent and cfg["destinations"] != "obsidian"):
-        return None, None
+        return None, ("O Notion não está em uso: a capa não foi publicada." if preview else None), None
     try:
         same = [c for c in notion.list_courses(tok, parent) if package.norm(c["title"]) == package.norm(name)]
         if len(same) == 1:
-            return same[0]["id"], None
-        decor, png = None, None
-        if decorate:
-            try:
-                decor = llm.decorate(name, cfg.get("root_page_title") or "", cfg["ollama_model"])
-                png, _ = _cover_png(decor, name, seed=secrets.randbelow(2**31))
-            except AppError:
-                decor = None
-        return notion.create_course(tok, parent, name, decor, png)["id"], None
+            return same[0]["id"], (f"A página “{same[0]['title']}” já existia no Notion e foi adotada como está; a capa "
+                                   "não foi aplicada." if preview else None), {"adopted": True} if preview else None
+        made = notion.create_course(tok, parent, name, preview and preview["decor"], preview and preview["png"])
     except AppError as e:
-        return None, f"No Notion não foi possível criar a página ({e}); tente de novo ao salvar a primeira aula."
+        return None, f"No Notion não foi possível criar a página ({e} {e.action}".strip() + ")", None
+    if not preview:
+        return made["id"], None, None
+    kind = preview["kind"] if made.get("cover_confirmed") else "notion"  # upload falhou: ficou a capa de cor do Notion
+    return made["id"], made.get("cover_note"), {"kind": kind, "confirmed": bool(made.get("cover_confirmed"))}
 
 
 def _rerender(cfg, keep):
@@ -675,18 +960,21 @@ def _catalog_course(h):
                     note = f"No Notion o título não mudou ({e})."
             _rerender(cfg, lambda c: c.get("course_id") == new["id"])
         return {"course": new, "note": note}
-    c = catalog.create_course(body.get("name"), body.get("platform"), body.get("url"),
-                              notion.page_id(body["notion_page_id"]) if body.get("notion_page_id") else None)
+    adopt = notion.page_id(body["notion_page_id"]) if body.get("notion_page_id") else None
+    # capa: só a prévia aprovada (conferida antes de criar qualquer coisa); a página adotada fica como está
+    preview = _approved(body.get("preview_id"), str(body.get("name") or "").strip()) if body.get("decorate") is True and not adopt else None
+    c = catalog.create_course(body.get("name"), body.get("platform"), body.get("url"), adopt)
+    cover_out = None
     if not c["notion_page_id"]:
-        pid, note = _notion_course(cfg, c["name"], body.get("decorate") is True)
+        pid, note, cover_out = _notion_course(cfg, c["name"], preview=preview)
         if pid:
             _, c = catalog.update_course(c["id"], notion_page_id=pid)
     if uses_ob:
         try:
             area.refresh(cfg)  # pasta do curso + nota inicial
         except (AppError, OSError) as e:
-            note = f"No Obsidian a pasta do curso fica para a primeira aula ({e})."
-    return {"course": c, "note": note}
+            note = " ".join(filter(None, [note, f"No Obsidian a pasta do curso fica para a primeira aula ({e})."]))
+    return {"course": c, "note": note, "cover": cover_out}
 
 
 def _catalog_module(h):
@@ -712,7 +1000,7 @@ def _catalog_module(h):
     m = catalog.create_module(c["id"], body.get("name"), body.get("order"),
                               notion.page_id(body["notion_page_id"]) if body.get("notion_page_id") else None)
     if not m["notion_page_id"] and c.get("notion_page_id"):
-        pid, note = _notion_course(cfg, m["name"], parent=c["notion_page_id"])
+        pid, note, _ = _notion_course(cfg, m["name"], parent=c["notion_page_id"])
         if pid:
             _, m = catalog.update_module(c["id"], m["id"], notion_page_id=pid)
     if uses_ob:
@@ -810,7 +1098,184 @@ def _submit(h):
     return job_view()
 
 
+def _drive_client(h):
+    path = _pick_one("Escolher o JSON do cliente OAuth (App para computador)", "JSON do cliente", (".json",))
+    if not path:
+        return gdrive.status()
+    if Path(path).stat().st_size > 64_000:
+        raise AppError("Este arquivo é grande demais para ser um cliente OAuth.", "Escolha o JSON baixado do Google Cloud.")
+    return gdrive.set_client(Path(path).read_bytes())
+
+
+def _protection_dialog(kind, title):
+    script = """import sys, tkinter as t
+from tkinter import filedialog as f
+r=t.Tk(); r.withdraw(); r.attributes('-topmost', 1)
+options=dict(parent=r,title=sys.argv[2])
+if sys.argv[1]=='folder': value=f.askdirectory(**options,mustexist=True)
+elif sys.argv[1]=='save': value=f.asksaveasfilename(**options,initialfile='Lumen-chave-recuperacao.json',defaultextension='.json')
+else: value=f.askopenfilename(**options,filetypes=[('Chave JSON','*.json')])
+print(value or '')
+r.destroy()
+"""
+    r = subprocess.run([sys.executable, "-c", script, kind, title], capture_output=True,
+                       encoding="utf-8", env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+                       creationflags=0x08000000 if os.name == "nt" else 0)
+    if r.returncode:
+        raise AppError("Não foi possível abrir o seletor do Windows.", "Tente novamente com a janela do Lúmen aberta.")
+    return r.stdout.strip()
+
+
+def _protection_folder(title):
+    return _protection_dialog("folder", title)
+
+
+def _protection_action(h):
+    from . import protection_drive
+    import keyring
+    body = h._json()
+    action = body.get("action")
+    if action == "attention":
+        return protection.attention_details()
+    if action == "open-place":
+        return protection.open_destination(body.get("place"), body.get("path"))
+    if action == "choose":
+        folder = _protection_folder("Escolher destino local da Proteção do cérebro")
+        return protection.choose_local(folder) if folder else {**protection.view(), "cancelled": True}
+    if action == "open":
+        os.startfile(str(protection.local_folder()))
+    elif action in ("start", "pause"):
+        protection.enable(action == "start")
+    elif action == "now":
+        return protection.backup_now()
+    elif action == "drive-enable":
+        protection.configure(drive_enabled=bool(body.get("enabled")))
+        protection.wake()
+    elif action == "prepare-key":
+        protection.password(create=True)
+    elif action == "export-key":
+        selected = _protection_dialog("save", "Guardar chave em lugar separado do backup")
+        if selected:
+            secret = protection.password(create=True)
+            path = Path(selected).resolve()
+            c = protection.configuration()
+            if any(protection.inside(path, root) for root in (protection.HOME, c["vault"], c["local"]) if root):
+                raise AppError("Guarde a chave fora das origens e do backup.", "Prefira outro dispositivo ou um gerenciador de senhas.")
+            protection.write(path, {"format": "lumen-recovery-key-1", "set_id": c["set_id"], "password": secret})
+            protection.update(key_exported=protection.now())
+        else:
+            return {"cancelled": True}
+    elif action == "import-key":
+        path = _protection_dialog("open", "Importar chave de recuperação do Lúmen")
+        if path:
+            if Path(path).stat().st_size > 4096:
+                raise AppError("Arquivo de chave inválido.")
+            key = protection.read(path)
+            if key.get("format") != "lumen-recovery-key-1" or not re.fullmatch(r"[a-f0-9]{32}", key.get("set_id", "")) or not isinstance(key.get("password"), str) or not 20 <= len(key["password"]) <= 512:
+                raise AppError("Arquivo de chave inválido.")
+            c = protection.configuration()
+            if c["set_id"] == key["set_id"] and (protection.HOME / "repository" / "config").exists():
+                protection.snapshots(secret=key["password"])
+            keyring.set_password(store.APP, protection.recovery_label(), key["password"])
+            if c["set_id"] == key["set_id"] or not c["set_id"]:
+                protection.configure(set_id=key["set_id"])
+                keyring.set_password(store.APP, "protection-" + key["set_id"], key["password"])
+            protection.update(key_imported=True)
+        else:
+            return {"cancelled": True}
+    elif action == "page-titles":
+        titles = {}
+        token = _need_token()[0]
+        for iid in protection.configuration()["roots"]:
+            try:
+                page = notion.request("GET", "/pages/" + iid, token)
+                title = notion._title(page)
+                titles[iid] = {"title": title, "accessible": True}
+            except AppError as e:
+                if getattr(e, "status", None) in (400, 404):
+                    try:
+                        database = notion.request("GET", "/databases/" + iid, token)
+                        titles[iid] = {"title": "".join(t.get("plain_text") or t.get("text", {}).get("content", "") for t in database.get("title", [])) or "Base sem título", "accessible": True}
+                        continue
+                    except AppError:
+                        pass
+                titles[iid] = {"title": "Precisamos conferir o acesso a esta página", "accessible": False}
+        protection.update(page_titles=titles)
+        return {"page_titles": titles}
+    elif action == "roots":
+        values = body.get("roots", [])
+        if not isinstance(values, list) or len(values) > 100:
+            raise AppError("Informe até 100 raízes do Notion.")
+        roots = list(dict.fromkeys(notion.page_id(x) for x in values if str(x).strip()))
+        changed = roots != protection.configuration()["roots"]
+        protection.configure(roots=roots)
+        if changed:
+            protection.status_of("notion", status="pending", message="Vamos conferir as páginas que você escolheu.")
+            protection.wake()
+    elif action == "versions":
+        repo = protection.HOME / "repository"
+        location = "Capturas guardadas pelo Lúmen neste Windows"
+        if not body.get("external"):
+            try:
+                local = protection.local_folder() / "repository"
+                if (local / "config").is_file():
+                    repo = local
+                    location = "Pasta de backup escolhida"
+            except (AppError, OSError):
+                pass  # still offer the application repository, with an explicit location.
+        if body.get("external"):
+            folder = _protection_folder("Escolher repositório Restic existente (pasta repository)")
+            if not folder:
+                return {"versions": [], "cancelled": True}
+            repo = Path(folder)
+            location = "Pasta escolhida para recuperação"
+        secret = keyring.get_password(store.APP, protection.recovery_label()) if body.get("external") else None
+        return {"versions": protection.snapshots(repo, secret), "repository": str(repo), "location": location}
+    elif action == "drive-catalogs":
+        return {"catalogs": protection_drive.catalogs()}
+    elif action == "rebuild-notion":
+        from . import protection_notion
+        folder = _protection_folder("Escolher a pasta recuperada que contém a subpasta notion")
+        if not folder:
+            return {"cancelled": True}
+        c = protection.configuration()
+        with protection.NOTION_WRITE_LOCK:
+            return protection_notion.rebuild(_need_token()[0], folder, c["notion_parent"])
+    elif action == "recover":
+        folder = _protection_folder("Escolher pasta para criar uma NOVA área de recuperação")
+        if not folder:
+            return {"cancelled": True}
+        secret = keyring.get_password(store.APP, protection.recovery_label()) if body.get("external") else None
+        if body.get("drive_id"):
+            root, manifest = protection_drive.download_repository(body["drive_id"], folder)
+            repo, sid = root / "repository", manifest["snapshot"]
+            protection.run_restic(repo, "check", "--read-data", secret=secret)
+        else:
+            repo = Path(body.get("repository") or protection.HOME / "repository").resolve(strict=True)
+            sid = body.get("snapshot", "")
+        return protection.restore(repo, sid, folder, secret)
+    elif action == "stop":
+        protection.stop()
+    else:
+        raise AppError("Ação de proteção desconhecida.")
+    return protection.view()
+
+
+def _diagnostics(h):
+    """O diagnóstico confere o próprio pedido: o endereço em que o servidor escuta e a janela que chamou (User-Agent)."""
+    bind, port = h.server.server_address[:2]
+    return diagnostics.run_diagnostics({"ua": h.headers.get("User-Agent", ""), "bind": bind, "port": port})
+
+
 ROUTES = {
+    ("GET", "/api/monitor"): lambda h: hardware.monitor_stats(),
+    ("POST", "/api/monitor/release-vram"): lambda h: (llm.release_vram(), hardware.monitor_stats())[1],
+    ("GET", "/api/diagnostics"): lambda h: _diagnostics(h),
+    ("POST", "/api/diagnostics"): lambda h: _diagnostics(h),
+    ("GET", "/api/repair"): lambda h: repair.view(),  # o que dá para instalar/reparar agora e o andamento (D187)
+    ("POST", "/api/repair"): lambda h: repair.action(h._json()),  # só {action: start, id} vindo de um clique, ou {action: cancel}
+    ("GET", "/api/protection"): lambda h: protection.view(),
+    ("POST", "/api/protection"): _protection_action,
     ("GET", "/api/state"): lambda h: state(),
     ("GET", "/api/job"): lambda h: job_view(),
     ("GET", "/api/understanding"): lambda h: understanding.get(h._query()["key"]),
@@ -820,6 +1285,11 @@ ROUTES = {
     ("GET", "/api/widget"): _widget,
     ("POST", "/api/settings"): _settings,
     ("GET", "/api/notion/pages"): lambda h: {"pages": notion.list_pages(_need_token()[0])},
+    ("GET", "/api/notion/search"): lambda h: notion.search_pages(_need_token()[0], h._query().get("q", "").strip()[:200],
+                                                                 h._query().get("cursor") or None),
+    ("GET", "/api/notion/page"): lambda h: notion.page_info(_need_token()[0], h._query().get("ref", "")),
+    ("POST", "/api/cover/preview"): _page_preview,
+    ("POST", "/api/cover/apply"): _cover_apply,
     ("GET", "/api/courses"): _courses,
     ("POST", "/api/courses"): _new_course,
     ("POST", "/api/decor/preview"): _preview,
@@ -829,6 +1299,7 @@ ROUTES = {
     ("POST", "/api/inspect"): lambda h: inspect(h._json()),
     ("POST", "/api/start"): _start,
     ("GET", "/api/screen"): _screen,
+    ("GET", "/api/visual"): _visual_file,
     ("GET", "/api/capture"): _capture_thumb,
     ("POST", "/api/finish"): _finish,
     ("POST", "/api/cancel"): lambda h: (jobs.cancel(), job_view())[1],
@@ -846,16 +1317,51 @@ ROUTES = {
     ("GET", "/api/reviews"): lambda h: _reviews(),
     ("POST", "/api/deliver"): _deliver,
     ("POST", "/api/open"): _open,
+    # Open Notebook (lumen/opennotebook.py): conexão, caderno de destino e o envio da transcrição de uma aula
+    ("GET", "/api/opennotebook"): lambda h: opennotebook.view(),
+    ("POST", "/api/opennotebook/connect"): lambda h: opennotebook.connect(h._json()),
+    ("POST", "/api/opennotebook/disconnect"): lambda h: opennotebook.disconnect(),
+    ("POST", "/api/opennotebook/notebook"): lambda h: opennotebook.choose(h._json()),
+    ("POST", "/api/opennotebook/send"): lambda h: opennotebook.send(str(h._json().get("key") or "")),
+    ("POST", "/api/opennotebook/start"): lambda h: onlocal.start(store.load_config()),  # só a pedido: “Iniciar Open Notebook”
+    ("GET", "/api/opennotebook/local"): lambda h: onlocal.status(),
+    ("GET", "/api/opennotebook/lesson"): lambda h: opennotebook.status(h._query().get("key", ""), h._query().get("check") == "1"),
+    # HyperbookLM (lumen/hyperbooklm.py): conexão, pareamento e o envio manual do título e da transcrição de uma aula
+    ("GET", "/api/hyperbooklm"): lambda h: hyperbooklm.view(),
+    ("POST", "/api/hyperbooklm/connect"): lambda h: hyperbooklm.connect(h._json()),
+    ("POST", "/api/hyperbooklm/pair"): lambda h: hyperbooklm.pair(),
+    ("POST", "/api/hyperbooklm/disconnect"): lambda h: hyperbooklm.disconnect(),
+    ("POST", "/api/hyperbooklm/send"): lambda h: hyperbooklm.send(str(h._json().get("key") or "")),
+    ("GET", "/api/hyperbooklm/lesson"): lambda h: hyperbooklm.status(h._query().get("key", ""), h._query().get("check") == "1"),
     ("POST", "/api/record/start"): lambda h: (record.start(h._json().get("title")), record.status())[1],
     ("POST", "/api/record/stop"): lambda h: record.stop(keep=h._json().get("exit") is True),
+    ("POST", "/api/record/reveal"): lambda h: (record.reveal(h._json().get("path")), {})[1],
     ("POST", "/api/record/discard"): lambda h: (record.discard(), record.status())[1],
     ("POST", "/api/record/pause"): lambda h: (record.pause(), record.status())[1],
     ("POST", "/api/record/resume"): lambda h: (record.resume(), record.status())[1],
     ("POST", "/api/record/recover"): lambda h: record.recover(h._json().get("use") is True) or record.status(),
+    ("GET", "/api/drive"): lambda h: gdrive.status(),  # a conta do Google Drive da proteção (cópia de segurança)
+    ("POST", "/api/drive/client"): _drive_client,
+    ("POST", "/api/drive/login"): lambda h: gdrive.login(),
+    ("POST", "/api/drive/logout"): lambda h: gdrive.logout(),
     ("GET", "/api/pomodoro"): lambda h: pomodoro.view(),
     ("POST", "/api/pomodoro"): lambda h: (lambda b: pomodoro.act(b.get("action"), b.get("settings")))(h._json()),
 }
 
 
+ROUTES.update(study_api.ROUTES)
+from .study import artifacts as study_artifacts
+ROUTES.update(study_artifacts.routes())
+ROUTES.update(study_voice.ROUTES)
+ROUTES.update(study_voice_admin.ROUTES)
+ROUTES.update(study_practice.ROUTES)
+ROUTES.update(study_call.ROUTES)
+ROUTES.update(listening.ROUTES)
+
+
 def serve(port=0):
+    try:
+        study_api.migrate_legacy()  # a retirada do Gemini: ajustes antigos voltam à IA local e a chave antiga sai do cofre
+    except Exception:  # noqa: BLE001 — a migração nunca impede o app de abrir; a política já vale na leitura dos ajustes
+        log.warning("Migração da retirada do Gemini adiada.")
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)

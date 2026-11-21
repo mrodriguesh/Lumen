@@ -23,7 +23,7 @@ async function api(path, body) {
     throw Object.assign(new Error("O Lumen parou de responder."), { action: "Abra o aplicativo de novo.", offline: true });
   }
   const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(d.error?.message || "Erro"), { action: d.error?.action || "" });
+  if (!r.ok) throw Object.assign(new Error(d.error?.message || "Erro"), { action: d.error?.action || "", details: d.error?.details });
   return d;
 }
 
@@ -95,16 +95,17 @@ function renderChecks() {
     ok ? null : el("button", { class: "icon-btn sm", type: "button", "aria-label": `Resolver: ${name}`, "data-tip": "", onclick: go }, icon("chevron-right")));
   swap($("#side-status"), [
     ...[usesNotion() && stat("page", "Notion", rootReady(), `Salvando em “${S.config.root_page_title || "página raiz"}”`,
-      !S.has_token ? "Não conectado" : rootOk === false ? "A página raiz não está mais acessível" : "Escolha a página raiz", goIntegrations),
-      usesObsidian() && stat("notebook", "Obsidian", vaultReady(), S.obsidian?.vaults.find((v) => v.path === S.config.obsidian_vault)?.name || "Cofre escolhido",
-        S.obsidian?.error ? "Cofre indisponível" : "Escolha o cofre", goIntegrations)].filter(Boolean),
+      !S.has_token ? "Não conectado" : rootOk === false ? "A página raiz não está mais acessível" : "Escolha a página raiz", () => goIntegrations("notion")),
+      usesObsidian() && stat("obsidian", "Obsidian", vaultReady(), S.obsidian?.vaults.find((v) => v.path === S.config.obsidian_vault)?.name || "Cofre escolhido",
+        S.obsidian?.error ? "Cofre indisponível" : "Escolha o cofre", () => goIntegrations("obsidian"))].filter(Boolean),
     stat("cpu", "IA local", S.ollama.running && S.ollama.installed, S.config.ollama_model,
       !S.ollama.running ? "Ollama fechado" : `Falta o modelo ${S.config.ollama_model}`, () => goSettings("ai")),
     stat("wave", "Transcrição", w.downloaded, `${w.label} · ${S.gpu ? "GPU" : "processador"}`, `Falta baixar o modelo ${w.label}`, () => goSettings("transcription"))]);
+  window.Glass?.system();  // Glass: o selo “Tudo pronto” / “N pendências”, contado destas linhas
   const items = [
-    ...(usesNotion() ? [["Notion conectado", S.has_token, "Conectar", goIntegrations],
-      [rootOk === false ? "Página raiz dos cursos (a salva não está mais acessível)" : "Página raiz dos cursos", rootReady(), "Escolher", goIntegrations]] : []),
-    ...(usesObsidian() ? [["Cofre do Obsidian", vaultReady(), "Escolher", goIntegrations]] : []),
+    ...(usesNotion() ? [["Notion conectado", S.has_token, "Conectar", () => goIntegrations("notion")],
+      [rootOk === false ? "Página raiz dos cursos (a salva não está mais acessível)" : "Página raiz dos cursos", rootReady(), "Escolher", () => goIntegrations("notion")]] : []),
+    ...(usesObsidian() ? [["Cofre do Obsidian", vaultReady(), "Escolher", () => goIntegrations("obsidian")]] : []),
     ["Ollama em execução", S.ollama.running, "Como instalar", () => window.open("https://ollama.com/download", "_blank")],
     [`Modelo de IA (${S.config.ollama_model})`, S.ollama.installed, "Baixar", () => goSettings("ai")],
     [`Modelo de transcrição (${w.label}, ${w.size})`, w.downloaded, "Baixar", () => goSettings("transcription")],
@@ -124,7 +125,7 @@ function renderChecks() {
 
 // ---------- abas ----------
 function selectTab(btn) {
-  for (const t of $$("[role=tab]")) {
+  for (const t of $$(".src-tabs [role=tab]")) {
     const on = t === btn;
     t.setAttribute("aria-selected", on); t.tabIndex = on ? 0 : -1;
     $("#" + t.getAttribute("aria-controls")).hidden = !on;
@@ -142,13 +143,14 @@ function selectTab(btn) {
   renderWatch();
   $("#hero-title").textContent = btn.querySelector(".tab-label").textContent;
   $("#hero-sub").textContent = btn.dataset.sub;
+  window.Glass?.source(kind);  // Glass: o cartão da fonte escolhida fica marcado
   found = null; renderSource();
   if (currentSpec()) inspect();
 }
-for (const t of $$("[role=tab]")) {
+for (const t of $$(".src-tabs [role=tab]")) {
   t.addEventListener("click", () => selectTab(t));
   t.addEventListener("keydown", (e) => {
-    const tabs = $$("[role=tab]"), i = tabs.indexOf(t);
+    const tabs = $$(".src-tabs [role=tab]"), i = tabs.indexOf(t);
     const next = e.key === "ArrowDown" || e.key === "ArrowRight", prev = e.key === "ArrowUp" || e.key === "ArrowLeft";
     const j = next ? (i + 1) % tabs.length : prev ? (i + tabs.length - 1) % tabs.length : -1;
     if (j >= 0) e.preventDefault();
@@ -299,7 +301,12 @@ function renderSource() {
     el("span", { class: "eyebrow" }, f.label + (f.author ? " · " + f.author : "")),
     el("strong", {}, f.title),
     el("div", { class: "tags" }, ...tags.map(([t, c]) => el("span", { class: "badge", "data-tone": c === "ok" ? "ok" : c || "" },
-      c ? icon(c === "ok" ? "check" : "alert") : null, t))));
+      c ? icon(c === "ok" ? "check" : "alert") : null, t))),
+    // “Guardar gravações” ligado: o WAV fica no PC, então dá para achá-lo
+    ...(kind === "recording" && picked.recording?.path && S.config.keep_temp
+      ? [el("button", { class: "btn sm", type: "button", "data-tip": "Abre a pasta com o arquivo selecionado",
+          onclick: () => api("/api/record/reveal", { path: picked.recording.path }).catch(fail) }, icon("folder"), "Mostrar no Explorer")]
+      : []));
   box.hidden = false;
   if (f.duplicate?.classification && !orgTouched) setOrg(f.duplicate.classification, false);  // reprocessar não a tira do lugar
   else renderOrg();
@@ -436,7 +443,7 @@ $("#rec-recover-drop").addEventListener("click", async () => {
     { title: "Descartar a gravação?", ok: "Descartar", danger: true })) return;
   try { renderRec(await api("/api/record/recover", { use: false })); toast("Gravação descartada."); } catch (e) { fail(e); }
 });
-Pomodoro.mount($("#u-pomo"), { sheet: true });
+Pomodoro.mount($("#u-pomo"), { sheet: true, card: true });  // card: as peças do cartão do estilo Glass (escondidas no clássico)
 Pomodoro.mount($("#set-pomo"), { panel: true });  // Ajustes → Pomodoro: as mesmas durações do painel
 // o painel do Pomodoro diz o que está sendo estudado agora (só na tela; nada é guardado junto com o timer)
 Pomodoro.setContext(() => S?.recording?.active ? "gravando uma aula"
@@ -656,25 +663,106 @@ function similarHint(input, hint, list, pick) {
 $("#org-new-course").addEventListener("click", () => {
   $("#org-course-form").hidden = false; $("#org-module-form").hidden = true;
   $("#org-course-name").value = ""; $("#org-course-platform").value = ""; $("#org-course-similar").hidden = true;
-  $("#org-decorate").checked = false;
+  $("#org-decorate").checked = false; coverReset();
   $("#org-course-name").focus();
 });
 $("#org-course-cancel").addEventListener("click", () => { $("#org-course-form").hidden = true; $("#org-new-course").focus(); });
 const pickCourse = (c) => { draft.course_id = c.id; draft.module_id = ""; $("#org-course-form").hidden = true; fillCourses(); previewDraft(); };
-$("#org-course-name").addEventListener("input", () => similarHint($("#org-course-name"), $("#org-course-similar"), catalogData.courses, pickCourse));
+$("#org-course-name").addEventListener("input", () => {
+  similarHint($("#org-course-name"), $("#org-course-similar"), catalogData.courses, pickCourse);
+  renderCover();  // o nome mudou: a prévia anterior fica marcada como de outro nome (nunca gera sozinho)
+});
+
+// ---------- Capa no Notion (novo curso): prévia feita no PC, “Gerar outra”, e a mesma imagem ao criar ----------
+// A prévia não toca no Notion; “Criar curso” envia o preview_id e o servidor usa exatamente aquela imagem
+// (recusa se ela expirou ou foi feita para outro nome). Uma prévia por vez: o gerador ocupa a GPU.
+let cover = null, coverErr = null, coverBusy = false, coverSeq = 0, coverVariant = 0, creating = false;
+const COVER_KIND = { ia: "Ilustração com IA local", emojis: "Capa alternativa com emojis", notion: "Capa de cor do Notion" };
+const COVER_KIND_LC = { ia: "ilustração com IA local", emojis: "capa alternativa com emojis", notion: "capa de cor do Notion" };
+const coverName = () => $("#org-course-name").value.trim();
+const coverStale = () => !!cover && fold(cover.name) !== fold(coverName());
+function coverReset() {  // formulário novo: nenhuma prévia herdada de outro curso
+  cover = null; coverErr = null; coverSeq++; coverVariant = 0;
+  $("#org-cover-pic").hidden = true; $("#org-cover-pic").removeAttribute("src"); $("#org-cover-emoji").hidden = true;
+  $("#org-cover-sub").textContent = "";
+  renderCover();
+}
+function renderCover() {
+  const on = $("#org-decorate").checked, name = coverName(), st = $("#org-cover-state");
+  $("#org-cover").hidden = !on;
+  $("#org-decorate").setAttribute("aria-expanded", String(on));
+  $("#org-cover-title").textContent = name || "Nome do curso";
+  $("#org-cover-where").textContent = `Página nova em “${S?.config.root_page_title || "página raiz"}”`;
+  const stale = coverStale();
+  $("#org-cover-wait").hidden = !!cover?.image && !coverBusy;
+  $("#org-cover-wait").textContent = coverBusy ? "Gerando a capa no seu PC…" : cover ? "Sem imagem: a página vai usar uma capa de cor do Notion." : "A prévia aparece aqui.";
+  $("#org-cover-fig").dataset.stale = String(stale || coverBusy);
+  $("#org-cover-img").dataset.empty = String(!cover?.image);
+  const gen = $("#org-cover-gen");
+  setLabel(gen, coverBusy ? "Gerando…" : cover ? "Gerar outra" : "Gerar prévia", cover && !coverBusy ? "refresh" : "sparkle");
+  gen.disabled = coverBusy || !name || creating;
+  gen.classList.toggle("primary", on && !cover && !coverBusy && !!name);  // a próxima ação; depois, Criar curso
+  const line = (tone, ic, text) => { st.dataset.tone = tone; swap(st, [ic === "spin" ? el("span", { class: "spinner", "aria-hidden": "true" }) : icon(ic), el("span", {}, text)]); };
+  if (!name) line("", "info", "Digite o nome do curso para gerar a capa.");
+  else if (coverBusy) line("busy", "spin", "Gerando a capa no seu PC. A IA local escolhe o ícone e as cores, e o gerador desenha a imagem; o Lumen continua livre enquanto isso.");
+  else if (coverErr) line("error", "x-circle", `${coverErr.gen ? "Não foi possível gerar a capa: " : ""}${coverErr.message} ${coverErr.action || ""}`.trim() + (cover ? " A prévia anterior continua valendo." : ""));
+  else if (stale) line("warn", "alert", `O nome mudou depois da prévia. Gere de novo para usar uma capa feita para “${name}”.`);
+  else if (cover) line(cover.kind === "ia" ? "ok" : "warn", cover.kind === "ia" ? "check-circle" : "alert",
+    `${COVER_KIND[cover.kind]}${cover.seconds ? `, gerada em ${cover.seconds} s neste PC` : ""}. ${cover.note ? cover.note + " " : ""}É esta imagem que vai para o Notion ao criar o curso.`);
+  else line("", "info", S?.covers?.ready ? "Gere a prévia para ver a capa antes de criar a página."
+    : "Gere a prévia para ver a capa antes de criar a página. Sem o gerador de IA instalado, a capa é desenhada com emojis.");
+  const ok = !on || (cover && !stale && !coverBusy);
+  const create = $("#org-course-create");
+  create.disabled = creating || !ok;
+  create.textContent = creating ? (on ? "Criando com a capa…" : "Criando…") : on && ok ? "Criar curso com a capa" : "Criar curso";
+  create.dataset.tip = !ok ? (stale ? "Gere a prévia de novo com o nome atual" : "Gere a prévia da capa primeiro (ou desligue a capa)") : "";
+}
+async function genCover() {
+  const name = coverName();
+  if (!name || coverBusy) return;  // clique duplo: uma geração só
+  coverBusy = true; coverErr = null;
+  const seq = ++coverSeq, variant = cover ? ++coverVariant : (coverVariant = 0);
+  renderCover();
+  try {
+    const r = await api("/api/decor/preview", { title: name, variant });
+    if (seq !== coverSeq) return;  // o formulário foi trocado: esta resposta não vale mais
+    cover = { id: r.preview_id, name: r.title, kind: r.kind, note: r.note, seconds: r.seconds, image: !!r.image };
+    const pic = $("#org-cover-pic");
+    if (r.image) pic.src = r.image; else pic.removeAttribute("src");
+    pic.hidden = !r.image;  // sem desenho (nem IA nem emojis): nenhuma imagem antiga fica parecendo a aprovada
+    pic.alt = `Prévia da capa do curso “${r.title}”: ${COVER_KIND_LC[r.kind]}`;
+    $("#org-cover-emoji").textContent = r.decor.emoji; $("#org-cover-emoji").hidden = false;
+    $("#org-cover-sub").textContent = r.decor.subtitle || "";
+  } catch (e) { if (seq === coverSeq) coverErr = Object.assign(e, { gen: true }); }  // a prévia anterior (se havia) continua valendo
+  finally {
+    coverBusy = false;  // só existe uma geração por vez, então a que terminou é a que estava rodando
+    renderCover();
+    if (seq === coverSeq && orgDlg.open && !$("#org-cover").hidden) (cover && !coverErr ? $("#org-course-create") : $("#org-cover-state")).focus();
+  }
+}
+$("#org-decorate").addEventListener("change", renderCover);
+$("#org-cover-gen").addEventListener("click", genCover);
 async function createOrgCourse() {
-  const name = $("#org-course-name").value.trim();
+  const name = $("#org-course-name").value.trim(), withCover = $("#org-decorate").checked;
   if (!name) return $("#org-course-name").focus();
   if (similarHint($("#org-course-name"), $("#org-course-similar"), catalogData.courses, pickCourse)) return;
-  const btn = $("#org-course-create");
-  btn.disabled = true; btn.textContent = $("#org-decorate").checked ? "Criando (com a capa)…" : "Criando…";
+  if (creating || (withCover && (!cover || coverStale() || coverBusy))) return renderCover();  // a capa aprovada vem antes
+  creating = true; renderCover();
   try {
-    const r = await api("/api/catalog/course", { name, platform: $("#org-course-platform").value.trim(), decorate: $("#org-decorate").checked });
+    const r = await api("/api/catalog/course", { name, platform: $("#org-course-platform").value.trim(), decorate: withCover,
+      ...(withCover ? { preview_id: cover.id } : {}) });
     await loadCatalog(false);
     pickCourse(r.course);
-    toast(r.note || `Curso “${r.course.name}” criado.`, r.note ? "warning" : "success");
+    const made = r.cover && !r.cover.adopted ? ` no Notion com a ${COVER_KIND_LC[r.cover.kind]}` : "";
+    toast(r.note || `Curso “${r.course.name}” criado${made}.`, r.note ? "warning" : "success");
+    coverReset();
     $("#org-module").focus();
-  } catch (e) { fail(e); } finally { btn.disabled = false; btn.textContent = "Criar curso"; }
+  } catch (e) {
+    if (/prévia/i.test(e.message)) {  // expirou ou era de outro nome: some da tela e pede para gerar de novo
+      cover = null; coverErr = e; $("#org-cover-pic").hidden = $("#org-cover-emoji").hidden = true; $("#org-cover-sub").textContent = "";
+    }
+    fail(e);
+  } finally { creating = false; renderCover(); }
 }
 $("#org-course-create").addEventListener("click", createOrgCourse);
 $("#org-new-module").addEventListener("click", () => {
@@ -736,6 +824,19 @@ async function saveOrg() {
 $("#org-save").addEventListener("click", saveOrg);
 $("#org-cancel").addEventListener("click", () => orgDlg.close());
 orgDlg.addEventListener("click", (e) => { if (e.target === orgDlg) orgDlg.close(); });  // clique fora da caixa
+let audioWatch = false;
+function renderAudioJob(j) {  // resumo e revisão em áudio (study/listen.py): em segundo plano, o andamento fica no status
+  if (j.status === "running") { audioWatch = true; return; }
+  if (!audioWatch) return;  // só o fim de uma tarefa vista rodando (não a última de uma sessão antiga)
+  audioWatch = false;
+  if (j.status === "error") return fail(Object.assign(new Error(j.error.message), { action: j.error.action }));
+  if (j.status === "cancelled") return toast("Geração do áudio cancelada. Nenhum arquivo ficou pela metade.", "info");
+  if (j.status !== "done") return;
+  const a = j.result?.audio;
+  toast(`Áudio pronto: “${a?.title || "áudio"}” (${a?.voice || "voz"}).`, "success");
+  window.dispatchEvent(new CustomEvent("lumen-audio", { detail: a }));
+  if (view === "library") loadLibrary();
+}
 function renderBackground(j) {  // organizar e migrar: rodam como tarefa, e a tela segue livre
   if (j.status === "running") return;
   if (j.status === "error") return fail(Object.assign(new Error(j.error.message), { action: j.error.action }));
@@ -825,6 +926,8 @@ const ORDER = ["prepare", "transcribe", "screen", "generate", "connect", "obsidi
 let lastJob = null;
 function renderJob(j) {
   lastJob = j;
+  if (["study_image", "study_pdf", "study_holo"].includes(j.kind)) return;  // o chat mostra o resultado; não é uma aula
+  if (j.kind === "audio") return renderAudioJob(j);
   if (j.kind === "download") return renderDownload(j);
   if (j.kind === "analyze") return renderAnalyzing(j);
   if (j.kind === "organize" || j.kind === "migrate") return renderBackground(j);
@@ -860,7 +963,7 @@ function renderJob(j) {
   if (transcribing) dockDest($("#run-dest"));
   $("#run-dest").hidden = !transcribing;
   const res = $("#result"), act = $("#run-actions");
-  const back = el("button", { class: "btn ghost", type: "button", onclick: backToCompose }, icon("new"), "Nova aula");
+  const back = el("button", { class: "btn ghost", "data-tier": "2", type: "button", onclick: backToCompose }, icon("new"), "Nova aula");
   const head = (ic, text) => el("strong", {}, icon(ic), text);
   // o cabeçalho diz o estado da tarefa (o resultado detalha por destino)
   const fin = j.status === "done" && !j.result?.review, bad = fin && [j.result.notion, j.result.obsidian].some((d) => d && d.status !== "ok");
@@ -878,18 +981,23 @@ function renderJob(j) {
     const r = j.result, nt = r.notion, ob = r.obsidian, fails = [nt, ob].filter((d) => d && d.status !== "ok");
     res.className = "result " + (fails.length ? "partial" : "ok");
     res.replaceChildren(head(fails.length ? "alert" : "check-circle", fails.length ? "Material processado, com um destino pendente" : "Material processado"),
-      ...doneLines(r));
+      ...[...doneLines(r), visualPreview(r)].filter(Boolean));  // sem visualização, nada (um null aqui viraria o texto “null”)
     if (r.note) res.append(el("span", { class: "dest-line" }, icon("info"), el("span", {}, r.note)));
+    window.Glass?.result(res, r);  // Glass: os mesmos fatos em cartões por destino (as linhas acima são as do Clássico)
     act.replaceChildren(...[
-      nt?.status === "ok" && el("a", { class: "btn primary", href: nt.url, target: "_blank", rel: "noopener" }, icon("external"), "Abrir no Notion"),
-      nt?.status === "ok" && nt.understanding_url && el("a", { class: "btn", href: nt.understanding_url, target: "_blank", rel: "noopener" }, "Abrir minha compreensão"),
-      ob?.status === "ok" && el("button", { class: "btn" + (nt ? "" : " primary"), type: "button", onclick: () => openObsidian(r.key, "note") }, icon("notebook"), "Abrir no Obsidian"),
-      ob?.status === "ok" && ob.canvas && el("button", { class: "btn", type: "button", onclick: () => openObsidian(r.key, "canvas") }, icon("map"), "Abrir mapa conceitual"),
-      ob?.status === "ok" && ob.board && el("button", { class: "btn", type: "button", onclick: () => openObsidian(r.key, "board") }, icon("image"), "Abrir painel visual"),
-      nt && nt.status !== "ok" && el("button", { class: "btn primary", type: "button", onclick: () => redeliver(r.key, "notion") }, icon("refresh"), "Tentar de novo só o Notion"),
-      ob && ob.status !== "ok" && el("button", { class: "btn primary", type: "button", onclick: () => redeliver(r.key, "obsidian", ob.conflict) },
+      nt?.status === "ok" && el("a", { class: "btn primary", "data-tier": "1", href: nt.url, target: "_blank", rel: "noopener" }, icon("external"), "Abrir no Notion"),
+      nt?.status === "ok" && nt.understanding_url && el("a", { class: "btn", "data-tier": "1", href: nt.understanding_url, target: "_blank", rel: "noopener" }, icon("page", "g-only"), "Abrir minha compreensão"),
+      ob?.status === "ok" && el("button", { class: "btn" + (nt ? "" : " primary"), "data-tier": "1", type: "button", onclick: () => openObsidian(r.key, "note") }, icon("obsidian"), "Abrir no Obsidian"),
+      ob?.status === "ok" && ob.canvas && el("button", { class: "btn", "data-tier": "2", type: "button", onclick: () => openObsidian(r.key, "canvas") }, icon("map"), "Abrir mapa conceitual"),
+      ob?.status === "ok" && ob.board && el("button", { class: "btn", "data-tier": "2", type: "button", onclick: () => openObsidian(r.key, "board") }, icon("image"), "Abrir painel visual"),
+      nt && nt.status !== "ok" && el("button", { class: "btn primary", "data-tier": "retry", type: "button", onclick: () => redeliver(r.key, "notion") }, icon("refresh"), "Tentar de novo só o Notion"),
+      ob && ob.status !== "ok" && el("button", { class: "btn primary", "data-tier": "retry", type: "button", onclick: () => redeliver(r.key, "obsidian", ob.conflict) },
         icon("refresh"), ob.conflict ? "Substituir mesmo assim (com backup)" : "Tentar de novo só o Obsidian"),
-      lastSpec && lastUrl !== "/api/deliver" && el("button", { class: "btn ghost", type: "button", onclick: openRedo }, icon("sparkle"), "Refazer material"), back].filter(Boolean));
+      lastSpec && lastUrl !== "/api/deliver" && el("button", { class: "btn ghost", "data-tier": "2", type: "button", onclick: openRedo }, icon("sparkle"), "Refazer material"),
+      r.key && window.lumenVoice && el("button", { class: "btn ghost", "data-tier": "2", type: "button", onclick: () => window.lumenVoice.lessonAudio(r.key, r.title || "a aula") }, icon("volume"), "Gerar resumo em áudio"),
+      r.key && window.lumenON?.enabled() && el("button", { class: "btn ghost", "data-tier": "2", type: "button", onclick: () => window.lumenON.lesson(r.key, r.title) }, icon("notebook"), "Enviar ao Open Notebook"),
+      r.key && window.lumenHB?.enabled() && el("button", { class: "btn ghost", "data-tier": "2", type: "button", onclick: () => window.lumenHB.lesson(r.key, r.title) }, icon("layers"), "Enviar transcrição ao HyperbookLM"),
+      back].filter(Boolean));
     act.querySelector("a, button")?.focus();
   } else if (j.status === "error") {
     res.className = "result err";
@@ -911,14 +1019,46 @@ function doneLines(r) {  // uma linha por destino: o que foi feito ou o que falh
   if (nt) out.push(line("Notion", nt.status === "ok", nt.status === "ok"
     ? `Página “${r.title}” em ${r.course}, com a subpágina “Minha compreensão”.` : `${nt.error} ${nt.action || ""}`));
   if (ob) out.push(line("Obsidian", ob.status === "ok", ob.status === "ok"
-    ? [{ created: "Nota criada", updated: "Nota atualizada (suas anotações ficaram)", unchanged: "Nota já estava em dia" }[ob.state] || "Nota salva",
-       ob.canvas ? "mapa conceitual" : null,
-       ob.board ? `painel visual (${ob.board_images} ${ob.board_images === 1 ? "imagem" : "imagens"})`
-         : ob.board_skipped === "sem-imagens" ? "painel visual: sem imagens úteis nesta aula" : null,
-       `${ob.connections} ${ob.connections === 1 ? "conexão" : "conexões"} com o cofre`,
-       `${ob.questions} perguntas de revisão`, ob.canvas_error, ob.board_error].filter(Boolean).join(" · ")
-    : `${ob.error} ${ob.action || ""}`));
+    ? obsidianParts(ob).map((p) => p[1]).join(" · ") : `${ob.error} ${ob.action || ""}`));
   return out;
+}
+function obsidianParts(ob) {  // [ícone, texto, é aviso]: o que o Obsidian recebeu (a linha do Clássico junta os textos; o Glass lista)
+  return [["page", { created: "Nota criada", updated: "Nota atualizada (suas anotações ficaram)", unchanged: "Nota já estava em dia" }[ob.state] || "Nota salva"],
+    ob.canvas ? ["map", "mapa conceitual"] : null,
+    ob.board ? ["image", `painel visual (${ob.board_images} ${ob.board_images === 1 ? "imagem" : "imagens"})`]
+      : ob.board_skipped === "sem-imagens" ? ["image", "painel visual: sem imagens úteis nesta aula"] : null,
+    ["link", `${ob.connections} ${ob.connections === 1 ? "conexão" : "conexões"} com o cofre`],
+    ["question", `${ob.questions} perguntas de revisão`],
+    ob.canvas_error && ["alert", ob.canvas_error, true], ob.board_error && ["alert", ob.board_error, true]].filter(Boolean);
+}
+function visualPreview(r) {  // a visualização 3D que foi para os destinos (o PNG para quem pediu menos movimento)
+  const v = r.visual, f = visualFacts(r);
+  if (!v) return null;
+  if (v.state === "off") return el("span", { class: "dest-line" }, icon("info"), "Visualização 3D desligada.");
+  if (!v.file) return el("span", { class: "dest-line v3d-message", "data-ok": "false" }, icon("info"),
+    el("span", {}, el("b", {}, "Visualização 3D"), `não saiu (${f.why}).`), v.state === "failed" && f.retry());
+  return el("figure", { class: "v3d-preview" }, f.picture(),
+    el("figcaption", {}, el("b", {}, "Visualização 3D"), el("span", {}, `${f.kind} · ${v.describe || ""}`), f.where.length ? el("span", {}, f.where.join(" · ")) : "",
+      f.again && f.retry()));
+}
+function visualFacts(r) {  // os fatos da visualização 3D: a prévia do Clássico e o cartão do Glass dizem a mesma coisa
+  const v = r.visual;
+  if (!v) return null;
+  const src = (kind) => `/api/visual?key=${encodeURIComponent(r.key)}${kind ? "&kind=" + kind : ""}&t=${encodeURIComponent(TOKEN)}`;
+  const nt = { confirmed: "no Notion, conferida na página", unconfirmed: "no Notion, sem confirmação da página",
+    mismatch: "no Notion, mas a página mostra outra imagem", "upload-failed": "o envio ao Notion falhou" }[v.notion];
+  return {
+    why: v.reason || (v.state === "skipped" ? "o material não tem elementos para a cena" : "o desenho falhou"),
+    kind: v.kind === "gif" ? "Animação (GIF)" : v.state === "static-fallback" ? "Imagem estática (PNG): a animação passou do limite de " + (v.reason || "peso") : "Imagem estática (PNG)",
+    where: [nt && nt + (v.notion_kind === "png" && v.kind === "gif" ? " (PNG de reserva)" : ""),
+      v.obsidian && "no Obsidian, como anexo da aula", v.obsidian_error,
+      v.obsidian_disabled && "Obsidian sem visual: anexos desligados"].filter(Boolean),
+    again: v.state === "static-fallback" || !!v.obsidian_error || ["upload-failed", "unconfirmed", "mismatch"].includes(v.notion),
+    retry: () => el("button", { class: "btn sm", type: "button", onclick: () =>
+      start({ key: r.key, only: r.dests, mode: "replace", retry_visual: true }, "/api/deliver") }, "Tentar visualização novamente"),
+    picture: () => el("picture", {}, v.kind === "gif" && el("source", { media: "(prefers-reduced-motion: reduce)", srcset: src("png") }),
+      el("img", { src: src(), alt: `Visualização 3D gerada pelo Lumen: ${v.describe || ""}`, loading: "lazy", width: "320", height: "180" })),
+  };
 }
 let lastDeliver = null;
 function redeliver(key, only, force = false) {
@@ -1154,7 +1294,7 @@ async function renderAnalysis() {
   $("#a-actions").replaceChildren(...(synced ? [
     fk.url && el("a", { class: "btn primary", href: fk.url, target: "_blank", rel: "noopener" }, icon("external"), "Abrir no Notion"),
     fk.understanding_url && el("a", { class: "btn", href: fk.understanding_url, target: "_blank", rel: "noopener" }, "Abrir minha compreensão"),
-    fk.obsidian && el("button", { class: "btn" + (fk.url ? "" : " primary"), type: "button", onclick: () => openObsidian(U.key, "note") }, icon("notebook"), "Abrir no Obsidian"),
+    fk.obsidian && el("button", { class: "btn" + (fk.url ? "" : " primary"), type: "button", onclick: () => openObsidian(U.key, "note") }, icon("obsidian"), "Abrir no Obsidian"),
     el("button", { class: "btn ghost", type: "button", onclick: backToCompose }, icon("new"), "Nova aula")].filter(Boolean) : []));
   $("#a-actions").hidden = !synced;
   if (synced) showStep("analysis");
@@ -1251,7 +1391,8 @@ function heroState() {
   return { mode: historyItems && !historyItems.length ? "first" : "start", key: null };
 }
 function renderPending() {
-  const items = S?.pending || [], shown = S ? heroState().key : null;
+  const hs = S ? heroState() : null;  // no Glass o cartão principal não mostra a aula pendente: ela fica nesta lista
+  const items = S?.pending || [], shown = hs && !(window.Glass?.on() && hs.mode.startsWith("pending")) ? hs.key : null;
   const more = items.filter((p) => p.key !== shown);  // sem repetir a aula que já está no cartão principal
   $("#pending").hidden = !more.length;
   $("#pending-all").hidden = more.length <= 3;
@@ -1409,8 +1550,37 @@ function goSettings(cat = settingsCat) {
   for (const b of $$("#settings-nav [data-cat]")) b.setAttribute("aria-current", String(b.dataset.cat === cat));
   for (const p of $$(".set-panel")) p.hidden = p.dataset.cat !== cat;
   showView("settings");
+  if (cat === "diagnostics" && !lastDiagData) runDiagnostics(true);
 }
-const goIntegrations = () => showView("integrations");
+// Integrações: uma aba por integração. Trocar de aba só mostra ou oculta o painel: nada é salvo, enviado ou recriado,
+// e o que está sendo digitado (e as seções abertas) fica como estava.
+const INTEG_TABS = $$("#integ-tabs [role=tab]");
+let integTab = (() => { try { return localStorage.getItem("integTab"); } catch { return null; } })() || "notion";
+function integSelect(name, focus = false) {
+  const tab = INTEG_TABS.find((t) => t.id === "itab-" + name) || INTEG_TABS[0];
+  integTab = tab.id.slice(5);
+  for (const t of INTEG_TABS) {
+    const on = t === tab;
+    t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1;
+    $("#" + t.getAttribute("aria-controls")).hidden = !on;
+  }
+  if (focus) tab.focus();
+  if (integTab === "voicestudio") window.lumenVoice?.integration($("#integ-voicestudio"));
+  if (integTab === "opennotebook") window.lumenON?.load();  // testa a conexão ao abrir a aba (sem travar a tela)
+  if (integTab === "hyperbooklm") window.lumenHB?.load();
+  try { localStorage.setItem("integTab", integTab); } catch { /* só conveniência */ }
+  if (view === "integrations") setWhere(VIEW_NAMES.integrations, tab.querySelector(".integ-tab-name").textContent);
+}
+INTEG_TABS.forEach((t, i) => {
+  t.addEventListener("click", () => integSelect(t.id.slice(5)));
+  t.addEventListener("keydown", (e) => {
+    const n = INTEG_TABS.length, j = { ArrowRight: i + 1, ArrowLeft: i - 1 + n, Home: 0, End: n - 1 }[e.key];
+    if (j === undefined) return;
+    e.preventDefault(); integSelect(INTEG_TABS[j % n].id.slice(5), true);
+  });
+});
+integSelect(integTab);
+const goIntegrations = (tab) => { if (typeof tab === "string") integSelect(tab); showView("integrations"); };
 function openSettings() { goSettings(); }  // a bandeja e a barra chamam “Ajustes”
 for (const b of $$("#settings-nav [data-cat]")) b.addEventListener("click", () => goSettings(b.dataset.cat));
 // Saindo dos Ajustes/Integrações: o que mudou vale para a aula (o que o fechamento do diálogo fazia)
@@ -1422,9 +1592,9 @@ function renderSettings() {
   $("#token-status").textContent = S.has_token ? "Conectado. O token fica no Gerenciador de Credenciais do Windows." : "Cole o token da integração interna do Notion.";
   setBadge($("#notion-badge"), notionState());
   setBadge($("#obsidian-badge"), obsidianState());
-  $("#integ-notion").dataset.off = String(!usesNotion());
-  $("#integ-obsidian").dataset.off = String(!usesObsidian());
-  $("#forget").hidden = !S.has_token;
+  $("#notion-off").hidden = usesNotion();  // fora dos destinos: diz isso em palavras (os ajustes continuam editáveis)
+  $("#obsidian-off").hidden = usesObsidian();
+  $("#notion-foot").hidden = !S.has_token;
   if (!$("#root").options.length) {
     $("#root").replaceChildren(el("option", { value: S.config.root_page_id }, S.config.root_page_title || (S.has_token ? "Carregando…" : "Conecte o Notion primeiro")));
   }
@@ -1454,11 +1624,20 @@ function renderSettings() {
   for (const id of ["#widget-position", "#widget-reset", "#autostart", "#desktop-exit"]) $(id).disabled = !host;
   $("#widget-reset").disabled = !host || S.config.widget === "off";
   $("#desktop-hint").textContent = host ? "Ao fechar a janela, o Lumen continua na barra flutuante e na bandeja do Windows." : "Disponível na janela do Lumen.exe.";
-  $("#covers-status").textContent = S.covers.ready
-    ? `${S.covers.label} instalado: as capas são ilustrações criadas no seu PC (≈ 30 s cada).`
-    : `Sem o gerador, as capas são desenhadas com emojis. ${S.covers.label} (Apache 2.0) ocupa ${S.covers.size}; prefira um SSD.`;
-  $("#covers-dl").hidden = S.covers.ready;
+  const gen = S.covers;
+  $("#covers-state").dataset.tone = gen.ready ? "ok" : "";
+  $("#covers-ico").replaceChildren(icon(gen.ready ? "check-circle" : "image"));
+  $("#covers-title").textContent = gen.ready ? `Gerador instalado · ${gen.label}` : "Gerador não instalado";
+  $("#covers-status").textContent = gen.ready ? "As capas são ilustrações feitas na sua GPU. Se a geração falhar, a alternativa desenhada com emojis aparece na prévia antes de aplicar."
+    : `Sem ele, a capa é desenhada com emojis e cores, sem baixar nada. O ${gen.label} ocupa ${gen.size}; prefira um SSD.`;
+  $("#covers-dl").hidden = gen.ready;
+  swap($("#covers-tech"), [["Gerador", `${gen.label} com stable-diffusion.cpp (Vulkan), no seu PC`], ["Licença", gen.license || ""],
+    ["Tamanho da capa", "1536 × 640 px (o Notion corta as bordas de cima e de baixo em janelas largas)"], ["Arquivos", `${gen.size} · ${gen.folder || ""}`],
+    ["Sem o gerador", "Capa desenhada com emojis e a paleta escolhida pela IA local"],
+    ["Conferência", "Depois de aplicar, o Lumen lê a página de novo e compara a imagem da capa com a prévia, byte a byte"]]
+    .flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
   setLabel($("#covers-dl"), `Baixar ${S.covers.label} (${S.covers.size})`, "download");
+  renderCov();
   $("#lang").value = $("#lang").dataset.touched ? $("#lang").value : S.config.page_language;
   renderWatch();
   const mu = S.music;
@@ -1477,6 +1656,7 @@ function renderDestSettings() {  // Destinos do material: o cofre só é escolhi
   const c = S.config, o = S.obsidian || { vaults: [] };
   for (const r of $("#dest-mode").querySelectorAll("input")) r.checked = r.value === c.destinations;
   for (const r of $("#study-level").querySelectorAll("input")) r.checked = r.value === c.study_level;
+  for (const r of $("#v3d-mode").querySelectorAll("input")) r.checked = r.value === (c.visual_3d || "animated");
   const opts = [el("option", { value: "" }, o.vaults.length ? "Escolha o cofre…" : "Nenhum cofre do Obsidian encontrado neste PC")];
   for (const v of o.vaults) opts.push(el("option", { value: v.path, ...(v.ok ? {} : { disabled: "" }) },`${v.name}${v.open ? " · aberto no Obsidian" : ""}${v.ok ? "" : " · pasta não encontrada"}`));
   if (c.obsidian_vault && !o.vaults.some((v) => v.path === c.obsidian_vault)) opts.push(el("option", { value: c.obsidian_vault }, c.obsidian_vault));
@@ -1495,7 +1675,7 @@ function renderDestSettings() {  // Destinos do material: o cofre só é escolhi
   for (const i of $$("[data-cfg=obsidian_board]")) i.disabled = !c.obsidian_attachments;
   $("#board-hint").textContent = c.obsidian_attachments
     ? "Um segundo .canvas com as telas e os gráficos da aula, compostos para reconhecer e lembrar. Só imagens reais da aula."
-    : "Precisa de “Telas e gráficos no cofre”, logo abaixo: o painel é feito das imagens da aula.";
+    : "Precisa de “Telas e gráficos no cofre”, logo acima: o painel é feito das imagens da aula.";
   $("#review-intervals").disabled = !c.obsidian_review;
   $("#vault-status").textContent = o.error || (!c.obsidian_vault ? (o.vaults.length > 1
     ? "Há mais de um cofre neste PC: escolha qual o Lumen deve usar." : "Escolha o cofre para ligar o Obsidian.")
@@ -1545,7 +1725,7 @@ function renderDestRows() {
   const vault = $("#dest-vault");
   vault.dataset.tip = oOk ? `${name} › ${orgView?.obsidian_path || o.folder}` : st[0] === "error" ? o.error : "";
   vault.replaceChildren(...(!oOn ? [] : oOk ? [el("span", { class: "dest-path" }, ...trailNodes((orgView?.obsidian || "Estudos").split(" / ")))]
-    : [el("span", { class: "dest-msg" }, st[0] === "error" ? "O cofre escolhido não foi encontrado." : "Notas, revisões e mapas mentais no seu cofre.")]));
+    : [el("span", { class: "dest-msg" }, st[0] === "error" ? "O cofre escolhido não foi encontrado." : c.obsidian_review ? "Notas, revisões e mapas mentais no seu cofre." : "Notas e mapas mentais no seu cofre.")]));
   const visual = c.obsidian_board && c.obsidian_attachments;  // o painel só existe com as imagens no cofre
   const maps = (c.obsidian_canvas ? 1 : 0) + (visual ? 1 : 0);
   $("#dest-feats").textContent = oOk ? `Nota${maps ? ` + ${maps === 1 ? "" : "2 "}Canvas` : ""} · ${name}` : "";
@@ -1562,14 +1742,15 @@ function renderDestRows() {
 const setDestinations = (v) => saveSettings({ destinations: v },
   { both: "O material vai para o Notion e o Obsidian.", notion: "O material vai só para o Notion.", obsidian: "O material vai só para o Obsidian." }[v])
   .then(() => loadCatalog());
-$("#dest-notion-fix").addEventListener("click", () => usesNotion() ? goIntegrations() : setDestinations("both"));
+$("#dest-notion-fix").addEventListener("click", () => usesNotion() ? goIntegrations("notion") : setDestinations("both"));
+for (const b of $$("[data-dest-both]")) b.addEventListener("click", () => setDestinations("both"));
 $("#free-root").addEventListener("change", (e) => {
   const o = e.target.selectedOptions[0];
   saveSettings({ notion_free_page: o.value, notion_free_page_title: o.value ? o.dataset.title || o.textContent : "" },
     o.value ? `Conteúdo gratuito: uma página por material em “${o.dataset.title || o.textContent}”.` : "").then(renderOrg);
 });
 $("#dest-obs-change").addEventListener("click", () => usesObsidian() ? setObsQuick($("#obs-quick").hidden) : setDestinations("both"));
-for (const b of $$("[data-go-integ]")) b.addEventListener("click", () => goIntegrations());
+for (const b of $$("[data-go-integ]")) b.addEventListener("click", () => goIntegrations("obsidian"));
 
 function renderWatch() {  // “Assistir a tela junto”: chave no cartão da fonte e nos Ajustes
   if (!S) return;
@@ -1605,7 +1786,10 @@ $("#token-save").addEventListener("click", async () => {
   const v = $("#token").value.trim();
   if (!v) return $("#token").focus();
   $("#token-status").textContent = "Validando com o Notion…";
-  if (await saveSettings({ notion_token: v }, "Notion conectado.")) { $("#token").value = ""; loadRoots(); }
+  if (await saveSettings({ notion_token: v }, "Notion conectado.")) {
+    $("#token").value = ""; loadRoots();
+    cv.list = []; cv.cursor = null; cv.searched = false; covReset();  // outra conexão: nada da página escolhida antes
+  }
   else $("#token-status").textContent = "Não foi possível validar o token.";
 });
 async function loadRoots() {
@@ -1642,7 +1826,7 @@ $("#root").addEventListener("change", (e) => {
 });
 $("#quality").addEventListener("change", (e) => saveSettings({ quality: e.target.value }));
 $("#model-save").addEventListener("click", () => saveSettings({ ollama_model: $("#model").value }, "Modelo atualizado."));
-$("#keep").addEventListener("change", (e) => saveSettings({ keep_temp: e.target.checked }));
+$("#keep").addEventListener("change", (e) => saveSettings({ keep_temp: e.target.checked }).then(() => found && renderSource()));
 for (const id of ["#watch", "#watch-set"])
   $(id).addEventListener("change", (e) => saveSettings({ watch_screen: e.target.checked },
     e.target.checked ? "O Lumen vai assistir a tela junto." : "Leitura da tela desligada.").then(updateGo));
@@ -1651,6 +1835,244 @@ $("#lang").addEventListener("change", (e) => { e.target.dataset.touched = "1"; }
 $("#whisper-dl").addEventListener("click", () => download({ what: "whisper", quality: S.whisper.active }));
 $("#ollama-dl").addEventListener("click", () => download({ what: "ollama" }));
 $("#covers-dl").addEventListener("click", () => download({ what: "covers" }));
+
+// ---------- Capas do Notion: escolher a página → gerar a imagem no PC → aplicar só a capa ----------
+// A mesma tela em Ajustes, Integrações → Notion, Ctrl+K e no curso da Biblioteca (covOpen) e, na Nova aula, num diálogo
+// (covQuick): o bloco #cov-box muda de lugar, o estado é um só. `seq` muda a cada troca de página: uma resposta atrasada
+// da página anterior não mexe nesta. O texto digitado nunca é reescrito por aqui.
+const cv = { page: null, pv: null, busy: "", genFor: null, err: null, res: null, seq: 0, variant: 0, why: "", target: null,
+  list: [], cursor: null, active: 0, qseq: 0, qerr: null, loading: false, searched: false, timer: 0 };
+const covTheme = () => $("#cov-theme").value.split(/\s+/).filter(Boolean).join(" ").slice(0, 300);
+const covStale = () => !!cv.pv && covTheme() !== cv.pv.theme;
+const covLink = (v) => /[0-9a-f]{32}/i.test(v.replace(/-/g, ""));  // link ou ID colado: vai direto à página
+const covMeta = (p) => [p.where, p.edited && `editada em ${shortDate(p.edited)}`].filter(Boolean).join(" · ");
+const covDlg = $("#cov-dlg");
+const covShown = () => covDlg.open || (view === "settings" && settingsCat === "covers");
+function covReset() { cv.page = cv.pv = cv.err = cv.res = null; cv.seq++; cv.variant = 0; renderCov(); }
+async function covOpen(ref) {  // Ajustes → Capas do Notion
+  if (covDlg.open) covDlg.close();
+  goSettings("covers");
+  await covStart(ref);
+}
+async function covStart(ref, why = "") {
+  cv.why = why;
+  if (!S?.has_token || cv.busy) return renderCov();  // gerando ou aplicando: mostra como está, sem trocar a página
+  if (ref && ref !== cv.page?.id) await covPickRef(ref);
+  else if (!cv.page && !cv.searched) covSearch();
+  renderCov();
+  (cv.page ? (covDlg.open ? $("#cov-gen") : $("#cov-theme")) : $("#cov-q")).focus();
+}
+// A página do destino da aula no Notion, só com IDs reais (catálogo e histórico; validada pela API ao abrir). O caminho
+// do cartão é uma previsão: nada é deduzido dele nem do título, e nada é criado aqui.
+function covTarget() {
+  if (!usesNotion()) return {};
+  const old = found?.duplicate || (historyItems || []).find((it) => it.key === U?.key) || {};
+  if (org.type === "course") {
+    const c = courseOf(org.course_id), m = c?.modules.find((x) => x.id === org.module_id);
+    if (org.module_id) return m?.notion_page_id ? { id: m.notion_page_id } : { why: "O módulo escolhido ainda não tem página no Notion. Escolha uma página para a capa." };
+    return c?.notion_page_id ? { id: c.notion_page_id } : { why: "O curso escolhido ainda não tem página no Notion. Escolha uma página para a capa." };
+  }
+  if (old.page_id && (org.type === "inbox" || (org.type === "free" && old.notion_own))) return { id: old.page_id };  // onde a aula já está
+  if (org.type === "free") return { why: "A página desta aula ainda não existe. Escolha uma página para a capa." };
+  return { why: "O destino desta aula ainda não tem uma página identificada. Escolha uma página para a capa." };
+}
+async function covQuick() {  // Nova aula → Destinos do estudo → Notion → Capa
+  const t = covTarget(), key = t.id || t.why || "";
+  $("#cov-dlg-body").append($("#cov-box"));
+  covDlg.showModal();
+  if (cv.busy || key === cv.target) { renderCov(); return covFirst(); }  // reaberto para o mesmo destino: como estava
+  cv.target = key;
+  if (!t.id && cv.page) covReset();
+  await covStart(t.id, t.why || "");
+}
+function covFirst() { (cv.page ? (!$("#cov-main").hidden ? $("#cov-main") : $("#cov-gen")) : $("#cov-q")).focus(); }
+covDlg.addEventListener("close", () => {
+  $("#cov-home").append($("#cov-box"));  // de volta a Ajustes; o que estiver em andamento continua e aparece lá
+  $("#dest-notion-cover").focus({ preventScroll: true });
+});
+$("#cov-close").addEventListener("click", () => covDlg.close());
+$("#dest-notion-cover").addEventListener("click", covQuick);
+async function covSearch(more = false) {
+  clearTimeout(cv.timer);
+  const text = $("#cov-q").value.trim();
+  if (!more && covLink(text)) return covPickRef(text);
+  const seq = ++cv.qseq;
+  cv.loading = true; cv.qerr = null;
+  if (!more) { cv.list = []; cv.cursor = null; cv.active = 0; }
+  renderList();
+  try {
+    const r = await api(`/api/notion/search?q=${encodeURIComponent(text)}` + (more && cv.cursor ? `&cursor=${encodeURIComponent(cv.cursor)}` : ""));
+    if (seq !== cv.qseq) return;  // já digitaram outra coisa: esta resposta não vale mais
+    cv.list = more ? [...cv.list, ...r.pages] : r.pages; cv.cursor = r.next_cursor;
+  } catch (e) { if (seq === cv.qseq) cv.qerr = e; }
+  finally { if (seq === cv.qseq) { cv.loading = false; cv.searched = true; renderList(); } }
+}
+async function covPickRef(ref) {
+  clearTimeout(cv.timer);
+  const seq = ++cv.qseq;
+  cv.loading = true; cv.qerr = null; cv.list = []; cv.cursor = null;
+  renderList("Abrindo a página do link…");
+  try {
+    const page = await api("/api/notion/page?ref=" + encodeURIComponent(ref));
+    if (seq === cv.qseq) covSelect(page);
+  } catch (e) { if (seq === cv.qseq) cv.qerr = e; }
+  finally { if (seq === cv.qseq) { cv.loading = false; renderList(); } }
+}
+function covSelect(p) {
+  clearTimeout(cv.timer); cv.qseq++;  // buscas que ainda iam chegar não valem mais
+  cv.loading = false; cv.page = p; cv.pv = cv.err = cv.res = null; cv.seq++; cv.variant = 0;
+  renderCov();
+  $("#cov-theme").focus();
+}
+function renderList(busyText) {
+  const q = $("#cov-q"), text = q.value.trim(), box = $("#cov-results");
+  const opts = cv.list.map((p, i) => el("li", { role: "option", id: "cov-opt-" + i, "aria-selected": String(i === cv.active),
+    onmousedown: (e) => { e.preventDefault(); covSelect(p); }, onmousemove: () => { if (cv.active !== i) { cv.active = i; covMark(); } } },
+  p.icon ? el("span", { class: "cov-emoji", "aria-hidden": "true" }, p.icon) : icon("page"),
+  el("span", { class: "cov-opt" }, el("span", {}, p.title), el("small", {}, covMeta(p) + (p.cover ? " · com capa" : "")))));
+  if (opts.length && !text) opts.unshift(el("li", { class: "pal-h", role: "presentation" }, "Editadas recentemente"));
+  $("#cov-list").replaceChildren(...opts);
+  const e = cv.qerr, msg = $("#cov-list-msg");
+  msg.dataset.tone = e ? "error" : "";
+  msg.replaceChildren(...(cv.loading ? [el("span", { class: "spinner", "aria-hidden": "true" }), busyText || (cv.list.length ? "Carregando mais…" : "Buscando páginas…")]
+    : e ? [icon("x-circle"), `${e.message} ${e.action || ""}`.trim()]
+    : cv.searched && !cv.list.length ? [text ? `Nenhuma página com “${text}”.` : "Nenhuma página compartilhada com a integração ainda."] : []));
+  $("#cov-retry").hidden = !e;
+  $("#cov-more").hidden = !cv.cursor || cv.loading || !!e;
+  box.hidden = !cv.list.length && !msg.childNodes.length;
+  q.setAttribute("aria-expanded", String(!!cv.list.length));
+  covMark();
+}
+function covMark() {
+  $$("#cov-list [role=option]").forEach((li, i) => li.setAttribute("aria-selected", String(i === cv.active)));
+  const cur = $("#cov-opt-" + cv.active);
+  if (cur && cv.list.length) { $("#cov-q").setAttribute("aria-activedescendant", cur.id); cur.scrollIntoView({ block: "nearest" }); }
+  else $("#cov-q").removeAttribute("aria-activedescendant");
+}
+function covButton(btn, label, ic, primary, disabled) {
+  btn.hidden = !label;
+  if (!label) return;
+  setLabel(btn, label, ic);
+  btn.classList.toggle("primary", primary);
+  btn.disabled = disabled;
+}
+function renderCov() {
+  if (!S) return;
+  if (!S.has_token && (cv.page || cv.pv)) { cv.page = cv.pv = cv.err = cv.res = null; cv.seq++; }  // desconectou
+  const p = cv.page;
+  $("#cov-off").hidden = S.has_token; $("#cov-flow").hidden = !S.has_token;
+  $("#cov-pick").hidden = !!p;
+  $("#cov-why").hidden = !cv.why; $("#cov-why-text").textContent = cv.why;
+  for (const id of ["#cov-page", "#cov-theme-box", "#cov-actions"]) $(id).hidden = !p;
+  if (!p) { $("#cov-area").hidden = true; swap($("#cov-state"), []); return renderList(); }
+  $("#cov-page-ico").replaceChildren(p.icon || icon("page"));
+  $("#cov-page-title").textContent = p.title;
+  setBadge($("#cov-page-badge"), p.cover ? ["", "image", "Tem capa"] : ["", "minus", "Sem capa"]);
+  $("#cov-page-where").textContent = covMeta(p);
+  $("#cov-page-open").disabled = !p.url;
+  $("#cov-page-change").disabled = cv.busy === "apply";
+  $("#cov-theme-hint").textContent = `Sem descrição, a capa sai do título “${p.title}”.`;
+  const gen = cv.busy === "gen", applying = cv.busy === "apply", stale = covStale(), r = cv.res, e = cv.err;
+  $("#cov-area").hidden = !cv.pv && !gen;
+  $("#cov-progress").hidden = !gen;  // sem medição real do gerador: progresso indeterminado
+  $("#cov-pic").hidden = !cv.pv;
+  $("#cov-img").dataset.empty = String(!cv.pv);
+  $("#cov-fig").dataset.stale = String(stale || gen || !!cv.pv?.dead);
+  $("#cov-wait").hidden = !!cv.pv;
+  $("#cov-wait").textContent = gen ? "Gerando a capa no seu PC…" : "";
+  const st = $("#cov-state"), line = (tone, ic, text) => { st.dataset.tone = tone; swap(st, text ? [ic === "spin" ? el("span", { class: "spinner", "aria-hidden": "true" }) : icon(ic), el("span", {}, text)] : []); };
+  if (gen) line("busy", "spin", cv.genFor === p.id ? "Gerando a capa no seu PC. O Lumen continua livre enquanto isso." : "Terminando a prévia da página anterior…");
+  else if (applying) line("busy", "spin", `Enviando a capa para “${p.title}” e conferindo no Notion…`);
+  else if (r?.state === "confirmed") line("ok", "check-circle", `Capa aplicada em “${p.title}”.`);
+  else if (r?.state === "unconfirmed") line("warn", "alert", "Não foi possível confirmar se a capa ficou na página. A imagem continua aqui: “Tentar de novo” confere o Notion antes de enviar.");
+  else if (r?.state === "mismatch") line("error", "x-circle", "O Notion respondeu, mas a página continua com outra capa. Nada foi dado como aplicado.");
+  else if (r?.state === "changed") line("warn", "alert", "A capa desta página mudou desde que você a escolheu. Confira acima; “Substituir capa” troca a capa atual.");
+  else if (r?.state === "regenerate") line("warn", "alert", `${r.message} ${r.action || ""}`.trim());
+  else if (e) line("error", "x-circle", `${e.gen ? "Não foi possível gerar a capa: " : ""}${e.message} ${e.action || ""}`.trim() + (e.gen && cv.pv ? " A prévia anterior continua valendo." : ""));
+  else if (stale) line("warn", "alert", "O tema mudou depois da prévia. Gere de novo para usar o tema atual.");
+  else if (cv.pv) line(cv.pv.kind === "ia" ? "ok" : "warn", cv.pv.kind === "ia" ? "check-circle" : "alert",
+    `${COVER_KIND[cv.pv.kind]}, gerada em ${cv.pv.seconds} s neste PC. ${cv.pv.note ? cv.pv.note + " " : ""}`
+    + (p.cover ? `Ela substitui a capa atual de “${p.title}”.` : `É esta imagem que vai para “${p.title}”.`));
+  else line("", "info", S.covers?.ready ? "" : "Sem o gerador de IA instalado, a capa é desenhada com emojis (veja Gerador e detalhes técnicos).");
+  // uma ação principal por estado
+  const usable = cv.pv && !cv.pv.dead && !stale, retry = ["unconfirmed", "mismatch"].includes(r?.state) || (e && !e.gen);
+  const main = r?.state === "confirmed" ? ["Abrir no Notion", "external"] : usable ? [applying ? "Aplicando…" : retry ? "Tentar de novo" : p.cover ? "Substituir capa" : "Aplicar capa", null] : [null];
+  covButton($("#cov-main"), main[0], main[1], true, !!cv.busy);
+  $("#cov-main").dataset.act = r?.state === "confirmed" ? "open" : "apply";
+  covButton($("#cov-gen"), gen ? "Gerando…" : cv.pv && !cv.pv.dead ? "Gerar outra" : e?.gen ? "Tentar de novo" : "Gerar capa",
+    cv.pv && !cv.pv.dead ? "refresh" : "sparkle", !main[0], !!cv.busy);
+}
+function covHold() {  // o botão em foco vai ficar desabilitado: o foco espera na linha de estado
+  if ([$("#cov-gen"), $("#cov-main")].includes(document.activeElement)) $("#cov-state").focus();
+}
+function covFocus() {  // ao terminar, o foco vai para a próxima ação (só se a tela ainda estiver aberta)
+  if (!covShown() || document.activeElement !== $("#cov-state")) return;
+  (!$("#cov-main").hidden ? $("#cov-main") : $("#cov-gen")).focus();
+}
+async function covGen() {
+  const p = cv.page;
+  if (!p || cv.busy) return;  // clique duplo: uma geração só
+  const seq = cv.seq, theme = covTheme(), variant = cv.pv ? ++cv.variant : (cv.variant = 0);
+  covHold();
+  cv.busy = "gen"; cv.genFor = p.id; cv.err = cv.res = null;
+  renderCov();
+  try {
+    const r = await api("/api/cover/preview", { page_id: p.id, title: p.title, theme, variant });
+    if (seq !== cv.seq) return;  // a página foi trocada: esta prévia não vale aqui
+    cv.pv = { id: r.preview_id, kind: r.kind, note: r.note, seconds: r.seconds, theme: r.theme };
+    const pic = $("#cov-pic");
+    pic.src = r.image; pic.alt = `Prévia da capa para “${p.title}”: ${COVER_KIND_LC[r.kind]}`;
+  } catch (e) { if (seq === cv.seq) cv.err = Object.assign(e, { gen: true }); }  // a prévia anterior (se havia) continua valendo
+  finally { cv.busy = ""; renderCov(); if (seq === cv.seq) covFocus(); }
+}
+async function covApply() {
+  const p = cv.page, pv = cv.pv;
+  if (!p || !pv || pv.dead || cv.busy) return;  // clique duplo: o servidor também recusa um segundo envio
+  const seq = cv.seq;
+  covHold();
+  cv.busy = "apply"; cv.err = null;
+  renderCov();
+  let r = null;
+  try { r = await api("/api/cover/apply", { preview_id: pv.id, page_id: p.id, theme: covTheme(), cover: p.cover ?? null }); }
+  catch (e) { if (seq === cv.seq) cv.err = e; }
+  finally { cv.busy = ""; }
+  if (seq !== cv.seq) {  // desconectou no meio: o resultado é da página anterior
+    if (r?.state === "confirmed") toast(`Capa aplicada em “${p.title}”.`);
+    return renderCov();
+  }
+  if (r) {
+    cv.res = r.changed ? { state: "changed" } : r;
+    if (r.page) cv.page = r.page;
+    if (r.state === "regenerate") cv.pv = { ...pv, dead: true };
+    if (r.state === "confirmed" && !covShown()) toast(`Capa aplicada em “${p.title}”.`);  // o diálogo foi fechado no meio
+  }
+  renderCov(); covFocus();
+}
+$("#cov-q").addEventListener("input", () => {
+  cv.active = 0; clearTimeout(cv.timer);
+  if (covLink($("#cov-q").value)) covSearch(); else cv.timer = setTimeout(covSearch, 300);
+});
+$("#cov-q").addEventListener("focus", () => { if (!cv.searched && !cv.loading) covSearch(); });
+$("#cov-q").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (cv.list.length) { cv.active = (cv.active + (e.key === "ArrowDown" ? 1 : -1) + cv.list.length) % cv.list.length; covMark(); }
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    const pick = cv.list[cv.active];
+    if (pick && !covLink(e.target.value) && !cv.loading) covSelect(pick); else covSearch();
+  } else if (e.key === "Escape" && e.target.value) { e.preventDefault(); e.target.value = ""; covSearch(); }
+});
+$("#cov-more").addEventListener("click", () => covSearch(true));
+$("#cov-retry").addEventListener("click", () => covSearch());
+$("#cov-page-change").addEventListener("click", () => { covReset(); $("#cov-q").focus(); });
+$("#cov-page-open").addEventListener("click", () => cv.page?.url && window.open(cv.page.url, "_blank"));
+$("#cov-theme").addEventListener("input", () => renderCov());
+$("#cov-theme").addEventListener("keydown", (e) => { if (e.key === "Enter" && (!cv.pv || covStale() || cv.pv.dead)) { e.preventDefault(); covGen(); } });
+$("#cov-gen").addEventListener("click", covGen);
+$("#cov-main").addEventListener("click", (e) => e.currentTarget.dataset.act === "open" ? window.open(cv.page?.url, "_blank") : covApply());
+$("#cov-connect").addEventListener("click", () => { if (covDlg.open) covDlg.close(); goIntegrations("notion"); });
+for (const b of $$("[data-cover-open]")) b.addEventListener("click", () => covOpen());
 $("#music-set").addEventListener("change", (e) => saveSettings({ music_filter: e.target.checked },
   e.target.checked ? "Filtro de música ativo." : "Filtro de música desligado."));
 $("#music-mode").addEventListener("change", (e) => saveSettings({ music_mode: e.target.value }));
@@ -1658,6 +2080,9 @@ $("#music-dl").addEventListener("click", () => download({ what: "music" }));
 $("#dest-mode").addEventListener("change", (e) => setDestinations(e.target.value));
 $("#study-level").addEventListener("change", (e) => saveSettings({ study_level: e.target.value }));
 $("#board-density").addEventListener("change", (e) => saveSettings({ obsidian_board_density: e.target.value }));
+$("#v3d-mode").addEventListener("change", (e) => saveSettings({ visual_3d: e.target.value },
+  { animated: "Visualização 3D animada nas próximas páginas.", static: "Visualização 3D estática (PNG) nas próximas páginas.",
+    off: "Visualização 3D desligada nas próximas páginas." }[e.target.value]));
 for (const id of ["#vault", "#q-vault"])
   $(id).addEventListener("change", (e) => saveSettings({ obsidian_vault: e.target.value }, e.target.value ? "Cofre do Obsidian escolhido." : ""));
 for (const id of ["#vault-pick", "#q-vault-pick"]) $(id).addEventListener("click", async () => {
@@ -1713,12 +2138,225 @@ $("#forget").addEventListener("click", async () => {
   try { S = await api("/api/clear", { forget_token: true }); $("#root").replaceChildren(); $("#free-root").replaceChildren(); renderSettings(); renderChecks(); renderPending(); await loadHistory().catch(() => {}); toast("Notion desconectado."); } catch (e) { fail(e); }
 });
 
+
+// ---------- Diagnóstico do sistema ----------
+let lastDiagData = null;
+let diagRunning = false;
+
+async function runDiagnostics(silent = false) {
+  if (diagRunning) return;
+  diagRunning = true;
+  const btn = $("#diag-run-btn");
+  const label = $("#diag-run-label");
+  if (btn) {
+    btn.classList.add("scanning");
+    btn.disabled = true;
+    if (label) label.textContent = "Verificando tudo...";
+  }
+  try {
+    const data = await api("/api/diagnostics");
+    lastDiagData = data;
+    renderDiagnostics(data);
+    refreshRepair();
+    if (!silent) toast("Diagnóstico concluído com sucesso.");
+  } catch (err) {
+    fail(err);
+  } finally {
+    diagRunning = false;
+    if (btn) {
+      btn.classList.remove("scanning");
+      btn.disabled = false;
+      if (label) label.textContent = "Verificar tudo agora";
+    }
+  }
+}
+
+function renderDiagnostics(data) {
+  if (!data) return;
+  const grid = $("#diag-grid");
+  if (!grid) return;
+
+  const summary = data.summary || {};
+  const tone = summary.state === "error" ? "error" : summary.state === "warn" ? "warn" : "ok";
+  const toneIcon = tone === "ok" ? "check-circle" : tone === "warn" ? "alert" : "x-circle";
+  // D186: “100% operacional” só quando todas as obrigatórias rodaram e passaram (summary.operational, do servidor)
+  const operational = summary.operational === true;
+  const cov = summary.coverage || {}, ready = summary.readiness || {}, states = summary.states || {};
+
+  const titleEl = $("#diag-summary-title");
+  if (titleEl) titleEl.textContent = operational ? (summary.state === "ok" ? "Sistema 100% operacional" : "Obrigatórios 100% operacionais")
+    : summary.state === "error" ? "Atenção necessária" : "Obrigatórios pendentes";
+
+  const descEl = $("#diag-summary-desc");
+  if (descEl) {
+    const counts = [["missing", "Faltando", "error"], ["misconfigured", "Configuração incorreta", "error"], ["unreachable", "Inacessível", "warn"],
+      ["blocked", "Bloqueado", "warn"], ["unverified", "Não verificado", "warn"], ["disabled", "Opcional desligado", ""]]
+      .filter(([k]) => states[k]).map(([k, label, t]) => el("span", { class: "diag-chip", "data-tone": t }, `${label}: ${states[k]}`));
+    descEl.replaceChildren(el("span", {}, summary.message || ""),
+      cov.checks ? el("span", { class: "diag-coverage" },
+        `Cobertura: ${cov.ran} de ${cov.checks} verificações rodaram (${cov.unverified || 0} não verificadas, ${cov.blocked || 0} bloqueadas). ` +
+        `Prontidão: ${ready.required_ok} de ${ready.required} obrigatórias ok; opcionais ligadas: ${ready.optional_enabled_ok} de ${ready.optional_enabled}.`) : null,
+      counts.length ? el("span", { class: "diag-counts" }, ...counts) : null);
+  }
+
+  const scoreBadge = $("#diag-score-badge");
+  if ($("#diag-score-wrap")) $("#diag-score-wrap").hidden = false;
+  if (scoreBadge) {
+    scoreBadge.dataset.tone = tone;
+    scoreBadge.setAttribute("aria-label", `Prontidão: ${data.score}% das verificações obrigatórias`);
+    scoreBadge.replaceChildren(icon(toneIcon), el("span", { id: "diag-score-val" }, `${data.score}%`));
+  }
+
+  const lastScanEl = $("#diag-last-scan");
+  if (lastScanEl) {
+    const d = new Date(data.timestamp);
+    const timeStr = isNaN(d) ? "agora" : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    lastScanEl.textContent = `Última conferência: ${timeStr}`;
+  }
+  const STATE = { ok: ["OK", "ok"], missing: ["Faltando", "error"], misconfigured: ["Configuração incorreta", "error"], unreachable: ["Inacessível", "warn"],
+    disabled: ["Desativado", ""], unverified: ["Não verificado", "warn"], blocked: ["Bloqueado", "warn"] };
+  const STAGE = [["installed", "Instalado"], ["configured", "Configurado"], ["authenticated", "Autenticado"], ["reachable", "Alcançável"], ["usable", "Utilizável"]];
+
+  const catCards = (data.categories || []).map((cat) => {
+    const cTone = cat.status === "error" ? "error" : cat.status === "warn" ? "warn" : "ok";
+    const cBadgeText = cTone === "ok" ? "Pronto" : cTone === "warn" ? "Aviso" : "Requer atenção";
+
+    const itemRows = (cat.items || []).map((it) => {
+      const iTone = it.status === "error" ? "error" : it.status === "warn" ? "warn" : it.status === "info" ? "info" : "ok";
+      const iIcon = iTone === "ok" ? "check-circle" : iTone === "warn" ? "alert" : iTone === "error" ? "x-circle" : "info";
+
+      let actBtn = null;
+      if (it.action) {
+        actBtn = el("button", {
+          class: "btn sm diag-item-action",
+          type: "button",
+          onclick: () => {
+            if (it.action.view === "integrations") goIntegrations(it.action.tab || "notion");
+            else if (it.action.cat) goSettings(it.action.cat);
+            else if (it.action.view) showView(it.action.view);
+          }
+        }, it.action.label || "Resolver");
+      }
+
+      const [stLabel, stTone] = STATE[it.state] || [it.state || "", ""];
+      const role = "required" in it ? el("span", { class: "diag-chip", "data-tone": it.required ? "req" : "" },
+        it.required ? "Obrigatório" : it.enabled === false ? "Opcional · desligado" : "Opcional · ligado") : null;
+      const stages = STAGE.filter(([k]) => it.stages && it.stages[k] !== null && it.stages[k] !== undefined);
+      // D187: ícone | nome e estado | ação compacta; abaixo, na largura toda, detalhe, próximo passo, etapas e limite
+      const repairBtn = it.repair ? el("button", { class: "btn sm primary diag-item-action", type: "button", "data-repair": it.repair,
+        "aria-label": `Instalar ou reparar: ${it.name}`, onclick: () => openRepair(it.repair) }, icon("download"), "Instalar / reparar") : null;
+      return el("div", { class: "diag-item-row", "data-state": it.state || "", role: "group", "aria-label": `${it.name}: ${stLabel}` },
+        el("span", { class: "diag-item-ico", "data-tone": iTone }, icon(iIcon)),
+        el("div", { class: "diag-item-head" }, el("span", { class: "diag-item-name" }, it.name),
+          el("span", { class: "diag-chips" }, it.state ? el("span", { class: "diag-chip", "data-tone": stTone }, stLabel) : null, role)),
+        repairBtn || actBtn ? el("div", { class: "diag-item-acts" }, repairBtn, actBtn) : null,
+        el("div", { class: "diag-item-body" },
+          el("p", { class: "diag-item-detail" }, it.detail),
+          it.next ? el("p", { class: "diag-next" }, el("strong", {}, "Próximo passo: "), it.next) : null,
+          stages.length ? el("ul", { class: "diag-stages", "aria-label": "Etapas conferidas" }, ...stages.map(([k, label]) => {
+            const v = it.stages[k];
+            return el("li", { class: "diag-chip", "data-tone": v ? "ok" : "error" }, icon(v ? "check" : "x"), el("span", {}, `${label}${v ? "" : " (não)"}`));
+          })) : null,
+          it.limit ? el("p", { class: "diag-limit" }, `Limite: ${it.limit}`) : null)
+      );
+    });
+
+    return el("div", { class: "diag-group-card" },
+      el("div", { class: "diag-group-head" },
+        el("div", { class: "diag-group-title" }, icon(cat.icon || "check-circle"), el("span", {}, cat.title)),
+        el("span", { class: "badge", "data-tone": cTone }, cBadgeText)
+      ),
+      el("div", { class: "diag-group-items" }, ...itemRows)
+    );
+  });
+
+  grid.replaceChildren(...catCards);
+}
+
+$("#diag-run-btn")?.addEventListener("click", () => runDiagnostics());
+$("#home-diag-btn")?.addEventListener("click", () => { goSettings("diagnostics"); runDiagnostics(); });
+
+// ---------- Instalar / reparar (D187; lumen/repair.py) ----------
+// O servidor recalcula o que pode ser feito a cada pedido: daqui só vai o id escolhido, depois da confirmação.
+let repairPlan = [], repairTimer = 0;
+const REPAIR_STEP = { running: ["sync", "warn", "Em andamento"], done: ["check-circle", "ok", "Concluído"], failed: ["x-circle", "error", "Falhou"], cancelled: ["x", "", "Cancelado"] };
+async function refreshRepair() {
+  let v;
+  try { v = await api("/api/repair"); } catch (err) { return; }  // sem a rota (servidor antigo): o botão só não aparece
+  renderRepair(v);
+  if (v.job.status === "running" && !repairTimer) waitRepair();  // janela reaberta no meio de um reparo: volta a acompanhar
+}
+async function openRepair(id) {
+  if (!repairPlan.length) await refreshRepair();
+  const items = id ? repairPlan.filter((p) => p.id === id) : repairPlan;
+  if (!items.length) { toast("Nada a instalar ou reparar agora. Rode o diagnóstico de novo.", "info"); return runDiagnostics(true); }
+  for (const p of items) {
+    const ok = await window.ui.confirm(`${p.detail}\n\nVai rodar, neste PC e sem administrador:\n${p.commands.map((c) => "• " + c).join("\n")}`,
+      { title: p.title, ok: "Instalar / reparar" });
+    if (!ok) return;
+    try { renderRepair(await api("/api/repair", { action: "start", id: p.id })); } catch (err) { return fail(err); }
+    await waitRepair();
+  }
+}
+function waitRepair() {
+  return new Promise((resolve) => {
+    clearInterval(repairTimer);
+    repairTimer = setInterval(async () => {
+      let v;
+      try { v = await api("/api/repair"); } catch (err) { return; }  // uma falha de leitura não encerra o acompanhamento
+      renderRepair(v);
+      if (v.job.status !== "running") {
+        clearInterval(repairTimer); repairTimer = 0;
+        toast(v.job.message, v.job.status === "done" ? "success" : v.job.status === "cancelled" ? "info" : "error", 9000);
+        runDiagnostics(true);
+        resolve();
+      }
+    }, 800);
+  });
+}
+function renderRepair(v) {
+  const job = (v && v.job) || {}, box = $("#diag-repair"), btn = $("#diag-repair-btn");
+  repairPlan = (v && v.plan) || [];
+  if (btn) {
+    btn.hidden = !repairPlan.length || job.status === "running";
+    btn.querySelector("span").textContent = repairPlan.length > 1 ? `Instalar / reparar ${repairPlan.length} itens faltando` : "Instalar / reparar itens faltando";
+  }
+  if (!box) return;
+  box.hidden = !job.id;
+  if (!job.id) return;
+  const running = job.status === "running";
+  box.dataset.status = job.status;
+  $("#diag-repair-title").textContent = job.title || "Instalar / reparar";
+  $("#diag-repair-steps").replaceChildren(...(job.steps || []).map((s) => {
+    const [ic, tone, label] = REPAIR_STEP[s.state] || REPAIR_STEP.running;
+    return el("li", { class: "diag-repair-step", "data-state": s.state },
+      el("span", { class: "diag-item-ico", "data-tone": tone, "aria-hidden": "true" }, icon(ic)),
+      el("span", {}, el("strong", {}, s.label), el("span", { class: "diag-sr" }, ` — ${label}`), s.detail ? el("span", { class: "diag-repair-detail" }, s.detail) : null));
+  }));
+  const msg = $("#diag-repair-msg");
+  msg.textContent = running ? "Em andamento. Você pode cancelar: só o que este reparo iniciou é encerrado." : [job.message, job.action].filter(Boolean).join(" ");
+  msg.dataset.tone = running ? "" : job.status === "done" ? "ok" : job.status === "failed" ? "error" : "";
+  $("#diag-repair-cancel").hidden = !running;
+}
+$("#diag-repair-btn")?.addEventListener("click", () => openRepair());
+$("#diag-repair-cancel")?.addEventListener("click", async () => {
+  try { renderRepair(await api("/api/repair", { action: "cancel" })); } catch (err) { fail(err); }
+});
+
 // ---------- janela (botões estilo Mac quando aberto pelo Lumen.exe) ----------
 const host = window.chrome && window.chrome.webview;
 function desktopPrefs() { if (host && S) host.postMessage("desktop:prefs:" + S.config.widget); }
 if (host) host.addEventListener("message", async (e) => {
   const msg = e.data;
   if (msg === "desktop:settings") { if (S) openSettings(); }
+  // "Abrir no Cérebro" da Conversa rápida (barra flutuante): o Lumen.exe já validou o identificador; a página confere de novo
+  else if (typeof msg === "string" && (msg === "desktop:chat" || msg.startsWith("desktop:chat:"))) {
+    showView("study");
+    const id = msg.slice("desktop:chat:".length);
+    if (id) await window.lumenStudy?.openFromHost(id); else window.lumenStudy?.setTab("chat");
+  }
+  // “Trazer resposta ao Lúmen” no painel do Perplexity: só abre o diálogo de colar; nada vem da página dele (D185)
+  else if (msg === "desktop:perplexity:paste") { showView("study"); window.lumenStudy?.setTab("chat"); window.lumenStudy?.perplexityPaste(); }
   else if (msg === "desktop:preferences-updated") {
     const root = S?.config.root_page_id, connected = S?.has_token;
     await refresh().catch(fail);
@@ -1741,15 +2379,26 @@ if (host) host.addEventListener("message", async (e) => {
 if (host && new URLSearchParams(location.search).has("frame")) {
   $("#lights").hidden = false;
   for (const b of $$("[data-window]")) b.addEventListener("click", () => host.postMessage("window:" + b.dataset.window));
+  // Arrastar pela barra: a página pede o movimento ao Lumen.exe (window:drag) em vez de app-region: drag, que tira o mouse da página
+  // e deixava o cursor do Lumen sumir ali. Dois cliques maximizam ou restauram, como na barra do Windows.
+  document.documentElement.classList.add("page-drag");
+  let lastDown = { t: -1e9, x: 0, y: 0 };  // o laço de mover do Windows engole o soltar: o duplo clique é contado aqui, não pelo e.detail
   for (const bar of $$(".topbar, .rail-top"))
-    bar.addEventListener("dblclick", (e) => { if (!e.target.closest("button, .pomo")) host.postMessage("window:maximize"); });
+    bar.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || e.target.closest("button, a, input, select, textarea, [role=button], [role=tab], .pomo, .pomo-slot")) return;
+      e.preventDefault();
+      const double = e.timeStamp - lastDown.t < 500 && Math.abs(e.screenX - lastDown.x) < 5 && Math.abs(e.screenY - lastDown.y) < 5;
+      lastDown = double ? { t: -1e9, x: 0, y: 0 } : { t: e.timeStamp, x: e.screenX, y: e.screenY };
+      host.postMessage(double ? "window:maximize" : "window:drag");
+    });
 }
 window.addEventListener("blur", () => document.body.classList.add("inactive"));
 window.addEventListener("focus", () => document.body.classList.remove("inactive"));
+if (!document.hasFocus()) document.body.classList.add("inactive");  // aberta sem foco (em segundo plano): nunca recebe o blur
 
 // ---------- Áreas: Início, Nova aula, Biblioteca, Integrações, Ajustes ----------
-const VIEWS = ["home", "new", "library", "integrations", "settings"];
-const VIEW_NAMES = { home: "Início", new: "Nova aula", library: "Biblioteca", integrations: "Integrações", settings: "Ajustes" };
+const VIEWS = ["home", "new", "library", "study", "integrations", "settings"];
+const VIEW_NAMES = { home: "Início", new: "Nova aula", library: "Biblioteca", study: "Cérebro", integrations: "Integrações", settings: "Ajustes" };
 function setWhere(name, sub = "") {
   $("#where-view").textContent = name;
   $("#where-sub").textContent = sub; $("#where-sub").hidden = !sub;
@@ -1761,18 +2410,32 @@ function showView(name) {
   for (const b of $$(".rail-item")) { if (b.dataset.view === name) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
   if (was !== name) $("#content").scrollTop = 0;
   if (name === "new") renderStepper();
-  else setWhere(VIEW_NAMES[name], name === "settings" ? $(`#settings-nav [data-cat=${settingsCat}]`).textContent.trim() : "");
+  else setWhere(VIEW_NAMES[name], name === "settings" ? $(`#settings-nav [data-cat=${settingsCat}]`).textContent.trim()
+    : name === "integrations" ? $(`#itab-${integTab} .integ-tab-name`).textContent : "");
   if (name === "home") { renderHome(); loadHistory().then(renderHome).catch(() => {}); loadReviews(); }
   if (name === "library") loadLibrary();
-  if (name === "integrations" && was !== name && S?.has_token) loadRoots();
-  if (name === "integrations" && was !== name) loadMigration();
+  if (name === "study") window.lumenStudy?.show();
+  if (name === "integrations") {
+    if (integTab === "voicestudio") window.lumenVoice?.integration($("#integ-voicestudio"));
+    if (was !== name && S?.has_token) loadRoots();
+    if (was !== name) { loadMigration(); loadDriveCard(); }
+    if (integTab === "opennotebook") window.lumenON?.load();
+    if (integTab === "hyperbooklm") window.lumenHB?.load();
+  }
   if (S && ["settings", "integrations"].includes(was) && !["settings", "integrations"].includes(name)) afterSettings();
 }
 for (const b of $$(".rail-item")) b.addEventListener("click", () => {
+  b.blur();
+  if (b.id === "open-monitor") return;
   if (b.dataset.view === "library") { libFilter = "all"; libCourse = null; }
-  if (b.dataset.view === "settings") goSettings(); else showView(b.dataset.view);
+  if (b.dataset.view === "settings") goSettings(); else if (b.dataset.view) showView(b.dataset.view);
 });
-for (const b of $$("[data-go]")) b.addEventListener("click", () => { libFilter = b.dataset.filter === "pending" ? "pending" : "all"; libCourse = null; showView(b.dataset.go); });
+for (const b of $$("[data-go]")) b.addEventListener("click", () => {
+  b.blur();
+  libFilter = b.dataset.filter === "pending" ? "pending" : "all";
+  libCourse = null;
+  showView(b.dataset.go);
+});
 
 // Aulas salvas (Notion e/ou Obsidian): uma leitura só para o Início, a Biblioteca e a busca
 let historyItems = null;
@@ -1789,7 +2452,7 @@ const emptyState = (ic, title, text, action) =>
   el("div", { class: "empty" }, el("span", { class: "empty-icon", "aria-hidden": "true" }, icon(ic)), el("strong", {}, title), el("p", {}, text), action || null);
 const today = () => new Date().toLocaleDateString("sv-SE");  // AAAA-MM-DD no fuso do PC
 const clsOf = (it) => it.classification || { type: "inbox" };
-const isDue = (it) => !!(it.review?.next && it.review.next <= today());
+const isDue = (it) => !!(S?.config.obsidian_review && it.review?.next && it.review.next <= today());
 function savedRow(it, compact = false, inCourse = false) {
   const ob = it.obsidian?.status === "ok", c = clsOf(it);
   const act = (ic, label, tip, attrs) => compact
@@ -1797,6 +2460,8 @@ function savedRow(it, compact = false, inCourse = false) {
     : el(attrs.href ? "a" : "button", { class: "btn ghost sm", "data-tip": tip, ...attrs }, icon(ic), label);
   const full = it.crumbs || crumbsOf(withNames(c));
   const crumbs = inCourse ? (c.lesson ? [`Aula ${String(c.lesson).padStart(2, "0")}`] : []) : full;  // dentro do curso, a trilha já está no topo
+  // os três lugares da aula com o mesmo formato (ícone + nome); o mapa e o painel são do Obsidian e ficam só com o ícone
+  const extra = (ic, tip, what) => el("button", { class: "icon-btn sm", type: "button", "aria-label": `${tip}: ${it.title}`, "data-tip": tip, onclick: () => openObsidian(it.key, what) }, icon(ic));
   return el("div", { class: "lib-row", role: "listitem", "data-key": it.key },
     el("span", { class: "lib-ico", "aria-hidden": "true", "data-tone": isDue(it) ? "warn" : "" }, icon((TYPE_LOOK[c.type] || TYPE_LOOK.inbox)[0])),
     el("span", { class: "lib-text" }, el("span", { class: "lib-title" }, it.title),
@@ -1805,9 +2470,14 @@ function savedRow(it, compact = false, inCourse = false) {
         isDue(it) ? `revisão ${it.review.next < today() ? "atrasada" : "hoje"}` : "", shortDate(it.created || it.obsidian?.at)].filter(Boolean).join(" · "))),
     el("span", { class: "lib-actions" },
       it.url ? act("external", "Notion", "Abrir no Notion", { href: it.url, target: "_blank", rel: "noopener" }) : null,
-      ob ? act("notebook", "Obsidian", "Abrir no Obsidian", { type: "button", onclick: () => openObsidian(it.key, "note") }) : null,
-      ob && it.obsidian.canvas ? act("map", "Mapa", "Abrir o mapa conceitual", { type: "button", onclick: () => openObsidian(it.key, "canvas") }) : null,
-      ob && it.obsidian.board ? act("image", "Painel", "Abrir o painel visual", { type: "button", onclick: () => openObsidian(it.key, "board") }) : null,
+      ob ? act("obsidian", "Obsidian", "Abrir no Obsidian", { type: "button", onclick: () => openObsidian(it.key, "note") }) : null,
+      it.lumen_id && window.lumenVoice ? act("volume", "Áudio", "Resumo em áudio (ouvir ou gerar)", { type: "button", onclick: () => window.lumenVoice.lessonAudio(it.key, it.title) }) : null,
+      it.lumen_id && window.lumenON?.enabled() ? el("button", { class: "icon-btn sm", type: "button", "aria-label": `Open Notebook: ${it.title}`,
+        "data-tip": it.opennotebook?.source ? "Open Notebook: ver o envio ou abrir" : "Enviar a transcrição ao Open Notebook", onclick: () => window.lumenON.lesson(it.key, it.title) }, icon("notebook")) : null,
+      it.lumen_id && window.lumenHB?.enabled() ? el("button", { class: "icon-btn sm", type: "button", "aria-label": `HyperbookLM: ${it.title}`,
+        "data-tip": it.hyperbooklm?.state === "sent" ? "HyperbookLM: ver o envio ou abrir" : "Enviar a transcrição ao HyperbookLM", onclick: () => window.lumenHB.lesson(it.key, it.title) }, icon("layers")) : null,
+      ob && it.obsidian.canvas ? extra("map", "Abrir o mapa conceitual", "canvas") : null,
+      ob && it.obsidian.board ? extra("image", "Abrir o painel visual", "board") : null,
       !ob && it.lumen_id && usesObsidian() ? el("button", { class: "btn ghost sm", type: "button", "data-tip": "Cria a nota de estudo desta aula no cofre, sem chamar a IA de novo",
         onclick: () => { showView("new"); redeliver(it.key, "obsidian"); } }, icon("plus"), compact ? "Obsidian" : "Salvar no Obsidian") : null,
       compact ? null : el("button", { class: "icon-btn sm", type: "button", "aria-label": `Organizar: ${it.title}`, "data-tip": "Organizar: curso, módulo ou tema",
@@ -1871,7 +2541,8 @@ function courseView(c, items) {  // a visão do curso: módulos em ordem, aulas 
       el("p", { class: "muted t-sm" }, [c.platform, `${mine.length} ${mine.length === 1 ? "aula" : "aulas"}`,
         mine.length && usesObsidian() ? `${done} revisada${done === 1 ? "" : "s"} por você` : "", due ? `${due} para revisar hoje` : ""].filter(Boolean).join(" · "))),
     el("span", { class: "course-actions" },
-      usesObsidian() && vaultReady() ? el("button", { class: "btn ghost sm", type: "button", onclick: () => openObsidian("", "course", c.id) }, icon("notebook"), "Abrir no Obsidian") : null,
+      usesObsidian() && vaultReady() ? el("button", { class: "btn ghost sm", type: "button", onclick: () => openObsidian("", "course", c.id) }, icon("obsidian"), "Abrir no Obsidian") : null,
+      c.notion_page_id && S?.has_token ? el("button", { class: "btn ghost sm", type: "button", onclick: () => covOpen(c.notion_page_id) }, icon("image"), "Criar capa") : null,
       el("button", { class: "btn ghost sm", type: "button", onclick: () => editCourse(c) }, icon("pen"), "Renomear")));
   const out = [head];
   const by = new Map();
@@ -1905,7 +2576,10 @@ async function editCourse(c) {  // renomear não cria outro curso: o id fica, e 
   box.append(form); name.focus(); name.select();
 }
 function renderLibrary() {
-  const box = $("#library-list");
+  window.Glass?.library();  // Glass: números e estrutura da biblioteca (das mesmas listas)
+  const box = $("#library-list"), rv = !!S?.config.obsidian_review;  // revisões desligadas: sem vista nem filtro de revisão
+  $("#lib-filter [data-f=review]").hidden = $("#lf-review").closest(".field").hidden = !rv;
+  if (!rv) { $("#lf-review").value = ""; if (libFilter === "review") libFilter = "all"; }
   for (const b of $$("#lib-filter button")) b.setAttribute("aria-pressed", String(b.dataset.f === libFilter));
   renderFilters();
   const typed = $("#lib-search").value.trim(), q = fold(typed);
@@ -1960,9 +2634,10 @@ for (const b of $$("#lib-filter button")) b.addEventListener("click", () => { li
 
 // ---------- Início: o que está acontecendo, o que continuar, o que precisa de atenção ----------
 const STAGE_NAMES = { prepare: "Preparando a fonte", transcribe: "Transcrevendo", screen: "Lendo as telas", analyze: "Analisando",
-  generate: "Escrevendo o material", connect: "Buscando conexões", obsidian: "Salvando no Obsidian", publish: "Salvando no Notion", download: "Baixando" };
+  generate: "Escrevendo o material", connect: "Buscando conexões", obsidian: "Salvando no Obsidian", publish: "Salvando no Notion", download: "Baixando",
+  voice: "Gerando o áudio" };
 const STAGE_SHORT = { prepare: "Preparando", transcribe: "Transcrevendo", screen: "Lendo as telas", generate: "Escrevendo",
-  connect: "Conexões", obsidian: "Salvando", publish: "Salvando", download: "Baixando" };
+  connect: "Conexões", obsidian: "Salvando", publish: "Salvando", download: "Baixando", voice: "Áudio" };
 const pct = (j) => Number.isFinite(j.progress) ? ` · ${Math.round(j.progress * 100)}%` : "";
 let heroMode = "";
 function renderHome() {  // tudo (ao abrir o Início, ao chegar a lista de aulas); a gravação e a tarefa só mexem no cartão principal
@@ -1975,6 +2650,7 @@ function renderHome() {  // tudo (ao abrir o Início, ao chegar a lista de aulas
   const recent = (historyItems || []).slice(0, 4);
   $("#home-recent").hidden = !!historyItems && !recent.length;
   swap($("#recent-list"), historyItems ? recent.map((it) => savedRow(it, true)) : skeletonRows(3));
+  window.Glass?.journey();
 }
 function renderHero() {
   if (!S || view !== "home") return;
@@ -2021,6 +2697,8 @@ function renderHero() {
       el("div", { class: "hero-progress" }, bar),
       el("div", { class: "hero-actions" }, btn("primary", "chevron-right", "Ver o progresso", () => showView("new"))));
   }
+  // Glass: sem gravação nem tarefa, o cartão é sempre “Comece uma nova aula”; as aulas em andamento ficam em “Continue de onde parou”
+  if (window.Glass?.hero(box)) return;
   if (p) {
     const [ic, tone] = PEND_LOOK[p.state] || ["pen", ""];
     // onde a aula está no fluxo: o mesmo stepper da Nova aula, em miniatura
@@ -2034,15 +2712,17 @@ function renderHero() {
         btn("ghost", "new", "Nova aula", () => { showView("new"); if (step !== "compose") backToCompose(); })));
   }
   const source = (tab) => () => { showView("new"); if (step !== "compose") backToCompose(); $("#tab-" + tab).click(); };
-  box.replaceChildren(top("accent", icon("sparkle"), mode === "first" ? "Primeira aula" : "Nova aula"),
-    el("p", { class: "hero-title" }, "Grave ou escolha uma aula"),
+  const heroKids = [
+    top("accent", icon("sparkle"), mode === "first" ? "Primeira aula" : "Nova aula"),
+    el("p", { class: "hero-title" }, "Grave uma nova aula"),
     el("p", { class: "hero-sub" }, "O Lumen prepara a aula no seu PC. Você escreve o que entendeu e só depois a IA local analisa e completa."),
     mode === "first" ? el("ol", { class: "flow" },
-      el("li", {}, el("strong", {}, "Assista ou escolha"), "Grave o som da aula, use um arquivo ou capturas de tela."),
+      el("li", {}, el("strong", {}, "Assista ou escolha"), "Grave o som da aula no seu PC."),
       el("li", {}, el("strong", {}, "Escreva o que entendeu"), "Com suas palavras, sem ajuda da IA."),
-      el("li", {}, el("strong", {}, "A IA analisa e salva"), "No Notion e no Obsidian, com mapa e revisões.")) : null,
-    el("div", { class: "hero-actions" }, btn("primary lg", "record", "Gravar ao assistir", source("recording")),
-      btn("", "file", "Arquivo local", source("file")), btn("", "image", "Capturas de tela", source("captures"))));
+      el("li", {}, el("strong", {}, "A IA analisa e salva"), S.config.obsidian_review ? "No Notion e no Obsidian, com mapa e revisões." : "No Notion e no Obsidian, com mapa e perguntas.")) : null,
+    el("div", { class: "hero-actions" }, btn("primary lg", "record", "Gravar ao assistir", source("recording")))
+  ].filter(Boolean);
+  box.replaceChildren(...heroKids);
 }
 
 // Revisões do Obsidian para hoje (e as atrasadas): marcadas na nota de estudo, lidas do cofre pelo Lumen
@@ -2083,15 +2763,94 @@ function renderStatus() {
   const said = "Lumen: " + text.replace(/ · [\d:]+$/, "").replace(/ · \d+%$/, "");
   if ($("#status-live").textContent !== said) $("#status-live").textContent = said;
   pill.dataset.tone = tone;
+  // O “Pronto” ocioso não diz nada: a pílula só aparece quando há estado de verdade.
+  pill.hidden = tone === "ok";
   $("#global-status-text").textContent = text;
   pill.setAttribute("aria-label", `Status do Lumen: ${full || text}`);
   pill.dataset.tip = tone === "ok" ? "Tudo pronto. Clique para ir ao Início." : tone === "warn" ? "Veja o que falta no Início"
     : full ? `${full}. Clique para ver o progresso.` : "Ver na Nova aula";
 }
-$("#global-status").addEventListener("click", () => {
-  const t = $("#global-status").dataset.tone;
+$("#global-status").addEventListener("click", async () => {
+  const t = $("#global-status").dataset.tone, j = lastJob || S?.job || {};
+  if (t === "busy" && ["audio", "study_image", "study_pdf", "study_holo"].includes(j.kind)) {
+    const left = Number.isFinite(j.eta_total) ? ` Faltam cerca de ${fmtDur(j.eta_total)}.` : "";
+    const label = j.kind === "audio" ? "Áudio" : j.kind === "study_pdf" ? "PDF" : j.kind === "study_holo" ? "Holograma 3D" : "Imagem";
+    if (await ui.confirm(`${j.detail || "Gerando o material"}.${left}`, { title: `${label}: ${j.spec?.title || "em andamento"}`, ok: "Cancelar a geração", cancel: "Continuar gerando", danger: true }))
+      api("/api/cancel", {}).catch(fail);
+    return;
+  }
   showView(t === "ok" || t === "warn" ? "home" : "new");
 });
+
+// ---------- Integrações → Google Drive: a conta da cópia de segurança da Proteção (API oficial) ----------
+// O Lumen guarda a autorização no cofre do Windows e só vê os arquivos que ele mesmo criar (escopo drive.file). Quem usa
+// a conta é a Proteção do cérebro (lumen/protection_drive.py); esta tela só conecta, troca o cliente e desconecta.
+let DRV = null, drivePoll = null, driveBusy = false;
+async function loadDriveCard() {
+  try { DRV = await api("/api/drive"); } catch (e) { DRV = { error: e }; }
+  renderDriveCard();
+}
+function renderDriveCard() {
+  const d = DRV, badge = $("#drive-badge");
+  if (!d || d.error) {
+    setBadge(badge, d ? ["warn", "alert", "Não carregou"] : ["", "clock", "Carregando…"]);
+    return renderDrive(null, d?.error);
+  }
+  setBadge(badge, d.expired && !d.connected ? ["warn", "alert", "Reconecte o Drive"] : d.connected ? ["ok", "check", "Drive conectado"]
+    : d.client ? ["", "key", "Falta entrar"] : ["", "minus", "Não configurado"]);
+  renderDrive(d);
+}
+function renderDrive(d, err) {  // o estado do Google Drive em palavras e a próxima ação; nunca bloqueia o resto da página
+  const st = $("#drive-status"), acts = $("#drive-actions"), had = acts.contains(document.activeElement);
+  clearTimeout(drivePoll);
+  const b = (cls, ic, text, fn) => el("button", { class: "btn sm " + cls, type: "button", onclick: fn }, icon(ic), text);
+  if (!d) {
+    if (!err) { swap(st, [el("span", { class: "skeleton drive-sk", "aria-hidden": "true" })]); return swap(acts, []); }
+    swap(st, [el("span", { class: "drive-ico", "data-tone": "warn", "aria-hidden": "true" }, icon("alert")),
+      el("span", { class: "drive-text" }, el("strong", {}, err.message), el("small", {}, err.action || "A conexão já feita continua guardada."))]);
+    return swap(acts, [b("", "refresh", "Tentar de novo", loadDriveCard)]);
+  }
+  const login = (text) => b("primary", "key", text, () => driveAct("/api/drive/login"));
+  const change = () => b("ghost", "file", "Trocar o arquivo do cliente", () => driveAct("/api/drive/client"));
+  let look;  // [tom, ícone, título, explicação, ações]
+  if (d.login === "waiting") {
+    look = ["busy", "spin", "Aguardando a autorização no navegador", "Entre com a sua conta Google na aba que abriu e autorize o Lumen. O pedido vale por 5 minutos.", []];
+    drivePoll = setTimeout(async () => {
+      if (view !== "integrations") return;  // fora de Integrações a consulta para (volta ao abrir de novo)
+      try { DRV = await api("/api/drive"); } catch { /* tenta de novo */ }
+      renderDriveCard();
+    }, 2000);
+  } else if (d.connected) look = ["ok", "check-circle", "Drive conectado", `${d.email ? `Como ${d.email}. ` : ""}A cópia de segurança da Proteção usa esta conta; o Lumen só vê os arquivos que ele mesmo criou.`,
+    [b("ghost danger", "power", "Desconectar", driveLogout)]];
+  else if (!d.client) look = ["", "upload", "Não configurado", "Com um projeto seu no Google Cloud, o Lumen guarda a cópia de segurança da Proteção no seu Drive. É opcional: a cópia neste computador não depende disso.",
+    [b("", "file", "Escolher o arquivo do cliente…", () => driveAct("/api/drive/client"))]];
+  else if (d.login === "error") look = ["warn", "alert", "Não foi possível entrar", d.error || "Tente de novo.", [login("Tentar de novo"), change()]];
+  else if (d.expired) look = ["warn", "alert", "Acesso expirado ou revogado", "O Google não aceita mais a autorização (no modo Testing ela vale 7 dias, e pode ter sido removida da conta). Entre de novo para voltar a copiar.",
+    [login("Entrar com Google de novo"), change()]];
+  else look = ["", "key", "Falta entrar com a sua conta", "O arquivo do cliente já foi escolhido. Entre com Google, no navegador, para o Lumen poder guardar a cópia no seu Drive.",
+    [login("Entrar com Google"), change()]];
+  const [tone, ic, title, text, list] = look;
+  swap(st, [el("span", { class: "drive-ico", "data-tone": tone, "aria-hidden": "true" }, ic === "spin" ? el("span", { class: "spinner" }) : icon(ic)),
+    el("span", { class: "drive-text" }, el("strong", {}, title), el("small", {}, text))]);
+  swap(acts, list);
+  if (had && !acts.contains(document.activeElement)) (acts.querySelector("button") || st).focus();
+}
+async function driveAct(path, done) {  // uma ação por vez: clique duplo não abre dois logins nem dois seletores de arquivo
+  const acts = $("#drive-actions"), had = acts.contains(document.activeElement);
+  if (driveBusy) return;
+  driveBusy = true;
+  if (had) $("#drive-status").focus();  // o botão fica desabilitado: o foco espera no estado
+  for (const x of acts.querySelectorAll("button")) x.disabled = true;
+  try { DRV = await api(path, {}); if (done) toast(done); } catch (e) { fail(e); }
+  finally { driveBusy = false; sigs.delete(acts); }
+  renderDriveCard();
+  if (had && document.activeElement === $("#drive-status")) acts.querySelector("button")?.focus();
+}
+async function driveLogout() {
+  if (!await ui.confirm("Desconectar o Google Drive deste PC? As cópias já enviadas continuam no seu Drive. Para revogar o acesso no Google, use myaccount.google.com/permissions.",
+    { title: "Desconectar Google Drive", ok: "Desconectar", danger: true })) return;
+  driveAct("/api/drive/logout", "Google Drive desconectado deste PC.");
+}
 
 // ---------- Busca global (Ctrl+K): telas, ajustes, ações e aulas ----------
 const pal = $("#palette"), palIn = $("#pal-input"), palList = $("#pal-list");
@@ -2108,11 +2867,18 @@ function palCommands() {
   if (step === "understand" && U) add("Ações", Notes.floating(U.key) ? "Trazer a nota de volta" : "Destacar a nota numa janela flutuante", "detach", () => { showView("new"); $("#u-detach").click(); }, Notes.shortcutLabel);
   if (usesObsidian() && vaultReady()) add("Ações", "Abrir Estudos no Obsidian", "external", () => openObsidian("", "home"));
   add("Ações", "Organizar a próxima aula", "folder", () => { showView("new"); openOrg(org); });
+  add("Ações", "Criar capa no Notion", "image", () => covOpen(), "qualquer página");
   const pomo = Pomodoro.state();
   if (pomo) add("Pomodoro", pomo.running ? "Pausar o Pomodoro" : Pomodoro.status() === "paused" ? "Continuar o Pomodoro" : "Iniciar o Pomodoro",
     pomo.running ? "pause" : "play", Pomodoro.toggle, "não afeta a gravação");
   add("Pomodoro", "Abrir o Pomodoro", "timer", () => Pomodoro.open());
-  for (const [v, ic] of [["home", "home"], ["new", "new"], ["library", "library"], ["integrations", "plug"]]) add("Ir para", VIEW_NAMES[v], ic, () => { libFilter = "all"; showView(v); });
+  for (const [v, ic] of [["home", "home"], ["new", "new"], ["library", "library"], ["study", "brain"], ["integrations", "plug"]]) add("Ir para", VIEW_NAMES[v], ic, () => { libFilter = "all"; showView(v); });
+  add("Cérebro", "Conversa por voz", "wave", () => { showView("study"); window.lumenStudy?.setTab("chat"); window.lumenStudy?.openCall?.(); }, "Lumen Study AI");
+  add("Cérebro", "Nova conversa de estudo", "sparkle", () => { showView("study"); window.lumenStudy?.setTab("chat"); window.lumenStudy?.newConversation(); }, "Lumen Study AI");
+  add("Cérebro", "Revisar flashcards", "copy", () => { showView("study"); window.lumenStudy?.setTab("learn"); window.lumenStudy?.learnGo?.("today"); }, "Lumen Study AI");
+  add("Cérebro", "Configurações da IA de estudos", "gear", () => { showView("study"); window.lumenStudy?.openSettings(); }, "Lumen Study AI");
+  for (const t of INTEG_TABS) add("Integrações", t.querySelector(".integ-tab-name").textContent, t.querySelector("use").getAttribute("href").split("#")[1],
+    () => goIntegrations(t.id.slice(5)), t.querySelector(".integ-state").textContent);
   for (const b of $$("#settings-nav [data-cat]")) add("Ajustes", b.textContent.trim(), b.querySelector("use").getAttribute("href").split("#")[1], () => goSettings(b.dataset.cat));
   for (const p of S?.pending || []) add("Em andamento", p.title || "Aula", (PEND_LOOK[p.state] || ["pen"])[0], () => resume(p.key), PENDING[p.state]);
   for (const it of historyItems || []) add("Biblioteca", it.title, "page", () => (it.url ? window.open(it.url, "_blank") : openObsidian(it.key, "note")),
@@ -2156,7 +2922,7 @@ palIn.addEventListener("keydown", (e) => {
   } else if (e.key === "Enter") { e.preventDefault(); runPalette(palActive); }
 });
 pal.addEventListener("click", (e) => { if (e.target === pal) pal.close(); });  // clique fora da caixa
-$("#open-palette").addEventListener("click", openPalette);
+$("#open-palette")?.addEventListener("click", openPalette);
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); }
 });
@@ -2170,7 +2936,7 @@ if (!host) window.addEventListener("pagehide", () => navigator.sendBeacon("/api/
     desktopPrefs();
     renderRec(S.recording);  // antes dos cursos (que falham sem o Notion): gravação, pausa e gravação a recuperar
     if (S.recording.active) watchRec();
-    showView("home");
+    showView(view);  // preserva a navegação feita enquanto o estado inicial carregava
     showStep("compose");
     await loadCatalog();
     const key = S.job.result?.key || S.job.spec?.key;
@@ -2194,6 +2960,230 @@ if (!host) window.addEventListener("pagehide", () => navigator.sendBeacon("/api/
       }
       poll();
     }
-    if (S.recording.recovered && !S.recording.active) showView("new");  // gravação que não terminou: oferecida na Nova aula
   } catch (e) { fail(e); }
 })();
+
+
+// === MONITOR DE RECURSOS EM TEMPO REAL (LÚMEN & SISTEMA) ===
+let monitorTimer = null;
+let monitorData = null;
+
+function renderMonitor(d) {
+  monitorData = d;
+  const pop = $("#sys-monitor-pop");
+  if (!pop) return;
+
+  const cpuName = (d.cpu?.name || "Processador")
+    .replace(/@.*$/, "")
+    .replace(/\((?:R|TM)\)/gi, "")
+    .replace(/CPU/gi, "")
+    .trim();
+  const cpuCores = d.cpu?.cores_label || "";
+  const cpuGhz = d.cpu?.ghz ? `${d.cpu.ghz} GHz` : "";
+  const cpuSys = Math.min(100, Math.max(0, d.cpu?.system_pct || 0));
+  const cpuApp = Math.min(100, Math.max(0, d.cpu?.app_pct || 0));
+
+  const ramTotal = d.ram?.total_gb || 0;
+  const ramUsed = d.ram?.used_gb || 0;
+  const ramSysPct = Math.min(100, Math.max(0, d.ram?.system_pct || 0));
+  const ramAppMb = d.ram?.app_mb || 0;
+  const ramAppPct = Math.min(100, Math.max(0, d.ram?.app_pct || 0));
+
+  const gpu = d.gpu;
+  const gpuName = gpu ? gpu.name.replace(/NVIDIA /i, "") : "GPU Não detectada";
+  const gpuPct = gpu ? gpu.gpu_pct : 0;
+  const gpuTemp = gpu ? `${gpu.temp_c}°C` : "";
+  const vramTotalGb = gpu ? (gpu.vram_total_mb / 1024).toFixed(1) : "0";
+  const vramUsedGb = gpu ? (gpu.vram_used_mb / 1024).toFixed(1) : "0";
+  const vramPct = gpu ? Math.min(100, Math.max(0, gpu.vram_pct || 0)) : 0;
+  const models = gpu?.models || [];
+
+  let html = `
+    <div class="sys-monitor-hdr">
+      <div class="sys-monitor-title-wrap">
+        <div class="sys-monitor-title">
+          <span class="sys-monitor-live-dot"></span>
+          <span>Lúmen & Sistema</span>
+        </div>
+        <div class="sys-monitor-sub">Monitor de hardware em tempo real</div>
+      </div>
+      <button class="sys-monitor-close" type="button" id="close-monitor-btn" aria-label="Fechar monitor">
+        <svg class="i"><use href="/icons.svg#x"/></svg>
+      </button>
+    </div>
+
+    <!-- CPU Card -->
+    <div class="sys-stat-card">
+      <div class="sys-stat-head">
+        <div class="sys-stat-label-wrap">
+          <svg class="i"><use href="/icons.svg#cpu"/></svg>
+          <span>CPU</span>
+        </div>
+        <span class="sys-stat-sep">·</span>
+        <div class="sys-stat-value">${cpuSys.toFixed(0)}%</div>
+      </div>
+      <div class="sys-stat-subline">
+        <span class="sys-stat-subline-detail" title="${d.cpu?.name || ''}">${cpuName} · ${cpuCores}${cpuGhz ? ' · ' + cpuGhz : ''}</span>
+      </div>
+      <div class="sys-bar-track">
+        <div class="sys-bar-fill-sys" id="bar-cpu-sys"></div>
+        <div class="sys-bar-fill-app" id="bar-cpu-app"></div>
+      </div>
+      <div class="sys-stat-badge-row">
+        <span class="sys-stat-app-badge" title="Uso exclusivo do processo Lúmen"><span class="dot"></span>Lúmen: ${cpuApp.toFixed(1)}%</span>
+      </div>
+    </div>
+
+    <!-- RAM Card -->
+    <div class="sys-stat-card">
+      <div class="sys-stat-head">
+        <div class="sys-stat-label-wrap">
+          <svg class="i"><use href="/icons.svg#ram"/></svg>
+          <span>Memória RAM</span>
+        </div>
+        <span class="sys-stat-sep">·</span>
+        <div class="sys-stat-value">${ramUsed.toFixed(1)} / ${ramTotal.toFixed(1)} GB</div>
+      </div>
+      <div class="sys-stat-subline">
+        <span class="sys-stat-subline-detail">Sistema: ${ramSysPct.toFixed(0)}% em uso</span>
+      </div>
+      <div class="sys-bar-track">
+        <div class="sys-bar-fill-sys" id="bar-ram-sys"></div>
+        <div class="sys-bar-fill-app" id="bar-ram-app"></div>
+      </div>
+      <div class="sys-stat-badge-row">
+        <span class="sys-stat-app-badge" title="Memória RAM física utilizada pelo Lúmen"><span class="dot"></span>Lúmen: ${ramAppMb.toFixed(0)} MB</span>
+      </div>
+    </div>
+
+    <!-- GPU Card -->
+    <div class="sys-stat-card">
+      <div class="sys-stat-head">
+        <div class="sys-stat-label-wrap">
+          <svg class="i"><use href="/icons.svg#gpu"/></svg>
+          <span>GPU</span>
+        </div>
+        <span class="sys-stat-sep">·</span>
+        <div class="sys-stat-value">${gpu ? gpuPct + '%' : 'N/A'}${gpuTemp ? ' · ' + gpuTemp : ''}</div>
+      </div>
+      <div class="sys-stat-subline">
+        <span class="sys-stat-subline-detail" title="${gpu ? gpu.name : ''}">${gpuName} · VRAM: ${vramUsedGb} / ${vramTotalGb} GB</span>
+      </div>
+      <div class="sys-bar-track">
+        <div class="sys-bar-fill-sys" id="bar-gpu-vram"></div>
+      </div>
+      ${models.length > 0 ? `
+        <div class="sys-stat-badge-row" style="margin-top: 2px;">
+          <span class="sys-stat-subline-detail" style="max-width: 100%; color: var(--accent-text);">
+            Modelos VRAM: ${models.map(m => m.name).join(', ')}
+          </span>
+        </div>
+      ` : ''}
+    </div>
+
+    <!-- Motores Ativos -->
+    <div class="sys-engines-section">
+      <div class="sys-engines-title">Motores Ativos</div>
+      <div class="sys-engines-grid">
+        ${(d.engines || []).map(eng => `
+          <div class="sys-engine-badge" data-active="${eng.active}">
+            <div class="sys-engine-head">
+              <span class="sys-engine-dot"></span>
+              <span class="sys-engine-name">${eng.name}</span>
+            </div>
+            <span class="sys-engine-tech">${eng.tech.split('·')[1]?.trim() || eng.tech}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- Action: Liberar VRAM -->
+    <button class="sys-vram-btn" type="button" id="btn-release-vram" title="Descarrega modelos inativos da memória de vídeo GPU">
+      <svg class="i"><use href="/icons.svg#refresh"/></svg>
+      <span>Liberar VRAM da GPU</span>
+    </button>
+  `;
+
+  pop.innerHTML = html;
+
+  if ($("#bar-cpu-sys")) $("#bar-cpu-sys").style.width = `${cpuSys}%`;
+  if ($("#bar-cpu-app")) $("#bar-cpu-app").style.width = `${Math.max(cpuApp, 1)}%`;
+  if ($("#bar-ram-sys")) $("#bar-ram-sys").style.width = `${ramSysPct}%`;
+  if ($("#bar-ram-app")) $("#bar-ram-app").style.width = `${Math.max(ramAppPct, 1.5)}%`;
+  if ($("#bar-gpu-vram")) $("#bar-gpu-vram").style.width = `${vramPct}%`;
+
+  $("#close-monitor-btn")?.addEventListener("click", () => toggleMonitor(false));
+  $("#btn-release-vram")?.addEventListener("click", async () => {
+    const btn = $("#btn-release-vram");
+    if (!btn) return;
+    btn.disabled = true;
+    btn.innerHTML = `<svg class="i"><use href="/icons.svg#refresh"/></svg><span>Liberando VRAM...</span>`;
+    try {
+      const updated = await api("/api/monitor/release-vram", {});
+      toast("VRAM de modelos IA liberada com sucesso");
+      renderMonitor(updated);
+    } catch (e) {
+      toast("Não foi possível liberar VRAM agora");
+      btn.disabled = false;
+    }
+  });
+}
+
+async function pollMonitor() {
+  const pop = $("#sys-monitor-pop");
+  if (!pop || pop.hidden) return;
+  try {
+    const d = await api("/api/monitor");
+    if (!pop.hidden) renderMonitor(d);
+  } catch (err) {
+    // Silencioso em caso de transição de rota
+  }
+}
+
+function toggleMonitor(force) {
+  const pop = $("#sys-monitor-pop");
+  const btn = $("#open-monitor");
+  if (!pop || !btn) return;
+
+  const nextState = force !== undefined ? !!force : pop.hidden;
+  if (nextState) {
+    pop.hidden = false;
+    pop.setAttribute("aria-hidden", "false");
+    btn.setAttribute("aria-expanded", "true");
+    btn.classList.add("active");
+    if (monitorData) renderMonitor(monitorData);
+    pollMonitor();
+    if (monitorTimer) clearInterval(monitorTimer);
+    monitorTimer = setInterval(pollMonitor, 2000);
+  } else {
+    pop.hidden = true;
+    pop.setAttribute("aria-hidden", "true");
+    btn.setAttribute("aria-expanded", "false");
+    btn.classList.remove("active");
+    if (monitorTimer) {
+      clearInterval(monitorTimer);
+      monitorTimer = null;
+    }
+  }
+}
+
+// Event listeners do monitor
+$("#open-monitor")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  toggleMonitor();
+});
+
+document.addEventListener("click", (e) => {
+  const pop = $("#sys-monitor-pop");
+  if (!pop || pop.hidden) return;
+  if (!e.target.closest("#sys-monitor-pop") && !e.target.closest("#open-monitor")) {
+    toggleMonitor(false);
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const pop = $("#sys-monitor-pop");
+    if (pop && !pop.hidden) toggleMonitor(false);
+  }
+});

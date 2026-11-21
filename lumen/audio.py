@@ -1,15 +1,13 @@
 """Preparação do áudio para transcrição: decodificação local e mudança de velocidade com preservação de tom."""
 from fractions import Fraction
 
-import av
-import numpy as np
-from faster_whisper import decode_audio
-
 SR = 16000
+# PyAV, numpy e faster-whisper só carregam quando há áudio para tratar (não na partida do servidor).
 
 
 def load(path):
     """Áudio do arquivo como float32 mono 16 kHz (decodificado localmente pelo FFmpeg do PyAV)."""
+    from faster_whisper import decode_audio
     return decode_audio(path if hasattr(path, "read") else str(path), sampling_rate=SR)
 
 
@@ -17,6 +15,8 @@ def resample(samples, rate, to):
     """Muda a taxa de amostragem (mono float32) pelo resampler do FFmpeg (swr)."""
     if rate == to:
         return samples
+    import av
+    import numpy as np
     r = av.AudioResampler(format="flt", layout="mono", rate=to)
     out = []
     for i in range(0, len(samples), rate):  # 1 s por quadro
@@ -37,6 +37,8 @@ def tempo(samples, factor):
     """
     if factor == 1:
         return samples
+    import av
+    import numpy as np
     graph = av.filter.Graph()
     src = graph.add_abuffer(format="flt", sample_rate=SR, layout="mono", time_base=Fraction(1, SR))
     node = src

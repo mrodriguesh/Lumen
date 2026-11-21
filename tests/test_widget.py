@@ -43,6 +43,7 @@ class Widget(unittest.TestCase):
 
     def test_closed_widget_connection_does_not_raise(self):
         handler = server.Handler.__new__(server.Handler)
+        handler.close_connection = True
         for name in ("send_response", "send_header", "end_headers"):
             setattr(handler, name, mock.Mock())
         handler.wfile = mock.Mock()

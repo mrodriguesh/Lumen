@@ -9,9 +9,11 @@ Na raiz do projeto (o Playwright está no Python do sistema, não no .venv):
 Imagens em tests\desktop-artifacts\ui\. Falha (código 1) com erro de página, rolagem horizontal, controle fora da janela
 ou alvo de clique menor que 24 px. Dados isolados: LUMEN_DATA temporário e nenhuma chamada real ao Notion/Ollama/cofre.
 """
+import base64
 import copy
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -23,7 +25,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "tests" / "desktop-artifacts" / "ui"
+OUT = Path(os.environ.get("LUMEN_UI_OUT", ROOT / "tests" / "desktop-artifacts" / "ui"))
 NOW = time.time()
 
 
@@ -47,6 +49,7 @@ def png(w=320, h=180, rgb=(38, 48, 86)):
 
 
 SHOT = png()
+COVER = png(768, 320, (64, 58, 140))  # capa de mentira na proporção real (1536 × 640), em metade do tamanho
 NOTE = ("A convolução passa um filtro pequeno pela imagem e soma os produtos, então cada neurônio só olha uma região "
         "local. Isso reduz muito os parâmetros em relação a uma rede densa. O pooling diminui a resolução e deixa a rede "
         "mais tolerante a pequenos deslocamentos. Camadas mais profundas combinam bordas em formas e depois em objetos.")
@@ -147,7 +150,8 @@ def world():
         "sources": {k: {"id": "compativel", "label": "Compatível"} for k in ("recording", "file", "youtube", "telegram", "captures")},
         "formats": {".mp4": "MP4", ".mkv": "MKV", ".webm": "WebM", ".mov": "MOV", ".mp3": "MP3", ".m4a": "M4A", ".wav": "WAV"},
         "images": [".png", ".jpg", ".jpeg", ".webp", ".bmp"],
-        "covers": {"ready": False, "label": "Z-Image-Turbo", "size": "6,7 GB"},
+        "covers": {"ready": False, "label": "Z-Image-Turbo", "size": "6,7 GB", "license": "Apache 2.0 (Alibaba Tongyi)",
+                   "folder": "C:/Users/Estudante/AppData/Local/Lumen/imagem"},
         "vision": {"model": "qwen3.5:4b", "size": "3,3 GB", "installed": True},
         "music": {"ready": False, "size": "72 MB"},
         "obsidian": {"vaults": [{"path": cfg["obsidian_vault"], "name": "Cérebro", "open": True, "ok": True, "folder": cfg["obsidian_folder"]}],
@@ -165,7 +169,37 @@ def world():
                   "whisper_ready": True, "estimate": 140, "info": {"format": "WAV · 48 kHz"}},
         "pomodoro": {"phase": "focus", "running": True, "left": 1122, "total": 1500, "done": 1, "event": None,
                      "settings": {"focus": 25, "short": 5, "long": 15, "cycles": 4, "auto": False, "sound": True}},
+        **drive_world(),
+        # Capas do Notion: páginas como /api/notion/search devolve (lumen/notion._summary)
+        "cov_pages": [
+            {"id": "pg-orc", "title": "Orçamento doméstico 2026", "url": "https://www.notion.so/Orcamento-pgorc", "icon": "💰",
+             "where": "No topo do workspace", "edited": iso(hours=2), "cover": None},
+            {"id": "pg-notas-1", "title": "Notas", "url": "https://www.notion.so/Notas-1", "icon": None,
+             "where": "Subpágina de “Pessoal”", "edited": iso(days=1), "cover": None},
+            {"id": "pg-notas-2", "title": "Notas", "url": "https://www.notion.so/Notas-2", "icon": "🗂️",
+             "where": "Subpágina de “Trabalho”", "edited": iso(days=3), "cover": "file:prod-files-secure.s3.amazonaws.com/ws/a1/capa.png"},
+            {"id": "pg-luz", "title": "Conta de luz — outubro", "url": "https://www.notion.so/Conta-de-luz-pgluz", "icon": "💡",
+             "where": "Registro em “Contas da casa”", "edited": iso(days=4), "cover": None},
+            {"id": "p-ia", "title": "Inteligência Artificial", "url": "https://www.notion.so/Inteligencia-Artificial-pia", "icon": "🤖",
+             "where": "Subpágina de “Cursos”", "edited": iso(days=6), "cover": "external:https://www.notion.so/images/page-cover/gradients_5.png"},
+            {"id": "p-dl", "title": "Deep Learning", "url": "https://www.notion.so/Deep-Learning-pdl", "icon": "🧠",
+             "where": "Subpágina de “Inteligência Artificial”", "edited": iso(days=2), "cover": "file:prod-files-secure.s3.amazonaws.com/ws/b2/capa.png"},
+            {"id": "pg-longo", "title": "Planejamento do semestre de Engenharia de Computação, com metas, provas, trabalhos e leituras obrigatórias",
+             "url": "https://www.notion.so/Planejamento-pglongo", "icon": None, "where": "Subpágina de “Faculdade › 2026-2 › Organização geral”",
+             "edited": iso(days=9), "cover": None},
+        ],
     }
+
+
+def drive_world():
+    """O cartão Google Drive de Integrações: o formato de gdrive.status() (a conta da cópia de segurança da Proteção)."""
+    return {"drive": {"client": False, "connected": False, "email": "", "login": "idle", "error": "", "expired": False}}
+
+
+def drive_card(drive=None):
+    def f(W):
+        W["drive"].update(drive or {})
+    return f
 
 
 def state_of(w):
@@ -197,7 +231,7 @@ def router(W, log):
         body = r.request.post_data_json if r.request.method == "POST" and r.request.post_data else {}
         log.append((r.request.method, path, body))
         code, data = 200, {}
-        if path in ("/api/screen", "/api/capture"):
+        if path in ("/api/screen", "/api/capture", "/api/visual"):
             return r.fulfill(status=200, content_type="image/png", body=SHOT)
         if path == "/api/state": data = state_of(W)
         elif path == "/api/job": data = W["job"]
@@ -215,6 +249,11 @@ def router(W, log):
                 W["pomodoro"]["running"] = body["action"] == "play"
             data = {**W["pomodoro"], "now": time.time(), "ends_at": time.time() + W["pomodoro"]["left"]}
         elif path == "/api/history": data = {"items": W["history"], "courses": W["courses"], "categories": ["História", "Economia"]}
+        # Google Drive (lumen/gdrive.py): o cartão de Integrações
+        elif path == "/api/drive": data = W["drive"]
+        elif path == "/api/drive/login":
+            W["drive"].update(login="waiting")
+            data = W["drive"]
         elif path == "/api/catalog":
             data = {"courses": W["courses"], "categories": ["História", "Economia"], "last": W.get("last")}
             if q.get("notion"): data.update(notion=[] if q.get("course_id") else [{"id": "p-hist", "title": "História"}], root_ok=True)
@@ -225,10 +264,44 @@ def router(W, log):
             W["job"] = {"status": "done", "kind": "organize", "result": {"key": it["key"], "classification": body["classification"],
                                                                           "notion": {"status": "ok", "note": None}, "obsidian": {"status": "ok"}}}
             data = W["job"]
+        elif path == "/api/decor/preview":  # a prévia da capa (lumen/server._preview): local, sem o Notion
+            if W.get("cover_fail"):
+                code, data = 400, {"error": {"message": "O Ollama não está rodando.", "action": "Abra o Ollama e tente de novo."}}
+            else:
+                kind = W.get("cover_kind", "ia")
+                data = {"preview_id": f"pv{body.get('variant') or 0}", "kind": kind, "seconds": 34, "title": body["title"], "parent": "Estudos",
+                        "note": {"ia": "", "emojis": "O gerador de capas com IA não está instalado; esta é a capa alternativa, desenhada com emojis.",
+                                 "notion": "A ilustração com IA não ficou pronta neste PC e o desenho com emojis também falhou; a página vai usar uma capa de cor do Notion, com o ícone e a frase da prévia."}[kind],
+                        "decor": {"emoji": "🧠", "subtitle": "Redes neurais do perceptron às convoluções, com exemplos práticos."},
+                        "image": None if kind == "notion" else "data:image/png;base64," + base64.b64encode(COVER).decode()}
+        elif path == "/api/notion/search":  # Capas do Notion: 4 por vez, para o “Carregar mais” aparecer
+            if W.get("cov_search_fail"):
+                code, data = 400, {"error": {"message": "Sem conexão com o Notion.", "action": "Verifique a internet e tente de novo."}}
+            else:
+                hits = [x for x in W["cov_pages"] if q.get("q", "").casefold() in x["title"].casefold()]
+                at = int(q.get("cursor") or 0)
+                data = {"pages": hits[at:at + 4], "next_cursor": str(at + 4) if at + 4 < len(hits) else None}
+        elif path == "/api/notion/page":
+            hit = next((x for x in W["cov_pages"] if x["id"] in q.get("ref", "")), None)
+            code, data = (200, hit) if hit else (400, {"error": {"message": "O Lumen não tem acesso a esta página (ou ela foi apagada).",
+                                                                 "action": "No Notion, abra a página → ••• → Conexões → adicione a integração do Lumen."}})
+        elif path == "/api/cover/preview":  # a prévia da capa de uma página (lumen/server._page_preview): local
+            if W.get("cover_fail"):
+                code, data = 400, {"error": {"message": "O Ollama não está rodando.", "action": "Abra o Ollama e tente de novo."}}
+            else:
+                kind = W.get("cover_kind", "ia")
+                data = {"preview_id": f"cp{body.get('variant') or 0}", "kind": kind, "seconds": 41, "theme": " ".join((body.get("theme") or "").split()),
+                        "note": "" if kind == "ia" else "O gerador de capas com IA não está instalado; esta é a capa alternativa, desenhada com emojis.",
+                        "image": "data:image/png;base64," + base64.b64encode(COVER).decode()}
+        elif path == "/api/cover/apply":
+            page, st = next(x for x in W["cov_pages"] if x["id"] == body["page_id"]), W.get("cov_apply", "confirmed")
+            data = ({"changed": True, "page": {**page, "cover": "external:https://www.notion.so/images/page-cover/woodcuts_1.jpg"}} if st == "changed"
+                    else {"state": st, "page": {**page, "cover": "file:prod-files-secure.s3.amazonaws.com/ws/novo/capa.png"} if st == "confirmed" else page})
         elif path == "/api/catalog/course":
-            c = {"id": "c-new", "name": body["name"], "platform": body.get("platform") or "", "url": "", "notion_page_id": None, "modules": []}
+            c = {"id": "c-new", "name": body["name"], "platform": body.get("platform") or "", "url": "",
+                 "notion_page_id": "p-new" if body.get("decorate") else None, "modules": []}
             W["courses"].append(c)
-            data = {"course": c, "note": None}
+            data = {"course": c, "note": None, "cover": {"kind": W.get("cover_kind", "ia"), "confirmed": True} if body.get("decorate") else None}
         elif path == "/api/catalog/module":
             c = next(x for x in W["courses"] if x["id"] == body["course_id"])
             m = {"id": "m-new", "name": body["name"], "order": int(body["order"]) if body.get("order") else None, "notion_page_id": None}
@@ -272,6 +345,8 @@ def router(W, log):
         elif path == "/api/finish":
             W["job"] = {**copy.deepcopy(globals()["DONE"]), "result": {**DONE["result"], "key": body.get("key") or "k1"}}
             data = W["job"]
+        elif path == "/api/settings" and W.get("settings_fail"):  # o ajuste não foi salvo: a tela volta ao que vale
+            code, data = 400, {"error": {"message": "Não foi possível salvar o ajuste.", "action": "Tente de novo."}}
         elif path == "/api/settings":
             W["config"].update({k: v for k, v in body.items() if k in W["config"]})
             data = {"config": W["config"], "has_token": W["has_token"]} if q.get("view") == "settings" else state_of(W)
@@ -414,6 +489,22 @@ DONE = {"status": "done", "kind": "process", "dests": ["obsidian", "notion"], "r
                  "questions": 12, "state": "created"}}}
 
 
+VIS = {"state": "ok", "mode": "animated", "kind": "gif", "file": "0123456789abcdef.gif", "png": "0123456789abcdef.png",
+       "describe": "Sistema · 5 componentes da aula e 3 relações", "notion": "confirmed",
+       "obsidian": {"file": "Estudos/x/Anexos/visualização 3d · x.gif"}}
+DONE_VIS = {**DONE, "result": {**DONE["result"], "visual": VIS}}
+DONE_VIS_PNG = {**DONE, "result": {**DONE["result"], "visual": {**VIS, "kind": "png", "file": "0123456789abcdef.png",
+                                                                    "state": "static-fallback", "reason": "peso"}}}
+DONE_VIS_FAIL = {**DONE, "result": {**DONE["result"], "visual": {"state": "failed", "mode": "animated",
+                                                                     "reason": "o desenho falhou (RuntimeError)"}}}
+VCHK = (' const f = $("#result .v3d-preview"), img = f && f.querySelector("img"), src = f && f.querySelector("source");'
+        ' if (!img || !img.alt.startsWith("Visualização 3D gerada pelo Lumen") || !src || src.media !== "(prefers-reduced-motion: reduce)"'
+        ' || !src.srcset.includes("kind=png") || !f.textContent.includes("Animação (GIF)")'
+        ' || Math.abs(img.getBoundingClientRect().width / img.getBoundingClientRect().height - 16 / 9) > 0.05'
+        ' || (f.getBoundingClientRect().width > 700 && img.getBoundingClientRect().width > f.getBoundingClientRect().width * 0.5))'
+        ' throw new Error("prévia da visualização 3D fora do esperado: " + JSON.stringify({img: !!img, alt: img && img.alt.slice(0, 30), media: src && src.media, srcset: src && src.srcset.slice(0, 40), w: img && img.getBoundingClientRect().width, txt: f && f.textContent.slice(0, 60)}));')
+
+
 def run_js(job, url="/api/finish"):
     return f'showView("new"); lastUrl="{url}"; lastSpec={{kind:"recording"}}; showStep("run"); renderJob({json.dumps(job)}); renderStatus();'
 
@@ -456,6 +547,20 @@ def notion_fail(W):
 
 UNDER = 'showView("new"); await openUnderstanding("k1");'
 WOPEN = 'document.body.dataset.expanded="true";'
+# Revisões espaçadas: ligadas, os intervalos e onde as datas aparecem; desligadas, só o switch e o aviso das notas antigas
+REV_ON = (' const iv = $("#review-intervals").closest(".field"); if ($("#obs-review").closest(".set-row").querySelector("strong").textContent !== "Incluir revisões espaçadas"'
+          ' || !$("#obs-review").checked || !$("#obs-quick [data-cfg=obsidian_review]").checked || getComputedStyle(iv).display === "none" || $("#review-intervals").disabled'
+          ' || $("#review-intervals").value !== "1, 3, 7, 14, 30, 60" || !$("#review-intervals-hint").textContent.includes("Revisões")) throw new Error("revisões ligadas sem os intervalos");')
+REV_OFF = (' if ($("#obs-review").checked || $("#obs-quick [data-cfg=obsidian_review]").checked || getComputedStyle($("#review-intervals").closest(".field")).display !== "none"'
+           ' || getComputedStyle($("#review-intervals-hint")).display !== "none" || !$("#obs-review-scope").textContent.includes("As notas existentes permanecem")'
+           ' || $("#review-intervals").value !== "1, 3, 7, 14, 30, 60") throw new Error("revisões desligadas mostrando intervalos (ou perdendo-os)");')
+# Nova aula → botão Capa do cartão do Notion
+QCHK = (' $("#dest-notion").scrollIntoView({block: "center"}); await new Promise(r=>setTimeout(r,100)); const b = $("#dest-notion-cover"), card = $("#dest-notion").getBoundingClientRect(), r = b.getBoundingClientRect(), path = $("#dest-path").getBoundingClientRect(), badge = $("#dest-notion-badge").getBoundingClientRect();'
+        ' if (!b.closest("#dest-notion .dest-line2") || r.right > card.right + 1 || badge.right > card.right + 1 || (path.width && path.right > r.left + 1) || b.getAttribute("aria-haspopup") !== "dialog")'
+        ' throw new Error("o botão Capa fora do lugar, sobre o caminho ou o selo");')
+QOPEN = ('showView("new"); await loadCatalog(); $("#yt-url").value = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"; setOrg(ORG);'
+         ' await new Promise(r=>setTimeout(r,300)); $("#dest-notion").scrollIntoView(); const top0 = $("#content").scrollTop, calls = [], real = api; api = (u, b) => (calls.push(u), real(u, b));'
+         ' $("#dest-notion-cover").click(); await new Promise(r=>setTimeout(r,300)); if (!covDlg.open || view !== "new") throw new Error("o diálogo não abriu na Nova aula");')
 SCENARIOS = [
     ("home", "main", "", None, None),
     ("home-first", "main", "", first_use, None),
@@ -472,6 +577,22 @@ SCENARIOS = [
     ("new-org-suggest", "main", 'showView("new"); await loadCatalog(); await new Promise(r=>setTimeout(r,300));', patch(last={"type": "course", "course_id": "c-ia", "module_id": "m-dl", "lesson": 7, "at": "2099-01-01T00:00:00"}), None),
     ("new-org-dialog", "main", 'showView("new"); await loadCatalog(); openOrg({type:"course",course_id:"c-ia",module_id:"m-dl",lesson:7}); await new Promise(r=>setTimeout(r,400));', None, None),
     ("new-org-newcourse", "main", 'showView("new"); await loadCatalog(); openOrg({type:"course"}); $("#org-new-course").click(); const n=$("#org-course-name"); n.value="inteligencia artificial"; n.dispatchEvent(new Event("input")); await new Promise(r=>setTimeout(r,300));', None, None),
+    # Capa no Notion (novo curso): desligada, pronta para gerar, gerando, prévia pronta (IA ou alternativa), nome mudado e erro
+    *[(f"new-org-cover{n}", "main", 'showView("new"); await loadCatalog(); openOrg({type:"course"}); $("#org-new-course").click();'
+       ' const n=$("#org-course-name"); n.value="Redes neurais convolucionais"; n.dispatchEvent(new Event("input"));' + js, p, None) for n, js, p in (
+        ("", '', None),
+        ("-on", ' $("#org-decorate").click();', None),
+        ("-busy", ' $("#org-decorate").click(); const real = api; api = (u, b) => u === "/api/decor/preview" ? new Promise(() => {}) : real(u, b); genCover();'
+                  ' await new Promise(r=>setTimeout(r,100)); if (!$("#org-course-create").disabled || !$("#org-cover-gen").disabled) throw new Error("dá para criar ou gerar durante a geração");', None),
+        ("-ready", ' $("#org-decorate").click(); await genCover(); if ($("#org-course-create").disabled || $("#org-cover-pic").hidden || !$("#org-cover-pic").naturalWidth || !$("#org-cover-pic").alt.includes("Redes neurais")) throw new Error("prévia sem criar ou sem texto alternativo");', None),
+        ("-emojis", ' $("#org-decorate").click(); await genCover();', patch(cover_kind="emojis")),
+        # nem IA nem emojis: sem imagem, e a prévia diz que vai a capa de cor do Notion (nenhuma imagem antiga fica à vista)
+        ("-noimage", ' $("#org-decorate").click(); await genCover(); if (!$("#org-cover-pic").hidden || !$("#org-cover-wait").textContent.includes("capa de cor do Notion")) throw new Error("prévia sem imagem parece ter imagem");',
+         patch(cover_kind="notion")),
+        ("-stale", ' $("#org-decorate").click(); await genCover(); n.value="Redes neurais recorrentes"; n.dispatchEvent(new Event("input"));'
+                   ' if (!$("#org-course-create").disabled) throw new Error("a prévia de outro nome ainda cria");', None),
+        ("-error", ' $("#org-decorate").click(); await genCover(); const real = api; api = (u, b) => u === "/api/decor/preview" ? Promise.reject(Object.assign(new Error("O Ollama não está rodando."), {action: "Abra o Ollama e tente de novo."})) : real(u, b);'
+                   ' await genCover(); if ($("#org-cover-pic").hidden || $("#org-course-create").disabled || !$("#org-cover-state").textContent.includes("anterior continua")) throw new Error("a falha apagou a prévia válida");', None))],
     ("new-org-free", "main", 'showView("new"); await loadCatalog(); openOrg({type:"free",category:"História"}); await new Promise(r=>setTimeout(r,400));', None, None),
     ("new-dest-quick", "main", 'showView("new"); $("#dest-obs-change").click();', None, None),
     ("new-dest-novault", "main", 'showView("new");', dest({"obsidian_vault": ""}, {"folder": ""}), None),
@@ -492,6 +613,9 @@ SCENARIOS = [
     ("run", "main", run_js(JOB), None, None),
     ("run-indeterminate", "main", run_js({**JOB, "stage": "publish", "detail": "Enviando ao Notion", "progress": None}), None, None),
     ("run-done", "main", run_js(DONE), None, None),
+    ("run-done-visual", "main", run_js(DONE_VIS) + VCHK, None, None),
+    ("run-done-visual-png", "main", run_js(DONE_VIS_PNG) + ' if ($("#result .v3d-preview source") || !$("#result").textContent.includes("Imagem estática (PNG)")) throw new Error("reserva estática sem aviso");', None, None),
+    ("run-done-visual-failed", "main", run_js(DONE_VIS_FAIL) + ' if ($("#result .v3d-preview") || !$("#result").textContent.includes("não saiu")) throw new Error("falha do visual sem aviso");', None, None),
     ("run-partial", "main", 'showView("new"); lastUrl="/api/finish"; lastSpec={kind:"recording"}; showStep("run"); renderJob(await api("/api/job"));', notion_fail, None),
     ("run-error", "main", run_js({"status": "error", "kind": "process", "stage": "generate", "error": {"message": "A IA local não respondeu.", "action": "Abra o Ollama e tente de novo."}}), None, None),
     ("run-cancel", "main", run_js({"status": "cancelled", "kind": "process", "stage": "generate"}), None, None),
@@ -505,12 +629,133 @@ SCENARIOS = [
     ("library-review", "main", 'showView("library"); await new Promise(r=>setTimeout(r,200)); $("#lib-filter [data-f=review]").click();', None, None),
     ("library-filters", "main", 'showView("library"); await new Promise(r=>setTimeout(r,200)); $("#lib-more").click();', None, None),
     ("library-organize", "main", 'showView("library"); await new Promise(r=>setTimeout(r,200)); const it=historyItems.find(x=>x.key==="h4"); openOrg(it.classification, it); await new Promise(r=>setTimeout(r,400));', None, None),
-    ("integrations", "main", 'showView("integrations");', None, None),
+    ("integrations", "main", 'showView("integrations");'
+     ' if (!$("#v3d-mode input[value=animated]").checked || $("#v3d-mode").closest(".v3d-set").querySelector("details").open) throw new Error("Visualização 3D: padrão Animada, detalhes recolhidos");', None, None),
+    ("integrations-v3d-static", "main", 'showView("integrations"); $(".v3d-tech").open = true;'
+     ' if (!$("#v3d-mode input[value=static]").checked) throw new Error("Visualização 3D estática não marcada");', dest({"visual_3d": "static"}), None),
     ("integrations-off", "main", 'showView("integrations");', first_use, None),
-    ("integrations-migration", "main", 'showView("integrations"); await new Promise(r=>setTimeout(r,400));',
+    ("integrations-obsidian", "main", 'goIntegrations("obsidian");', None, None),
+    ("integrations-obsidian-off", "main", 'goIntegrations("obsidian");', first_use, None),
+    ("integrations-obsidian-noboard", "main", 'goIntegrations("obsidian");', dest({"obsidian_attachments": False, "obsidian_review": False}), None),
+    # Revisões espaçadas opcionais: um switch só (Integrações e ajuste rápido), intervalos guardados, nada cobrado desligado
+    ("rev-on", "main", 'goIntegrations("obsidian"); $("#obs-review").scrollIntoView({block: "center"});' + REV_ON, None, None),
+    ("rev-off", "main", 'goIntegrations("obsidian"); $("#obs-review").scrollIntoView({block: "center"});' + REV_OFF, dest({"obsidian_review": False}), None),
+    ("rev-toggle", "main", 'goIntegrations("obsidian"); $("#obs-review").scrollIntoView({block: "center"}); $("#obs-review").click(); await new Promise(r=>setTimeout(r,300));'
+     ' if (S.config.obsidian_review || JSON.stringify(S.config.review_intervals) !== "[1,3,7,14,30,60]" || $$("[data-cfg=obsidian_review]").some(i => i.checked)) throw new Error("desligar não salvou, perdeu os intervalos ou deixou um switch ligado");'
+     ' $("#obs-review").click(); await new Promise(r=>setTimeout(r,300));' + REV_ON, None, None),
+    ("rev-fail", "main", 'goIntegrations("obsidian"); $("#obs-review").scrollIntoView({block: "center"}); $("#obs-review").click(); await new Promise(r=>setTimeout(r,400));'
+     ' if (!$("#obs-review").checked || !S.config.obsidian_review || getComputedStyle($("#review-intervals").closest(".field")).display === "none") throw new Error("a tela mostra uma preferência que não foi salva");'
+     ' $$(".toast").forEach(t => t.remove());', patch(settings_fail=True), None),
+    ("rev-quick-off", "main", 'showView("new"); $("#dest-obs-change").click(); await new Promise(r=>setTimeout(r,200));'
+     ' const q = $("#obs-quick [data-cfg=obsidian_review]"); if (q.closest(".set-row").textContent.trim() !== "Incluir revisões espaçadas") throw new Error("rótulo do ajuste rápido");'
+     ' q.click(); await new Promise(r=>setTimeout(r,300)); if (S.config.obsidian_review || $("#obs-review").checked || q.checked || $("#dest-obs-help").dataset.tip.includes("revisão")) throw new Error("ajuste rápido e Integrações fora de sincronia");'
+     ' $("#dest-obs-change").scrollIntoView({block: "center"});', None, None),
+    ("rev-library-off", "main", 'showView("library"); await new Promise(r=>setTimeout(r,200)); $("#lib-more").click();'
+     ' if (!$("#lib-filter [data-f=review]").hidden || !$("#lf-review").closest(".field").hidden || historyItems.some(isDue) || /revisão (hoje|atrasada)/.test($("#library-list").textContent))'
+     ' throw new Error("a Biblioteca ainda cobra revisões desligadas");', dest({"obsidian_review": False}), None),
+    ("rev-home-off", "main", 'showView("home"); await new Promise(r=>setTimeout(r,300)); if (!$("#home-reviews").hidden) throw new Error("cartão de revisões com a função desligada");',
+     dest({"obsidian_review": False}), None),
+    ("integrations-notion-only-obsidian", "main", 'goIntegrations("notion");', dest({"destinations": "obsidian"}), None),
+    ("integrations-migration", "main", 'goIntegrations("obsidian"); await new Promise(r=>setTimeout(r,400));',
      patch(migration={"area": "B02 Estudos", "folders": ["C04 Claude Obsidian/16 Lumen"], "dashboards": [], "lessons": [
          {"title": "Criando Vídeos 3D Automatizados com Cloud e IA", "target": "B02 Estudos/90 - A organizar/Criando Vídeos 3D", "canvas": True, "board": False, "attachments": 3, "shared": 0},
          {"title": "Edição de Vídeos com IA Guia Prático e Personalizado", "target": "B02 Estudos/90 - A organizar/Edição de Vídeos", "canvas": True, "board": True, "attachments": 6, "shared": 0}]}), None),
+    # Google Drive: o cartão de Integrações (cada estado da conta da Proteção)
+    *[(f"drive-card{n}", "main", 'goIntegrations("drive"); await new Promise(r=>setTimeout(r,300));' + js, p, None) for n, js, p in (
+        ("", "", None), ("-client", "", drive_card({"client": True})),
+        ("-waiting", "", drive_card({"client": True, "login": "waiting"})),
+        # a consulta a cada 2 s do login continua e não trava a tela
+        ("-waiting-poll", ' const real = api; window.polls = 0; api = (p, b) => { if (p === "/api/drive") polls++; return real(p, b); };'
+                          ' await new Promise(r => setTimeout(r, 4600)); if (polls < 2) throw new Error(`a consulta não repetiu (${polls})`);',
+         drive_card({"client": True, "login": "waiting"})),
+        ("-error", "", drive_card({"client": True, "login": "error", "error": "Sem resposta do Google. Confira a internet e tente de novo."})),
+        ("-expired", "", drive_card({"client": True, "expired": True, "login": "idle"})),
+        ("-connected", "", drive_card({"client": True, "connected": True, "login": "ok", "email": "estudante@gmail.com"})),
+        ("-loading", ' DRV = null; renderDriveCard();', None),
+        ("-load-error", ' DRV = { error: { message: "Não foi possível ler o estado do Drive.", action: "Tente de novo." } }; renderDriveCard();', None))],
+    # Capas do Notion: escolher a página (busca, link), gerar, aplicar; cada estado com a sua única ação principal
+    *[(f"covers{n}", "main", 'await covOpen(); await new Promise(r=>setTimeout(r,200));' + js, p, None) for n, js, p in (
+        ("-start", ' if (!$("#cov-list [role=option]") || $("#cov-more").hidden) throw new Error("sem as páginas recentes ou sem Carregar mais");', None),
+        ("-more", ' $("#cov-more").click(); await new Promise(r=>setTimeout(r,200)); if ($$("#cov-list [role=option]").length !== 7) throw new Error("Carregar mais não juntou a 2ª leva");', None),
+        ("-search", ' const q=$("#cov-q"); q.value="notas"; q.dispatchEvent(new Event("input")); await new Promise(r=>setTimeout(r,500));'
+                    ' const t=$("#cov-list").textContent; if (!t.includes("Pessoal") || !t.includes("Trabalho")) throw new Error("nomes iguais sem a mãe");', None),
+        ("-empty", ' const q=$("#cov-q"); q.value="xyz"; q.dispatchEvent(new Event("input")); await new Promise(r=>setTimeout(r,500));'
+                   ' if (!$("#cov-list-msg").textContent.includes("Nenhuma página")) throw new Error("lista vazia sem aviso");', None),
+        ("-searchfail", ' if ($("#cov-retry").hidden) throw new Error("erro sem Tentar de novo");', patch(cov_search_fail=True)),
+        ("-noaccess", ' const q=$("#cov-q"); q.value="https://www.notion.so/Privada-0123456789abcdef0123456789abcdef"; q.dispatchEvent(new Event("input")); await new Promise(r=>setTimeout(r,300));'
+                      ' if (!$("#cov-list-msg").textContent.includes("Conexões") || cv.page) throw new Error("página sem acesso sem explicação");', None),
+        ("-nocover", ' await covPickRef("pg-orc"); if ($("#cov-gen").textContent !== "Gerar capa" || !$("#cov-gen").classList.contains("primary") || !$("#cov-main").hidden) throw new Error("ação principal errada");', None),
+        ("-hascover", ' await covPickRef("pg-notas-2"); if (!$("#cov-page-badge").textContent.includes("Tem capa")) throw new Error("sem indicar a capa atual");', None),
+        ("-row", ' await covPickRef("pg-luz");', None),
+        ("-long", ' await covPickRef("pg-longo");', None),
+        ("-busy", ' await covPickRef("pg-orc"); const real = api; api = (u, b) => u === "/api/cover/preview" ? new Promise(() => {}) : real(u, b); covGen();'
+                  ' await new Promise(r=>setTimeout(r,100)); if (!$("#cov-gen").disabled || $("#cov-progress").hidden || !$("#cov-main").hidden) throw new Error("dá para agir durante a geração");', None),
+        ("-ready", ' await covPickRef("pg-orc"); await covGen(); if ($("#cov-main").textContent !== "Aplicar capa" || $("#cov-pic").hidden || !$("#cov-pic").naturalWidth || !$("#cov-pic").alt.includes("Orçamento")) throw new Error("prévia sem Aplicar ou sem texto alternativo");', None),
+        ("-emojis", ' await covPickRef("pg-orc"); await covGen();', patch(cover_kind="emojis")),
+        ("-replace", ' await covPickRef("pg-notas-2"); await covGen(); if ($("#cov-main").textContent !== "Substituir capa") throw new Error("a substituição não está explícita");', None),
+        ("-stale", ' await covPickRef("pg-orc"); await covGen(); const t=$("#cov-theme"); t.value="Uma ilustração de um cofrinho"; t.dispatchEvent(new Event("input"));'
+                   ' if (!$("#cov-main").hidden || !$("#cov-gen").classList.contains("primary")) throw new Error("a prévia de outro tema ainda aplica");', None),
+        ("-fail", ' await covPickRef("pg-orc"); await covGen(); if ($("#cov-gen").textContent !== "Tentar de novo" || !$("#cov-main").hidden) throw new Error("falha sem Tentar de novo");', patch(cover_fail=True)),
+        ("-failkeeps", ' await covPickRef("pg-orc"); await covGen(); const real = api; api = (u, b) => u === "/api/cover/preview" ? Promise.reject(Object.assign(new Error("O Ollama não está rodando."), {action: "Abra o Ollama e tente de novo."})) : real(u, b);'
+                       ' await covGen(); if ($("#cov-pic").hidden || $("#cov-main").hidden || !$("#cov-state").textContent.includes("anterior continua")) throw new Error("a falha apagou a prévia válida");', None),
+        ("-done", ' const before = JSON.stringify(org), calls = [], real = api; api = (u, b) => (calls.push(u), real(u, b));'
+                  ' await covPickRef("pg-orc"); await covGen(); await covApply();'
+                  ' if (!$("#cov-state").textContent.includes("Capa aplicada em “Orçamento doméstico 2026”") || $("#cov-main").textContent !== "Abrir no Notion") throw new Error("sucesso sem confirmação ou sem Abrir no Notion");'
+                  ' if (JSON.stringify(org) !== before || calls.some(u => /catalog|organize|finish|start/.test(u))) throw new Error("mexeu na aula ou criou curso: " + calls.join(" "));', None),
+        ("-unconfirmed", ' await covPickRef("pg-orc"); await covGen(); await covApply(); if (!$("#cov-state").textContent.includes("Não foi possível confirmar") || $("#cov-main").textContent !== "Tentar de novo") throw new Error("incerto sem Tentar de novo");', patch(cov_apply="unconfirmed")),
+        ("-mismatch", ' await covPickRef("pg-orc"); await covGen(); await covApply(); if ($("#cov-state").dataset.tone !== "error") throw new Error("capa antiga virou sucesso");', patch(cov_apply="mismatch")),
+        ("-changed", ' await covPickRef("pg-orc"); await covGen(); await covApply(); if ($("#cov-main").textContent !== "Substituir capa" || !$("#cov-page-badge").textContent.includes("Tem capa")) throw new Error("a mudança da capa não foi mostrada");', patch(cov_apply="changed")),
+        ("-off", ' if ($("#cov-off").hidden) throw new Error("sem token e sem o aviso");', patch(has_token=False)),
+        # a resposta atrasada da página anterior não vira a prévia desta; o texto digitado fica nas atualizações
+        ("-late", ' await covPickRef("pg-orc"); const real = api; api = (u, b) => u === "/api/cover/preview" ? new Promise(r => setTimeout(() => r(real(u, b)), 300)) : real(u, b);'
+                  ' covGen(); await new Promise(r=>setTimeout(r,50)); $("#cov-page-change").click(); await covPickRef("pg-luz"); const t=$("#cov-theme"); t.value="Lâmpada acesa";'
+                  ' await new Promise(r=>setTimeout(r,500)); renderSettings(); if (cv.pv || cv.page.id !== "pg-luz" || !$("#cov-pic").hidden || t.value !== "Lâmpada acesa") throw new Error("a prévia atrasada caiu na outra página");', None),
+        ("-keyboard", ' const before = JSON.stringify(org), q=$("#cov-q"); q.focus(); q.value="conta"; q.dispatchEvent(new Event("input")); await new Promise(r=>setTimeout(r,500));'
+                      ' q.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true})); if (q.getAttribute("aria-activedescendant") !== "cov-opt-0" || q.getAttribute("aria-expanded") !== "true") throw new Error("setas sem opção ativa");'
+                      ' q.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true})); await new Promise(r=>setTimeout(r,100));'
+                      ' if (cv.page?.id !== "pg-luz" || document.activeElement !== $("#cov-theme") || JSON.stringify(org) !== before) throw new Error("Enter não escolheu ou o foco se perdeu");', None))],
+    # Nova aula → Destinos do estudo → Notion → Capa: o mesmo fluxo num diálogo, com a página real do destino (por ID)
+    ("new-dest-cover", "main", 'showView("new"); await loadCatalog(); await new Promise(r=>setTimeout(r,300));' + QCHK, None, None),
+    ("new-dest-cover-long", "main", 'showView("new"); await loadCatalog(); setOrg({type:"course",course_id:"c-ia",module_id:"m-dl"}); await new Promise(r=>setTimeout(r,400));' + QCHK,
+     lambda W: W["courses"][0].update(name="Inteligência Artificial Generativa Aplicada a Negócios e Educação Corporativa"), None),
+    ("new-dest-cover-off", "main", 'showView("new"); await new Promise(r=>setTimeout(r,300));' + QCHK, patch(has_token=False), None),
+    *[(f"cover-quick{n}", "main", QOPEN.replace("ORG", org) + js, p, None) for n, org, js, p in (
+        ("", '{type:"course",course_id:"c-ia"}', ' if (view !== "new" || cv.page?.id !== "p-ia" || document.activeElement !== $("#cov-gen") || calls.some(u => /catalog[/]|organize|settings/.test(u)))'
+                                                 ' throw new Error("não abriu na Nova aula com a página do curso (ou mexeu na organização)");', None),
+        ("-module", '{type:"course",course_id:"c-ia",module_id:"m-dl"}', ' if (cv.page?.id !== "p-dl" || !$("#cov-page-badge").textContent.includes("Tem capa")) throw new Error("a página do módulo não veio pelo ID");', None),
+        ("-modnopage", '{type:"course",course_id:"c-ia",module_id:"m-fund"}', ' if (cv.page || !$("#cov-why-text").textContent.includes("módulo") || $("#cov-pick").hidden) throw new Error("módulo sem página virou a página do curso");', None),
+        ("-free", '{type:"free",category:"História"}', ' if (cv.page || !$("#cov-why-text").textContent.includes("ainda não existe")) throw new Error("conteúdo gratuito sem a página certa");', None),
+        ("-inbox", '{type:"inbox"}', ' if (cv.page || !$("#cov-why-text").textContent.includes("identificada")) throw new Error("A organizar adivinhou uma página");', None),
+        ("-off", '{type:"course",course_id:"c-ia"}', ' if ($("#cov-off").hidden || !covDlg.open) throw new Error("sem conexão e sem o aviso no diálogo");', patch(has_token=False)),
+        ("-busy", '{type:"course",course_id:"c-ia"}', ' const r2 = api; api = (u, b) => u === "/api/cover/preview" ? new Promise(() => {}) : r2(u, b); covGen(); await new Promise(r=>setTimeout(r,100));'
+                  ' if (!$("#cov-gen").disabled || $("#cov-progress").hidden) throw new Error("dá para agir durante a geração");', None),
+        ("-ready", '{type:"course",course_id:"c-ia",module_id:"m-dl"}', ' await covGen(); if ($("#cov-main").textContent !== "Substituir capa" || !$("#cov-state").textContent.includes("substitui a capa atual de “Deep Learning”")) throw new Error("a substituição não está explícita");', None),
+        ("-error", '{type:"course",course_id:"c-ia"}', ' await covGen(); if ($("#cov-gen").textContent !== "Tentar de novo") throw new Error("falha sem Tentar de novo");', patch(cover_fail=True)),
+        ("-done", '{type:"course",course_id:"c-ia"}', ' await covGen(); await covApply(); if (!$("#cov-state").textContent.includes("Capa aplicada em “Inteligência Artificial”") || $("#cov-main").textContent !== "Abrir no Notion") throw new Error("sucesso sem confirmação");', None),
+        ("-unconfirmed", '{type:"course",course_id:"c-ia"}', ' await covGen(); await covApply(); if (!$("#cov-state").textContent.includes("Não foi possível confirmar")) throw new Error("incerto virou sucesso");', patch(cov_apply="unconfirmed")),
+        # trocar a página da capa não muda a organização da aula, a configuração nem o destino do material
+        ("-swap", '{type:"course",course_id:"c-ia"}', ' const o = JSON.stringify(org), cf = JSON.stringify(S.config); $("#cov-page-change").click(); await covPickRef("pg-orc"); await covGen(); await covApply();'
+                  ' if (cv.page.id !== "pg-orc" || JSON.stringify(org) !== o || JSON.stringify(S.config) !== cf || calls.some(u => /catalog[/]|organize|settings|drive/.test(u))) throw new Error("trocar a página da capa mexeu na aula");', None),
+        # fechar volta para a Nova aula como estava: link, gravação, rolagem e o foco no botão Capa
+        ("-preserve", '{type:"course",course_id:"c-ia"}', ' await covGen(); await covApply(); covDlg.close(); await new Promise(r=>setTimeout(r,100));'
+                      ' if (covDlg.open || view !== "new" || $("#yt-url").value !== "https://www.youtube.com/watch?v=dQw4w9WgXcQ" || $("#content").scrollTop !== top0 || document.activeElement !== $("#dest-notion-cover")'
+                      ' || !$("#cov-home").contains($("#cov-box")) || !S.recording.active || calls.some(u => /record[/]|start|finish/.test(u))) throw new Error("fechar não devolveu a aula como estava");', patch(recording=REC)),
+        # abrir e fechar várias vezes não duplica eventos; clique duplo gera uma vez só
+        ("-repeat", '{type:"course",course_id:"c-ia"}', ' for (let i = 0; i < 3; i++) { covDlg.close(); await covQuick(); } $("#cov-gen").click(); $("#cov-gen").click(); await new Promise(r=>setTimeout(r,300));'
+                    ' if (calls.filter(u => u === "/api/cover/preview").length !== 1 || document.querySelectorAll("#cov-box").length !== 1) throw new Error("eventos duplicados");', None),
+        # reaberto durante a geração depois de mudar a organização: a operação não é redirecionada para outra página
+        ("-late", '{type:"course",course_id:"c-ia"}', ' const r2 = api; api = (u, b) => u === "/api/cover/preview" ? new Promise(r => setTimeout(() => r(r2(u, b)), 300)) : r2(u, b); covGen(); covDlg.close();'
+                  ' setOrg({type:"course",course_id:"c-ia",module_id:"m-dl"}); await covQuick(); if (cv.page.id !== "p-ia") throw new Error("a geração em andamento mudou de página");'
+                  ' await new Promise(r=>setTimeout(r,500)); if (cv.page.id !== "p-ia" || !cv.pv) throw new Error("a prévia caiu em outra página");', None))],
+    # os outros acessos abrem a mesma tela: Integrações → Notion, Ctrl+K e o curso da Biblioteca (com a página dele)
+    ("covers-from-integ", "main", 'goIntegrations("notion"); document.querySelector("[data-cover-open]").click(); await new Promise(r=>setTimeout(r,200));'
+                                  ' if (view !== "settings" || $("#cov-flow").hidden) throw new Error("Criar capa não abriu Capas do Notion");', None, None),
+    ("covers-from-palette", "main", 'openPalette(); palIn.value="criar capa"; palIn.dispatchEvent(new Event("input")); palIn.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter"}));'
+                                    ' await new Promise(r=>setTimeout(r,200)); if (view !== "settings" || settingsCat !== "covers") throw new Error("Ctrl+K não abriu Capas do Notion");', None, None),
+    ("covers-from-course", "main", 'showView("library"); await loadLibrary(); openCourse("c-ia"); await new Promise(r=>setTimeout(r,200));'
+                                   ' [...document.querySelectorAll(".course-actions .btn")].find(b => b.textContent.includes("Criar capa")).click(); await new Promise(r=>setTimeout(r,300));'
+                                   ' if (cv.page?.id !== "p-ia" || $("#cov-page-change").disabled) throw new Error("o curso não abriu a página dele (ou não dá para trocar)");', None, None),
+    ("settings-covers-ready", "main", 'goSettings("covers"); document.querySelector("[data-cat=covers] details").open = true;', lambda W: W["covers"].update(ready=True), None),
     *[(f"settings-{c}", "main", f'goSettings("{c}");', None, None) for c in ("general", "capture", "pomodoro", "transcription", "ai", "covers", "privacy")],
     # Pomodoro: cada estado no chip da barra e no painel aberto (o mesmo timer em todas as telas)
     *[(f"pomo-{n}", "main", 'await new Promise(r => setTimeout(r, 300)); Pomodoro.open();', patch(pomodoro={**POMO, **kv}), None) for n, kv in (
@@ -621,7 +866,7 @@ def walk(out=OUT / "percurso"):
             w.goto(url + "/widget")
             until("() => typeof state !== 'undefined' && state && state.recording.active", w)
             w.evaluate('document.body.dataset.expanded = "true"')
-            step("barra-gravando", until("() => document.body.dataset.state === 'live' && !document.querySelector('#pause').hidden", w), w)
+            step("barra-gravando", until("() => document.body.dataset.state === 'live' && document.body.dataset.rec === 'on'", w), w)
             m.click("#rec-pause")
             step("pausado", until("() => recorder.dataset.paused === 'true' && document.querySelector('#global-status').dataset.tone === 'paused'"
                                   " && document.querySelector('#rec-pause-label').textContent === 'Retomar'"))
@@ -663,6 +908,9 @@ def walk(out=OUT / "percurso"):
             sent = [b for meth, pth, b in log if pth in ("/api/start", "/api/finish")]
             step("organizacao-enviada", all(b.get("classification") == {"type": "course", "course_id": "c-ia", "module_id": "m-new", "lesson": 4}
                                              for b in sent) and len(sent) == 2 and not any("course_id" in b for b in sent))
+            # o Gemini Notebook foi retirado: nenhum botão dele no resultado
+            step("sem-gemini-notebook", m.locator("#run-actions button:has-text('Gemini Notebook')").count() == 0
+                 and m.locator("[data-nb]").count() == 0 and m.locator("#nb-dlg").count() == 0)
             m.click("#nav-library")
             step("biblioteca", until("() => !document.querySelector('#view-library').hidden && document.querySelectorAll('#library-list .lib-title').length > 3"))
             m.click("#lib-filter [data-f=course]")
@@ -678,7 +926,25 @@ def walk(out=OUT / "percurso"):
             m.click("#org-save")
             step("aula-organizada", until("() => !$('#org-dlg').open && $('#library-list').textContent.includes('Nada para organizar')"))
             m.click("#nav-integrations")
-            step("integracoes", until("() => document.querySelector('#notion-badge').dataset.tone === 'ok' && document.querySelector('#obsidian-badge').dataset.tone === 'ok'"))
+            step("integracoes", until("() => document.querySelector('#notion-badge').dataset.tone === 'ok' && document.querySelector('#obsidian-badge').dataset.tone === 'ok'"
+                                      " && !$('#integ-notion').hidden && $('#integ-obsidian').hidden && $('#integ-drive').hidden"))
+            # trocar de integração: o que está sendo digitado e as seções abertas ficam; nada é salvo nem enviado
+            n_posts = len([x for x in log if x[0] == "POST"])
+            m.fill("#token", "ntn_ainda_digitando")
+            m.click("#integ-notion summary:has-text('Como conectar')")
+            m.click("#itab-obsidian")
+            ok = until("() => !$('#integ-obsidian').hidden && $('#integ-notion').hidden && $('#itab-obsidian').getAttribute('aria-selected') === 'true'"
+                       " && $('#where-sub').textContent === 'Obsidian'")
+            m.keyboard.press("ArrowRight")  # setas na faixa: vai para o Google Drive, com o foco junto
+            ok = ok and until("() => !$('#integ-drive').hidden && document.activeElement === $('#itab-drive')")
+            step("integracoes-google-drive", ok and until("() => $('#drive-status').textContent.includes('Não configurado')"
+                                                         " && $('#drive-actions').textContent.includes('Escolher o arquivo do cliente')"))
+            m.click("#itab-notion")
+            ok = until("() => $('#token').value === 'ntn_ainda_digitando' && $('#integ-notion details.disclosure').open")
+            m.click("#itab-drive")
+            posts = [x[1] for x in log if x[0] == "POST"][n_posts:]
+            step("integracoes-trocar-preserva", ok and until("() => !$('#integ-drive').hidden") and posts == [])  # nada é salvo nem enviado ao trocar
+            m.evaluate("$('#token').value = ''")  # o token digitado nunca foi salvo
             m.click("#open-settings")
             m.click("#settings-nav [data-cat=privacy]")
             m.click("label:has(#keep)")
