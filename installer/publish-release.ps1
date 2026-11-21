@@ -115,7 +115,7 @@ $sums | ForEach-Object { Write-Host "    $_" }
 
 $tag = "v$Version"
 $assets = @($zip, (Join-Path $OutDir 'install.ps1'), (Join-Path $OutDir 'SHA256SUMS.txt'))
-$notes = "Lumen $Version (commit $($info.commit)).`n`nInstalar ou reinstalar (PowerShell):`n`n    irm https://github.com/$Repo/releases/latest/download/install.ps1 | iex`n"
+$notes = "Lumen $Version (commit $($info.commit)).`n`nInstalar ou reinstalar: o comando de uma linha esta no README (secao Instalar): https://github.com/$Repo#instalar`n"
 if ($Publish) {
     Write-Step "Criando o release $tag em github.com/$Repo"
     & gh release create $tag @assets --repo $Repo --title "Lumen $Version" --notes $notes
