@@ -18,7 +18,7 @@ from unittest import mock
 os.environ["LUMEN_DATA"] = tempfile.mkdtemp(prefix="lumen-ui-sync-")
 ROOT, HERE, PORT = Path(sys.argv[1]).resolve(), Path(__file__).parent, sys.argv[2]
 sys.path.insert(0, str(ROOT))
-NODE = r"%USERPROFILE%\AppData\Local\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_Microsoft.Winget.Source_8wekyb3d8bbwe\node-v24.19.0-win-x64\node.exe"
+NODE = os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_Microsoft.Winget.Source_8wekyb3d8bbwe\node-v24.19.0-win-x64\node.exe")
 from lumen import jobs, server, understanding  # noqa: E402
 from tests.test_llm import NOTE  # noqa: E402
 

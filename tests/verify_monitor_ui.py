@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 from lumen import server
 
-ART_DIR = Path(r"%USERPROFILE%\.gemini\antigravity\brain\1a76a60b-5a44-447e-8b6f-705091664e6b")
+ART_DIR = Path.home() / ".gemini" / "antigravity" / "brain" / "1a76a60b-5a44-447e-8b6f-705091664e6b"
 
 
 def test_monitor_ui():

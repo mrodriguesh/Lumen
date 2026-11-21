@@ -90,15 +90,14 @@ Opcionais (só com `-Extras`): Whisper `large-v3` (“Maior precisão”, ≈ 3,
 
 ## Instalar
 
-O repositório é **privado**, então o instalador precisa de um token do GitHub que leia este repositório:
-
-1. No GitHub: **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**;
-   em *Repository access* escolha só **mrodriguesh/Lumen** e em *Permissions → Contents* marque **Read-only**.
-2. Abra o **PowerShell** (não precisa de administrador), troque `<seu token>` pelo token e rode:
+Abra o **PowerShell** (não precisa de administrador nem de conta no GitHub) e rode:
 
 ```powershell
-$env:LUMEN_GITHUB_TOKEN = '<seu token>'; irm -Headers @{ Authorization = "Bearer $env:LUMEN_GITHUB_TOKEN"; Accept = 'application/vnd.github.raw' } https://api.github.com/repos/mrodriguesh/Lumen/contents/installer/install.ps1 | iex
+irm https://github.com/mrodriguesh/Lumen/releases/latest/download/install.ps1 | iex
 ```
+
+Instalação manual, a partir do código: `git clone https://github.com/mrodriguesh/Lumen.git`, depois `cd Lumen` e
+`.\"Iniciar Lumen.bat"` (cria o `.venv`, instala o `requirements.txt` e abre o app; os modelos se baixam pelos Ajustes).
 
 O instalador ([installer/install.ps1](installer/install.ps1)) faz, em ordem: confere o Windows; busca o último release
 pela API do GitHub e confere o SHA-256 do pacote; instala com o **winget** o que faltar (Python 3.14, Visual C++,
@@ -112,7 +111,7 @@ pulado, e sua configuração, histórico, notas e tokens (em `%LOCALAPPDATA%\Lum
 Opções (troque `| iex` por `& ([scriptblock]::Create(...))` para passá-las):
 
 ```powershell
-& ([scriptblock]::Create((irm -Headers @{ Authorization = "Bearer $env:LUMEN_GITHUB_TOKEN"; Accept = 'application/vnd.github.raw' } https://api.github.com/repos/mrodriguesh/Lumen/contents/installer/install.ps1))) -Skip capas
+& ([scriptblock]::Create((irm https://github.com/mrodriguesh/Lumen/releases/latest/download/install.ps1))) -Skip capas
 ```
 
 | Opção | Efeito |

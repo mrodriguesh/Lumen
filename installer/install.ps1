@@ -3,14 +3,15 @@
     Instala, repara ou atualiza o Lumen a partir do GitHub Releases, com as dependencias e as integracoes.
 
 .DESCRIPTION
-    O repositorio e privado: precisa de um token do GitHub com leitura do repositorio (README.md, "Instalar").
-    Uma linha, no PowerShell (sem administrador):
+    Uma linha, no PowerShell (sem administrador e sem conta no GitHub):
 
-        $env:LUMEN_GITHUB_TOKEN = '<token>'; irm -Headers @{ Authorization = "Bearer $env:LUMEN_GITHUB_TOKEN"; Accept = 'application/vnd.github.raw' } https://api.github.com/repos/mrodriguesh/Lumen/contents/installer/install.ps1 | iex
+        irm https://github.com/mrodriguesh/Lumen/releases/latest/download/install.ps1 | iex
 
-    Com opcoes (o mesmo download, com & em vez de iex):
+    Com opcoes:
 
-        & ([scriptblock]::Create((irm -Headers @{ Authorization = "Bearer $env:LUMEN_GITHUB_TOKEN"; Accept = 'application/vnd.github.raw' } https://api.github.com/repos/mrodriguesh/Lumen/contents/installer/install.ps1))) -Skip capas
+        & ([scriptblock]::Create((irm https://github.com/mrodriguesh/Lumen/releases/latest/download/install.ps1))) -Skip capas
+
+    Um fork privado funciona com um token em $env:LUMEN_GITHUB_TOKEN (opcional).
 
     O que faz, nesta ordem: confere o Windows; instala o que falta (Python 3.14, Visual C++, WebView2, Ollama) com o
     winget; baixa o ultimo release do Lumen pela API do GitHub e confere o SHA-256; troca os arquivos do programa sem
