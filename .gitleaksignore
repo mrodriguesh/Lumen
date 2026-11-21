@@ -1,0 +1,5 @@
+# Valores FALSOS dos testes (tokens inventados para servidores simulados), conferidos em 21/11/2026; não são credenciais.
+6c62016841fc6f86802a3c46ba93720d3e7474ad:tests/test_repair.py:generic-api-key:21
+6c62016841fc6f86802a3c46ba93720d3e7474ad:tests/test_hyperbooklm.py:generic-api-key:115
+6c62016841fc6f86802a3c46ba93720d3e7474ad:tests/test_diagnostics.py:generic-api-key:23
+6c62016841fc6f86802a3c46ba93720d3e7474ad:tests/test_diagnostics.py:generic-api-key:309
