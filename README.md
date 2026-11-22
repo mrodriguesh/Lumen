@@ -90,20 +90,57 @@ Opcionais (só com `-Extras`): Whisper `large-v3` (“Maior precisão”, ≈ 3,
 
 ## Instalar
 
-Abra o **PowerShell** (não precisa de administrador nem de conta no GitHub) e rode:
+Há duas formas, que instalam a mesma coisa (o Lúmen, as dependências e os modelos locais) e podem ser repetidas para
+reparar ou atualizar. Nenhuma pede administrador nem conta no GitHub. Escolha uma:
+
+| | Alternativa 1: comando no PowerShell | Alternativa 2: instalador do Windows |
+|---|---|---|
+| Como | uma linha no PowerShell | `Lumen-Setup-<versão>.exe` e um botão **Instalar** |
+| Versão | sempre o último release | a versão do instalador baixado |
+| Opções | `-Skip`, `-Extras`, `-InstallDir`… (tabela abaixo) | nenhuma: instala tudo na pasta padrão |
+| Desinstalar | apagar a pasta do programa e os atalhos | **Configurações → Aplicativos → Lúmen → Desinstalar** |
+
+### Alternativa 1: comando no PowerShell
+
+1. Abra o **PowerShell**.
+2. Rode:
 
 ```powershell
 irm https://github.com/mrodriguesh/Lumen/releases/latest/download/install.ps1 | iex
 ```
 
+3. Acompanhe o progresso; no fim aparece um resumo `[OK]` / `[FALTA]` / `[MANUAL]` e o Lúmen abre.
+
+### Alternativa 2: instalador do Windows (um botão)
+
+1. Na página [Releases](https://github.com/mrodriguesh/Lumen/releases/latest), baixe `Lumen-Setup-<versão>.exe`.
+2. Abra o arquivo. Se o Windows mostrar “O Windows protegeu o computador”, clique em **Mais informações → Executar
+   assim mesmo** (o instalador não tem assinatura digital: [fill in: certificado de assinatura de código]).
+3. Clique em **Instalar**. Uma janela do PowerShell mostra o progresso dos downloads; ao terminar, clique em
+   **Concluir** com “Abrir o Lúmen” marcado.
+
+O instalador ([installer/setup/Lumen.iss](installer/setup/Lumen.iss), feito com o [Inno Setup 6](https://jrsoftware.org/isinfo.php))
+leva dentro o pacote do Lúmen da sua versão e roda o mesmo `installer/install.ps1` da alternativa 1 (com `-Package`), que
+baixa o resto. Cria os atalhos da Área de Trabalho e do Menu Iniciar e registra o desinstalador, que remove a pasta do
+programa e os atalhos; seus dados e tokens (`%LOCALAPPDATA%\Lumen`), o Python, o Ollama e os modelos ficam.
+
+Gerar o instalador (no Windows, a partir de uma cópia do repositório):
+
+1. `winget install JRSoftware.InnoSetup`
+2. `powershell -ExecutionPolicy Bypass -File installer\setup\build-setup.ps1 -Version <aaaa.mm.dd>`: gera
+   `dist\Lumen-Setup-<versão>.exe` (e antes `dist\Lumen-<versão>.zip` com o `installer\publish-release.ps1`, se faltar).
+   Com `-Publish`, anexa o `.exe` ao release `v<versão>` no GitHub (pelo `gh`).
+
+### Como as duas funcionam
+
 Instalação manual, a partir do código: `git clone https://github.com/mrodriguesh/Lumen.git`, depois `cd Lumen` e
 `.\"Iniciar Lumen.bat"` (cria o `.venv`, instala o `requirements.txt` e abre o app; os modelos se baixam pelos Ajustes).
 
-O instalador ([installer/install.ps1](installer/install.ps1)) faz, em ordem: confere o Windows; busca o último release
-pela API do GitHub e confere o SHA-256 do pacote; instala com o **winget** o que faltar (Python 3.14, Visual C++,
-WebView2, Ollama, Obsidian); monta o ambiente Python (com GPU NVIDIA, se houver); baixa os modelos e o Voice Studio;
-cria os atalhos; testa o servidor do Lúmen e abre o app. Mostra o progresso e um resumo `[OK]` / `[FALTA]` / `[MANUAL]`;
-o log fica em `%LOCALAPPDATA%\Lumen-Instalador\logs`.
+O [installer/install.ps1](installer/install.ps1) faz, em ordem: confere o Windows; busca o último release
+pela API do GitHub e confere o SHA-256 do pacote (no instalador do Windows, confere o pacote que vem dentro dele);
+instala com o **winget** o que faltar (Python 3.14, Visual C++, WebView2, Ollama, Obsidian); monta o ambiente Python
+(com GPU NVIDIA, se houver); baixa os modelos e o Voice Studio; cria os atalhos; testa o servidor do Lúmen e abre o app.
+O log fica em `%LOCALAPPDATA%\Lumen-Instalador\logs`.
 
 Pode rodar de novo quando quiser (para reparar, atualizar ou reinstalar depois de desinstalar): o que já está pronto é
 pulado, e sua configuração, histórico, notas e tokens (em `%LOCALAPPDATA%\Lumen`) nunca são tocados.
@@ -152,7 +189,7 @@ Fechar a janela recolhe o Lúmen na bandeja; para sair, use **Sair do Lumen** na
 ```
 lumen/        o app: servidor local em Python (lumen/web: a interface; lumen/study: os Estudos)
 launcher/     Lumen.exe em C# (WebView2), bibliotecas do WebView2 e o restic (Proteção)
-installer/    install.ps1 (instalador) e publish-release.ps1 (gera o release)
+installer/    install.ps1 (instalador), publish-release.ps1 (gera o release) e setup/ (instalador do Windows: Lumen.iss, build-setup.ps1)
 docs/         manual completo, decisões, design, recuperação da Proteção e o teste em VM
 tests/        testes automáticos (unittest) e verificações de interface
 bench/        benchmarks que escolheram os modelos e os resultados
