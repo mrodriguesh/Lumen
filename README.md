@@ -124,9 +124,10 @@ reparar ou atualizar. Nenhuma pede administrador nem conta no GitHub. Escolha um
 
 | | ⚡ Alternativa 1: comando no PowerShell | 📦 Alternativa 2: instalador do Windows |
 |---|---|---|
-| **Como** | uma linha no PowerShell | `Lumen-Setup-<versão>.exe` e um botão **Instalar** |
+| **Como** | uma linha no PowerShell | `Lumen-Setup-<versão>.exe`: escolha a unidade e clique em **Instalar** |
 | **Versão** | sempre o último release | a versão do instalador baixado |
-| **Opções** | `-Skip`, `-Extras`, `-InstallDir`… (tabela abaixo) | nenhuma: instala tudo na pasta padrão |
+| **Unidade** | pergunta no terminal (ou `-Drive D`) | pergunta numa tela do assistente (ou `/DRIVE=D`) |
+| **Opções** | `-Skip`, `-Extras`, `-InstallDir`… (tabela abaixo) | só a unidade: instala o resto sempre |
 | **Desinstalar** | apagar a pasta do programa e os atalhos | **Configurações → Aplicativos → Lúmen → Desinstalar** |
 
 ### ⚡ Alternativa 1: comando no PowerShell
@@ -138,20 +139,25 @@ reparar ou atualizar. Nenhuma pede administrador nem conta no GitHub. Escolha um
 irm https://github.com/mrodriguesh/Lumen/releases/latest/download/install.ps1 | iex
 ```
 
-3. Acompanhe o progresso; no fim aparece um resumo `[OK]` / `[FALTA]` / `[MANUAL]` e o Lúmen abre.
+3. **Escolha a unidade** em que o Lúmen será instalado: o instalador lista os discos com o espaço livre e a pasta de cada
+   um; digite o número (ou a letra) e aperte Enter (Enter sozinho = a unidade do Windows).
+4. Acompanhe o progresso; no fim aparece um resumo `[OK]` / `[FALTA]` / `[MANUAL]` e o Lúmen abre.
 
 ### 📦 Alternativa 2: instalador do Windows (um botão)
 
 1. Na página [Releases](https://github.com/mrodriguesh/Lumen/releases/latest), baixe `Lumen-Setup-<versão>.exe`.
 2. Abra o arquivo. Se o Windows mostrar “O Windows protegeu o computador”, clique em **Mais informações → Executar
    assim mesmo** (o instalador não tem assinatura digital: [fill in: certificado de assinatura de código]).
-3. Clique em **Instalar**. Uma janela do PowerShell mostra o progresso dos downloads; ao terminar, clique em
+3. **Escolha a unidade** em que o Lúmen será instalado (a do Windows vem marcada) e clique em **Avançar**. A tela seguinte
+   mostra a pasta exata.
+4. Clique em **Instalar**. Uma janela do PowerShell mostra o progresso dos downloads; ao terminar, clique em
    **Concluir** com “Abrir o Lúmen” marcado.
 
 O instalador ([installer/setup/Lumen.iss](installer/setup/Lumen.iss), feito com o [Inno Setup 6](https://jrsoftware.org/isinfo.php))
 leva dentro o pacote do Lúmen da sua versão e roda o mesmo `installer/install.ps1` da alternativa 1 (com `-Package`), que
 baixa o resto. Cria os atalhos da Área de Trabalho e do Menu Iniciar e registra o desinstalador, que remove a pasta do
-programa e os atalhos; seus dados e tokens (`%LOCALAPPDATA%\Lumen`), o Python, o Ollama e os modelos ficam.
+programa e os atalhos; seus dados e tokens (`%LOCALAPPDATA%\Lumen`), o Python, o Ollama e os modelos ficam. Instalação
+silenciosa: `Lumen-Setup-<versão>.exe /VERYSILENT /DRIVE=D`.
 
 Gerar o instalador (no Windows, a partir de uma cópia do repositório):
 
@@ -172,19 +178,27 @@ instala com o **winget** o que faltar (Python 3.14, Visual C++, WebView2, Ollama
 O log fica em `%LOCALAPPDATA%\Lumen-Instalador\logs`.
 
 Pode rodar de novo quando quiser (para reparar, atualizar ou reinstalar depois de desinstalar): o que já está pronto é
-pulado, e sua configuração, histórico, notas e tokens (em `%LOCALAPPDATA%\Lumen`) nunca são tocados.
+pulado, e sua configuração, histórico, notas e tokens (em `%LOCALAPPDATA%\Lumen`) nunca são tocados. A unidade só é
+perguntada na primeira instalação (ou depois de desinstalar); uma instalação que já existe é mantida onde está.
 
-Opções (troque `| iex` por `& ([scriptblock]::Create(...))` para passá-las):
+**A unidade vale para o programa e o ambiente Python** (até ~2,6 GB; pede ≥ 5 GB livres). Na unidade do Windows a
+pasta é `%LOCALAPPDATA%\Programs\Lumen`; nas outras, `<letra>:\Programas\Lumen`. Os modelos de IA (Ollama e Hugging
+Face) e os dados do Lúmen continuam no perfil do Windows, a menos que você já tenha configurado `OLLAMA_MODELS` ou
+`HF_HOME` para outro lugar.
+
+Opções (troque `| iex` por `& ([scriptblock]::Create(...))` para passá-las; vários valores se separam por vírgula,
+sem espaços):
 
 ```powershell
-& ([scriptblock]::Create((irm https://github.com/mrodriguesh/Lumen/releases/latest/download/install.ps1))) -Skip capas
+& ([scriptblock]::Create((irm https://github.com/mrodriguesh/Lumen/releases/latest/download/install.ps1))) -Drive D -Skip capas,obsidian
 ```
 
 | Opção | Efeito |
 |---|---|
 | `-Skip gpu,ollama,fala,musica,capas,obsidian,voicestudio` | pula essas partes |
 | `-Extras precisao,adulto` | baixa os modelos opcionais |
-| `-InstallDir D:\Programas\Lumen` | outra pasta para o programa |
+| `-Drive D` | instala na unidade D: sem perguntar (também vale `$env:LUMEN_INSTALL_DRIVE = 'D'`) |
+| `-InstallDir D:\Programas\Lumen` | uma pasta qualquer, em vez da unidade |
 | `-Package <zip>` | instala de um pacote já baixado (com o `SHA256SUMS.txt` ao lado) |
 | `-NoShortcuts`, `-NoLaunch`, `-Force` | sem atalhos, sem abrir no fim, reinstalar os arquivos |
 

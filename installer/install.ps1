@@ -31,8 +31,14 @@
 .PARAMETER Version
     Tag do release (ex.: v2026.11.21) ou "latest" (padrao): o ultimo release publicado.
 
+.PARAMETER Drive
+    Letra da unidade (ex.: D) onde instalar o programa e o ambiente Python, sem perguntar. Na unidade do Windows a pasta
+    e %LOCALAPPDATA%\Programs\Lumen; nas outras e <letra>:\Programas\Lumen. Sem -Drive nem -InstallDir, o instalador
+    PERGUNTA a unidade (so com um terminal interativo; sem terminal usa a do Windows). Tambem vale a variavel de
+    ambiente LUMEN_INSTALL_DRIVE. Uma instalacao ja existente e mantida onde esta.
+
 .PARAMETER InstallDir
-    Pasta do programa. Padrao: %LOCALAPPDATA%\Programs\Lumen (so para o seu usuario, sem administrador).
+    Pasta do programa (em vez da unidade). Padrao: a da unidade escolhida (veja -Drive); so para o seu usuario, sem administrador.
 
 .PARAMETER Package
     Zip do Lumen ja baixado (instalacao sem a API do GitHub). Precisa de um SHA256SUMS.txt ou <zip>.sha256 ao lado.
@@ -57,6 +63,8 @@ param(
     [string]$Repo = 'mrodriguesh/Lumen',
     [string]$Version = 'latest',
     [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\Lumen'),
+    [ValidatePattern('^$|^[A-Za-z]:?\\?$')]
+    [string]$Drive = '',
     [string]$Package = '',
     [ValidateSet('gpu', 'ollama', 'fala', 'musica', 'capas', 'obsidian', 'voicestudio')]
     [string[]]$Skip = @(),
@@ -66,8 +74,10 @@ param(
     [switch]$NoLaunch,
     [switch]$Force
 )
+# -InstallDir foi passado? (se nao, a unidade e escolhida: -Drive, a instalacao existente ou a pergunta)
+$InstallDirGiven = $PSBoundParameters.ContainsKey('InstallDir')
 # caminho absoluto (relativo a pasta atual do PowerShell); aqui, no mesmo escopo do param, vale para iex, & e -File
-$InstallDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($InstallDir).TrimEnd('\')
+$InstallDir =$ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($InstallDir).TrimEnd('\')
 
 # ======================================================================================================================
 # Constantes: cada valor tem a origem no projeto ou no proprio app instalado (nada de versao solta aqui).
@@ -88,6 +98,8 @@ $LumenSetup = @{
     UserAgent        = 'Lumen-Instalador'
     Home             = Join-Path $env:LOCALAPPDATA 'Lumen-Instalador'   # cache e logs do instalador
     Marker           = '.lumen-instalacao.json'
+    MinFree          = 5GB                                # espaco livre minimo na unidade do programa (.venv com CUDA ~2,5 GB, medido em 21/11/2026)
+    NeedGB           = 2.6                                # o que o programa e o .venv ocupam de fato (medido: 2,55 GB com GPU)
     Report           = New-Object System.Collections.ArrayList
     LogFile          = $null
     Token            = $null
@@ -402,6 +414,115 @@ function Invoke-LumenHelper([string]$Python, [string]$Command, [string[]]$Argume
 }
 
 # ======================================================================================================================
+# 0. Unidade de instalacao: -InstallDir, -Drive, a instalacao que ja existe, ou a PERGUNTA (antes de baixar ou gravar nada)
+# ======================================================================================================================
+# Na unidade do Windows, a pasta de sempre (so para o usuario); nas outras, <letra>:\Programas\Lumen.
+function Get-DriveInstallDir([string]$Letter) {
+    $letter = $Letter.Trim().TrimEnd('\').TrimEnd(':').ToUpperInvariant()
+    if ($letter -eq $env:SystemDrive.TrimEnd(':').ToUpperInvariant()) { return (Join-Path $env:LOCALAPPDATA 'Programs\Lumen') }
+    return "${letter}:\Programas\Lumen"
+}
+
+# Discos fixos prontos (pendrives, CD e rede ficam de fora), com o espaco livre e a pasta que o Lumen usaria em cada um.
+function Get-FixedDrives {
+    $sys = $env:SystemDrive.TrimEnd(':').ToUpperInvariant()
+    foreach ($d in [IO.DriveInfo]::GetDrives()) {
+        try {
+            if ($d.DriveType -ne [IO.DriveType]::Fixed -or -not $d.IsReady) { continue }
+            $letter = $d.Name.Substring(0, 1).ToUpperInvariant()
+            [pscustomobject]@{ Letter = $letter; Label = $d.VolumeLabel; Free = $d.AvailableFreeSpace; Total = $d.TotalSize
+                System = ($letter -eq $sys); Dir = (Get-DriveInstallDir $letter); Enough = ($d.AvailableFreeSpace -ge $LumenSetup.MinFree) }
+        } catch { }
+    }
+}
+
+function Get-InstallPointer { return (Join-Path $LumenSetup.Home 'instalacao.json') }
+
+# Onde o Lumen ja esta instalado (a pasta lembrada pelo instalador ou a padrao), se a marca da instalacao existe la.
+function Get-ExistingInstallDir {
+    $cands = New-Object System.Collections.Generic.List[string]
+    try { $p = Get-Content -LiteralPath (Get-InstallPointer) -Raw -ErrorAction Stop | ConvertFrom-Json; if ($p.installDir) { $cands.Add([string]$p.installDir) } } catch { }
+    $cands.Add((Get-DriveInstallDir $env:SystemDrive))
+    foreach ($c in $cands) { if (Test-Path -LiteralPath (Join-Path $c $LumenSetup.Marker)) { return $c } }
+    return $null
+}
+
+function Save-InstallPointer {
+    New-Item -ItemType Directory -Force -Path $LumenSetup.Home | Out-Null
+    $json = [ordered]@{ installDir = $InstallDir; saved = (Get-Date).ToString('o') } | ConvertTo-Json
+    [IO.File]::WriteAllText((Get-InstallPointer), $json, (New-Object System.Text.UTF8Encoding $false))
+}
+
+# So pergunta com um terminal de verdade: sem ele (tarefa agendada, entrada redirecionada) o Read-Host travaria.
+function Test-CanAsk {
+    try { return ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) } catch { return $false }
+}
+
+function Read-DriveChoice([string]$Prompt) { return (Read-Host $Prompt) }
+
+# Mostra as unidades e devolve a pasta escolhida. Enter = a sugerida (a do Windows, se couber).
+function Select-InstallDrive($Drives) {
+    $usable = @($Drives | Where-Object { $_.Enough })
+    if (-not $usable.Count) {
+        Stop-Install ("Nenhuma unidade tem {0:N0} GB livres para o programa e o ambiente Python." -f ($LumenSetup.MinFree / 1GB)) 'Libere espaco em algum disco e rode de novo.'
+    }
+    $default = @($usable | Where-Object { $_.System })[0]
+    if (-not $default) { $default = $usable[0] }
+    Write-Host ''
+    Write-Host ("    Em qual unidade instalar o Lumen? (programa e ambiente Python: ate ~{0:N1} GB)" -f ($LumenSetup.NeedGB))
+    $i = 0
+    foreach ($d in $Drives) {
+        $i++
+        $name = if ($d.Label) { $d.Label } elseif ($d.System) { 'Windows' } else { 'Disco local' }
+        $note = if (-not $d.Enough) { '   (sem espaco)' } elseif ($d.Letter -eq $default.Letter) { '   (sugerida)' } else { '' }
+        Write-Host ("      [{0}] {1}:  {2,-18} {3,7:N1} GB livres de {4:N1} GB{5}" -f $i, $d.Letter, $name, ($d.Free / 1GB), ($d.Total / 1GB), $note)
+        Write-Host ("          {0}" -f $d.Dir) -ForegroundColor DarkGray
+    }
+    Write-Host '    Os modelos de IA (Ollama e Hugging Face) e os dados do Lumen ficam no perfil do Windows, a menos que o Ollama ou o'
+    Write-Host '    Hugging Face ja estejam configurados (OLLAMA_MODELS, HF_HOME) para outro lugar.'
+    for ($try = 1; $try -le 3; $try++) {
+        $answer = ''
+        try { $answer = ("" + (Read-DriveChoice ('    Digite o numero ou a letra da unidade [Enter = ' + $default.Letter + ':]'))).Trim() } catch { break }
+        if (-not $answer) { return $default }
+        $pick = $null
+        if ($answer -match '^\d+$' -and [int]$answer -ge 1 -and [int]$answer -le @($Drives).Count) { $pick = @($Drives)[[int]$answer - 1] }
+        elseif ($answer -match '^[A-Za-z]:?\\?$') { $pick = @($Drives | Where-Object { $_.Letter -eq $answer.Substring(0, 1).ToUpperInvariant() })[0] }
+        if ($pick -and $pick.Enough) { return $pick }
+        if ($pick) { Write-Attention "A unidade $($pick.Letter): nao tem espaco suficiente; escolha outra." } else { Write-Attention "Opcao invalida: '$answer'." }
+    }
+    Write-Attention "Sem uma escolha valida; usando a unidade $($default.Letter):."
+    return $default
+}
+
+# A pasta em que o Lumen vai ficar (ou "" = nao instalar). Chamada uma vez, antes de qualquer download.
+function Resolve-InstallDir {
+    if ($InstallDirGiven) { Write-Info "Pasta do programa (-InstallDir): $InstallDir"; return $InstallDir }
+    $letter = $(if ($Drive) { $Drive } else { $env:LUMEN_INSTALL_DRIVE })
+    $drives = @(Get-FixedDrives)
+    if ($letter) {
+        $l = $letter.Trim().Substring(0, 1).ToUpperInvariant()
+        $d = @($drives | Where-Object { $_.Letter -eq $l })[0]
+        if (-not $d) { Stop-Install "A unidade ${l}: nao existe ou nao e um disco fixo pronto." ("Unidades disponiveis: " + (($drives | ForEach-Object { $_.Letter + ':' }) -join ', ') + '.') }
+        Write-Info "Unidade escolhida (-Drive): ${l}: -> $($d.Dir)"
+        return $d.Dir
+    }
+    $existing = Get-ExistingInstallDir
+    if ($existing) {
+        Write-Skipped "Lumen ja instalado em $existing (para instalar em outra unidade: -Drive <letra>)"
+        return $existing
+    }
+    if (-not (Test-CanAsk)) {
+        $d = @($drives | Where-Object { $_.System })[0]
+        $dir = $(if ($d) { $d.Dir } else { $InstallDir })
+        Write-Info "Sem terminal interativo para perguntar; usando a unidade do Windows: $dir (outra unidade: -Drive <letra>)"
+        return $dir
+    }
+    $choice = Select-InstallDrive $drives
+    Write-Done "Unidade $($choice.Letter): -> $($choice.Dir)"
+    return $choice.Dir
+}
+
+# ======================================================================================================================
 # 1. Verificacoes
 # ======================================================================================================================
 function Get-LumenProcesses([string]$Dir) {
@@ -435,7 +556,15 @@ function Test-Prerequisites {
     $free = $null
     try { $free = (New-Object IO.DriveInfo $drive).AvailableFreeSpace } catch { Write-Attention "Nao consegui medir o espaco livre em $drive." }
     # medido em 21/11/2026: o .venv completo (com as bibliotecas CUDA) ocupa ~2,5 GB; o pacote do Lumen ~0,1 GB
-    if ($null -ne $free -and $free -lt 5GB) { Stop-Install ("So {0:N1} GB livres em {1}; o programa e o ambiente Python precisam de ~5 GB." -f ($free / 1GB), $drive) 'Libere espaco ou escolha outro disco com -InstallDir.' }
+    if ($null -ne $free -and $free -lt $LumenSetup.MinFree) { Stop-Install ("So {0:N1} GB livres em {1}; o programa e o ambiente Python precisam de ~{2:N0} GB." -f ($free / 1GB), $drive, ($LumenSetup.MinFree / 1GB)) 'Libere espaco ou escolha outra unidade com -Drive (ou outra pasta com -InstallDir).' }
+    # a unidade escolhida precisa aceitar gravacao sem administrador: testa agora, antes de baixar qualquer coisa
+    try {
+        New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+        $probe = Join-Path $InstallDir ('.escrita-' + [guid]::NewGuid().ToString('N'))
+        [IO.File]::WriteAllText($probe, 'x'); Remove-Item -LiteralPath $probe -Force
+    } catch {
+        Stop-Install "Nao consegui gravar em $InstallDir ($($_.Exception.Message))." 'Escolha outra unidade com -Drive (ou outra pasta com -InstallDir).'
+    }
     if ($null -ne $free) { Write-Done ("{0:N0} GB livres em {1} (os modelos de IA ficam no seu perfil e pedem bem mais: veja o passo 6)" -f ($free / 1GB), $drive) }
 
     if (-not $Package) {
@@ -996,16 +1125,20 @@ function Install-Lumen {
     $LumenSetup.Report.Clear()
     Write-Host ''
     Write-Host 'Instalador do Lumen' -ForegroundColor Cyan
-    Write-Info "Pasta do programa: $InstallDir"
     Write-Info "Origem: $(if ($Package) { $Package } else { "github.com/$Repo ($Version)" })"
     Write-Info 'Nao precisa de administrador; se o Windows pedir, e so para uma biblioteca do sistema (o motivo aparece antes).'
-    Write-LumenLog "parametros: Repo=$Repo Version=$Version InstallDir=$InstallDir Package=$Package Skip=$($Skip -join ',') Extras=$($Extras -join ',') NoShortcuts=$NoShortcuts NoLaunch=$NoLaunch Force=$Force"
+    Write-LumenLog "parametros: Repo=$Repo Version=$Version InstallDir=$InstallDir InstallDirGiven=$InstallDirGiven Drive=$Drive Package=$Package Skip=$($Skip -join ',') Extras=$($Extras -join ',') NoShortcuts=$NoShortcuts NoLaunch=$NoLaunch Force=$Force"
     $ok = $false
     try {
+        Write-Step 'Unidade de instalacao'
+        $InstallDir = Resolve-InstallDir     # a pergunta vem antes de qualquer download ou gravacao
+        Write-Info "Pasta do programa: $InstallDir"
+        Write-LumenLog "pasta escolhida: $InstallDir"
         Test-Prerequisites
         $pkg = Get-LumenPackage          # antes das dependencias: um repositorio ou token errado aparece logo
         $python = Install-Dependencies
         Install-LumenFiles $pkg
+        Save-InstallPointer              # a proxima execucao (reparo, atualizacao) acha esta pasta sem perguntar de novo
         $vpy = Install-PythonEnvironment $python
         Install-Integrations $vpy
         Set-LumenConfiguration
